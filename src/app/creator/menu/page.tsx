@@ -46,13 +46,21 @@ export default function CreatorMenuConfigPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 px-6 py-3 text-xs font-bold text-white shadow-xl shadow-pink-600/30 hover:from-pink-500 hover:to-rose-500 transition-all"
-        >
-          <Save className="h-4 w-4" />
-          {isSaved ? "Saved Successfully!" : "Save Menu Configuration"}
-        </button>
+        <div className="flex items-center gap-3">
+          <a
+            href="/creator/studio"
+            className="flex items-center gap-2 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-pink-500/40 px-5 py-3 text-xs font-bold text-zinc-300 hover:text-white transition-all"
+          >
+            Enter Control Room Studio 🎙️
+          </a>
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 px-6 py-3 text-xs font-bold text-white shadow-xl shadow-pink-600/30 hover:from-pink-500 hover:to-rose-500 transition-all"
+          >
+            <Save className="h-4 w-4" />
+            {isSaved ? "Saved Successfully!" : "Save Menu Configuration"}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-6">
