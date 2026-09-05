@@ -34,6 +34,8 @@ model User {
   chatMessages     ChatMessage[]
   auditLogs        AuditLog[]
   discoveryEvents  DiscoveryEvent[]
+  private1on1AsFan     Private1on1Session[] @relation("Fan1on1Sessions")
+  private1on1AsCreator Private1on1Session[] @relation("Creator1on1Sessions")
 }
 
 // --------------------------------------------------------------------------
@@ -63,6 +65,9 @@ model CreatorProfile {
   interactionItems      InteractionMenuItem[]
   ppvContents           PPVContent[]
   liveSessions          LiveSession[]
+  mediaRooms            MediaRoom[]
+  videoLivestreams      VideoLivestream[]
+  audienceRules         AudienceRule[]
   subscriberFans        Subscription[]         @relation("CreatorSubscriptions")
   compliance2257        Compliance2257Record?
   chatMessages          ChatMessage[]
@@ -275,5 +280,123 @@ model DiscoveryEvent {
   @@index([creatorId, eventType])
   @@index([eventType, createdAt])
   @@index([sessionId])
+}
+
+// --------------------------------------------------------------------------
+// 7. VIDEO SYSTEM & SPECIALIZED STREAMING INFRASTRUCTURE CONTROL PLANE
+// --------------------------------------------------------------------------
+
+model MediaRoom {
+  id                   String            @id @default(cuid())
+  creatorId            String
+  creator              CreatorProfile    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  roomName             String            @unique
+  streamKey            String            @unique @default(cuid())
+
+  // Streaming Infrastructure Endpoints (No video passes through app server!)
+  mediaProvider        String            @default("CUSTOM_LIVEKIT_OR_SRS") // LIVEKIT, SRS, CLOUDFLARE_STREAM, LIVEPEER
+  rtmpIngestUrl        String            @default("rtmp://ingest.live.platform.local/app")
+  whipIngestUrl        String            @default("https://ingest.live.platform.local/whip")
+  playbackHlsUrl       String            @default("https://cdn.platform.local/hls")
+  playbackWhepUrl      String            @default("https://edge.live.platform.local/whep")
+  sfuRoomId            String?
+
+  // WebRTC ICE / STUN / TURN Configuration
+  iceServersJson       String?           @default("[{\"urls\":\"stun:stun.l.google.com:19302\"}]")
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  livestreams          VideoLivestream[]
+  private1on1Sessions  Private1on1Session[]
+}
+
+model AudienceRule {
+  id                   String            @id @default(cuid())
+  creatorId            String
+  creator              CreatorProfile    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  name                 String            @default("Default Room Policy")
+
+  // Rule matrix
+  minAge               Int               @default(18)
+  requireAgeAssurance  Boolean           @default(true)
+  isSubscribersOnly    Boolean           @default(false)
+  minSubscriptionTier  String?           // VIP, DIAMOND
+  ticketPriceCredits   Int               @default(0) // 0 = Free public, >0 = PPV Livestream
+  isFollowerOnly       Boolean           @default(false)
+  slowModeSeconds      Int               @default(0)
+  isChatDisabled       Boolean           @default(false)
+  geoBlockedCountries  String            @default("") // Comma-separated ISO country codes
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  livestreams          VideoLivestream[]
+}
+
+model VideoLivestream {
+  id                   String            @id @default(cuid())
+  creatorId            String
+  creator              CreatorProfile    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  mediaRoomId          String
+  mediaRoom            MediaRoom         @relation(fields: [mediaRoomId], references: [id], onDelete: Cascade)
+  audienceRuleId       String?
+  audienceRule         AudienceRule?     @relation(fields: [audienceRuleId], references: [id], onDelete: SetNull)
+
+  title                String
+  category             String            @default("Entertainment")
+  tags                 String            @default("live,interactive")
+
+  streamMode           String            @default("PUBLIC_BROADCAST") // PUBLIC_BROADCAST, PRIVATE_1ON1, VIP_GROUP
+  status               String            @default("IDLE") // IDLE, PROVISIONED, BROADCASTING, PAUSED, ENDED, BANNED
+
+  startedAt            DateTime?
+  endedAt              DateTime?
+
+  peakViewers          Int               @default(0)
+  totalViews           Int               @default(0)
+  totalCreditsEarned   Int               @default(0)
+
+  // Media Server Ingest/Egress Metrics & Session IDs
+  mediaSessionId       String?
+  recordingUrl         String?
+  hlsPlaybackUrl       String?
+  whepPlaybackUrl      String?
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@index([creatorId, status])
+  @@index([status, startedAt])
+}
+
+model Private1on1Session {
+  id                   String            @id @default(cuid())
+  mediaRoomId          String
+  mediaRoom            MediaRoom         @relation(fields: [mediaRoomId], references: [id], onDelete: Cascade)
+
+  creatorUserId        String
+  creatorUser          User              @relation("Creator1on1Sessions", fields: [creatorUserId], references: [id])
+  fanUserId            String
+  fanUser              User              @relation("Fan1on1Sessions", fields: [fanUserId], references: [id])
+
+  status               String            @default("REQUESTED") // REQUESTED, ACCEPTED, CONNECTED, COMPLETED, CANCELLED, REJECTED
+  creditRatePerMinute  Int               @default(100) // 100 credits per minute
+  totalCreditsCharged  Int               @default(0)
+
+  startedAt            DateTime?
+  endedAt              DateTime?
+  durationSeconds      Int               @default(0)
+
+  // WebRTC Session Metadata
+  creatorSignalingToken String?
+  fanSignalingToken     String?
+  sfuSessionId          String?
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@index([creatorUserId, status])
+  @@index([fanUserId, status])
 }
 

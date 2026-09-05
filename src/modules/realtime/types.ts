@@ -7,6 +7,8 @@ export type RealtimeEventType =
   | "INTERACTION_TRIGGERED"
   | "RELATIONSHIP_UPDATE"
   | "MODERATION_ACTION"
+  | "STREAM_HEALTH"
+  | "1ON1_REQUEST"
   | "CONNECTED"
   | "HEARTBEAT";
 

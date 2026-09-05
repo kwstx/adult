@@ -100,7 +100,7 @@ async function verifyLiveRoomSystems() {
     console.log(`   - Fan Remaining Balance: ${tipResult.fanRemainingBalance}`);
     console.log(`   - Creator Net Credited: ${tipResult.creatorCreditedAmount}`);
     console.log(`   - Platform Rake: ${tipResult.platformRakeAmount}`);
-    console.log(`   - New Stream Goal Progress: ${tipResult.newGoalProgress}`);
+    console.log(`   - Settled At: ${tipResult.timestamp.toISOString()}`);
   }
 
   console.log("\n✅ All 10 Independent Live Room Systems Verified Successfully!");
