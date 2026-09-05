@@ -1,402 +1,1478 @@
-// Prisma schema for High-Performance Real-Time Creator & Economic Platform
+// ============================================================================
+// AUTHORITATIVE POSTGRESQL DATABASE SCHEMA
+// Production-Grade Schema for Creator Streaming, Economy & Trust Platform
+// ============================================================================
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// --------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// ENUMS
+// ----------------------------------------------------------------------------
+
+enum UserRole {
+  FAN
+  CREATOR
+  MODERATOR
+  ADMIN
+  AUDITOR
+}
+
+enum KYCStatus {
+  UNVERIFIED
+  PENDING
+  AGE_VERIFIED
+  COMPLIANCE_2257_APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum GovIdType {
+  PASSPORT
+  DRIVERS_LICENSE
+  NATIONAL_ID
+  RESIDENCE_PERMIT
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  REVOKED
+}
+
+enum FollowNotifyTier {
+  ALL
+  LIVE_ONLY
+  NONE
+}
+
+enum StreamMode {
+  PUBLIC_BROADCAST
+  SUBSCRIBERS_ONLY
+  TICKETED_PPV
+  PRIVATE_1ON1
+  VIP_GROUP
+}
+
+enum StreamStatus {
+  SCHEDULED
+  PREPARING
+  LIVE
+  PAUSED
+  ENDED
+  TERMINATED_SAFETY
+}
+
+enum ParticipantStreamRole {
+  VIEWER
+  SUBSCRIBER
+  VIP
+  MODERATOR
+  CO_HOST
+  GUEST
+}
+
+enum SubscriptionTier {
+  BASIC
+  VIP
+  DIAMOND
+  CUSTOM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+  PAUSED
+}
+
+enum ProductType {
+  DIGITAL_DOWNLOAD
+  PHYSICAL_MERCH
+  CUSTOM_SERVICE
+  SHOUTOUT
+  VIP_PASS
+  TOY_CONTROL_PASS
+}
+
+enum ContentType {
+  PHOTO
+  VIDEO
+  AUDIO
+  ALBUM
+  POST
+  BUNDLE
+}
+
+enum ContentAccessLevel {
+  PUBLIC
+  FOLLOWERS_ONLY
+  SUBSCRIBERS_ONLY
+  PPV_PURCHASE
+  TIER_VIP_ONLY
+}
+
+enum ConversationType {
+  DIRECT_DM
+  CREATOR_FAN_DM
+  GROUP_CHAT
+  SUPPORT_TICKET
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  TIP_ATTACHED
+  PPV_LOCKED_MEDIA
+  SYSTEM_NOTICE
+}
+
+enum WalletStatus {
+  ACTIVE
+  FROZEN_SECURITY
+  SUSPENDED_CHARGEBACK
+}
+
+enum WalletTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  LIVE_TIP
+  PPV_PURCHASE
+  SUBSCRIPTION_PAYMENT
+  PRODUCT_PURCHASE
+  INTERACTION_FEE
+  PRIVATE_BOOKING
+  GOAL_CONTRIBUTION
+  GAME_ENTRY_FEE
+  GAME_JACKPOT_WIN
+  PLATFORM_FEE_RAKE
+  REFUND
+  CHARGEBACK_REVERSAL
+  ADMIN_ADJUSTMENT
+}
+
+enum TransactionDirection {
+  DEBIT
+  CREDIT
+  TRANSFER
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum PaymentGateway {
+  CCBILL
+  SEGPAY
+  EPOCH
+  STRIPE
+  NOWPAYMENTS
+  COINBASE_COMMERCE
+  MANUAL_BANK
+}
+
+enum PaymentTransactionStatus {
+  INITIALIZED
+  PENDING_WEBHOOK
+  SUCCEEDED
+  FAILED
+  DISPUTED_CHARGEBACK
+  REFUNDED
+}
+
+enum EarningSourceType {
+  LIVE_TIP
+  SUBSCRIPTION
+  PPV_CONTENT
+  PRIVATE_SESSION
+  PRODUCT_SALE
+  INTERACTION
+  GOAL_REWARD
+  GAME_REWARD
+  PLATFORM_BONUS
+}
+
+enum EarningClearanceStatus {
+  PENDING_HOLD
+  CLEARED
+  PAID_OUT
+  REVERSED_FRAUD
+}
+
+enum PayoutMethod {
+  SEPA_BANK
+  ACH_DIRECT
+  MASS_PAY
+  PAXUM
+  COSMO_PAY
+  CRYPTO_USDT
+  WIRE
+}
+
+enum PayoutStatus {
+  REQUESTED
+  UNDER_COMPLIANCE_REVIEW
+  PROCESSING
+  COMPLETED
+  REJECTED
+  FAILED
+}
+
+enum InteractionActionType {
+  TIP_ALERT
+  SOUND_EFFECT
+  VIBRATION_TOY
+  WHEEL_SPIN
+  DANCE_REQUEST
+  COSTUME_CHANGE
+  CHAT_PIN
+  POLL_VOTE
+  CUSTOM_ACTION
+}
+
+enum InteractionPurchaseStatus {
+  PAID
+  QUEUED
+  EXECUTING
+  COMPLETED
+  REJECTED
+  REFUNDED
+}
+
+enum QueueEntryStatus {
+  PENDING
+  CURRENTLY_PLAYING
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+enum GoalStatus {
+  ACTIVE
+  REACHED
+  EXPIRED
+  CANCELLED
+}
+
+enum RelationshipTier {
+  STRANGER
+  SUPPORTER
+  SUPERFAN
+  VIP_DEVOTEE
+  SOULMATE
+  ROYAL_PATRON
+}
+
+enum RelationshipXPType {
+  LIVE_TIP
+  CHAT_MESSAGE
+  STREAM_WATCH_TIME
+  PPV_PURCHASE
+  SUBSCRIPTION_RENEWAL
+  GOAL_CONTRIBUTION
+  GAME_PARTICIPATION
+}
+
+enum PlatformXPType {
+  DAILY_LOGIN
+  FIRST_DEPOSIT
+  WATCH_STREAM
+  UNLOCK_ACHIEVEMENT
+  WRITE_REVIEW
+  COMMUNITY_QUEST
+  LEVEL_UP_BONUS
+}
+
+enum AchievementCategory {
+  FAN_LOYALTY
+  SPENDING
+  WATCH_TIME
+  SOCIAL
+  GAMING
+  CREATOR_MILESTONE
+}
+
+enum BadgeTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+  MYTHIC
+}
+
+enum SeatTier {
+  VIP_FRONT_ROW
+  VIP_BOX
+  CO_HOST_STAGE
+  GUEST_CAMERA
+  MODERATOR_CHAIR
+}
+
+enum LeaderboardScope {
+  GLOBAL_PLATFORM
+  CREATOR_ROOM
+  LIVESTREAM_SESSION
+}
+
+enum LeaderboardTimeframe {
+  ALL_TIME
+  MONTHLY
+  WEEKLY
+  DAILY
+  STREAM_SESSION
+}
+
+enum BookingStatus {
+  PENDING_CREATOR_ACCEPT
+  ACCEPTED
+  REJECTED
+  CANCELLED_BY_FAN
+  CANCELLED_BY_CREATOR
+  IN_PROGRESS
+  COMPLETED
+  NO_SHOW
+}
+
+enum ReportCategory {
+  UNDERAGE_SUSPICION
+  NON_CONSENSUAL_CONTENT
+  HARASSMENT_ABUSE
+  VIOLENCE_THREATS
+  COPYRIGHT_INFRINGEMENT
+  FINANCIAL_FRAUD
+  SPAM_SCAM
+  TOY_SAFETY_VIOLATION
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  ASSIGNED_TO_MODERATOR
+  UNDER_REVIEW
+  ACTION_TAKEN
+  RESOLVED_DISMISSED
+  ESCALATED_LEGAL
+}
+
+enum ModerationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL_URGENT_UNDERAGE
+}
+
+enum ModerationCaseStatus {
+  OPEN
+  INVESTIGATING
+  AWAITING_ID_REAUTH
+  ESCALATED_LEGAL
+  CLOSED_RESOLVED
+}
+
+enum ModerationActionType {
+  NONE
+  WARNING_MESSAGE
+  SHADOWBAN
+  TEMPORARY_SUSPENSION
+  PERMANENT_BAN
+  COMPLIANCE_2257_REVOCATION
+  NCMEC_LEGAL_ESCALATION
+}
+
+enum NotificationType {
+  CREATOR_WENT_LIVE
+  TIP_RECEIVED
+  NEW_SUBSCRIBER
+  SUB_RENEWAL
+  INTERACTION_QUEUED
+  INTERACTION_EXECUTED
+  GOAL_REACHED
+  PRIVATE_BOOKING_REQUEST
+  PRIVATE_BOOKING_CONFIRMED
+  MODERATION_WARNING
+  SYSTEM_ANNOUNCEMENT
+  ACHIEVEMENT_UNLOCKED
+}
+
+enum GameType {
+  SPIN_THE_WHEEL
+  TRIVIA_ARENA
+  MYSTERY_BOX
+  PLINKO_DROP
+  DUEL_CHALLENGE
+}
+
+enum GameSessionStatus {
+  LOBBY_WAITING
+  ACTIVE_IN_PROGRESS
+  CALCULATING_RESULTS
+  COMPLETED
+  CANCELLED
+}
+
+enum GameRewardType {
+  CREDITS_JACKPOT
+  PPV_CONTENT_FREE
+  VIP_BADGE_PASS
+  FREE_SUB_MONTH
+  EXCLUSIVE_SHOUTOUT
+  PHYSICAL_GIFT
+  XP_BOOST
+}
+
+// ============================================================================
 // 1. IDENTITY & USER ACCOUNTS
-// --------------------------------------------------------------------------
+// ============================================================================
 
 model User {
-  id               String                 @id @default(cuid())
-  email            String                 @unique
-  username         String                 @unique
-  displayName      String
-  avatarUrl        String?
-  role             String                 @default("FAN") // FAN, CREATOR, MODERATOR, ADMIN
-  kycStatus        String                 @default("UNVERIFIED") // UNVERIFIED, AGE_VERIFIED, COMPLIANCE_2257_APPROVED
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  username              String                 @unique
+  displayName           String                 @map("display_name")
+  avatarUrl             String?                @map("avatar_url")
+  bannerUrl             String?                @map("banner_url")
+  bio                   String?
+  role                  UserRole               @default(FAN)
+  kycStatus             KYCStatus              @default(UNVERIFIED) @map("kyc_status")
+  isActive              Boolean                @default(true) @map("is_active")
+  isBanned              Boolean                @default(false) @map("is_banned")
+  banReason             String?                @map("ban_reason")
+  lastSeenAt            DateTime?              @map("last_seen_at")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
 
-  wallet           Wallet?
-  creatorProfile   CreatorProfile?
-  subscriptions    Subscription[]         @relation("FanSubscriptions")
-  ppvPurchases     PPVPurchase[]          @relation("FanPurchases")
-  ageRecords       AgeAssuranceRecord[]
-  reportsSubmitted ModerationReport[]     @relation("ReportedBy")
-  reportsReceived  ModerationReport[]     @relation("ReportedUser")
-  chatMessages     ChatMessage[]
-  auditLogs        AuditLog[]
-  discoveryEvents  DiscoveryEvent[]
-  private1on1AsFan     Private1on1Session[] @relation("Fan1on1Sessions")
-  private1on1AsCreator Private1on1Session[] @relation("Creator1on1Sessions")
+  // Core 1:1 Relations
+  wallet                Wallet?
+  creatorProfile        CreatorProfile?
+
+  // Engagements & Social
+  creatorVerifications  CreatorVerification[]  @relation("UserVerifications")
+  followsGiven          Follow[]               @relation("UserFollows")
+  subscriptionsFan      Subscription[]         @relation("FanSubscriptions")
+  contentPurchases      ContentPurchase[]      @relation("UserPurchases")
+  
+  // Direct Messaging
+  sentMessages          Message[]              @relation("SentMessages")
+  receivedMessages      Message[]              @relation("ReceivedMessages")
+  conversationsInitiated Conversation[]        @relation("ConversationInitiator")
+  conversationsReceived Conversation[]         @relation("ConversationRecipient")
+
+  // Real-time Livestreams & Interactions
+  livestreamParticipants LivestreamParticipant[]
+  interactionPurchases  InteractionPurchase[]  @relation("FanInteractionPurchases")
+  goalContributions     GoalContribution[]     @relation("FanGoalContributions")
+  seatsOccupied         Seat[]                 @relation("UserOccupiedSeats")
+  
+  // Gamification, Relationships & XP
+  creatorRelationshipsFan CreatorRelationship[] @relation("FanCreatorRelationships")
+  relationshipXpEvents  RelationshipXPEvent[]  @relation("FanRelationshipXPEvents")
+  platformXpEvents      PlatformXPEvent[]
+  userAchievements      UserAchievement[]
+  leaderboardRecords    LeaderboardRecord[]
+  gameSessionsWon       GameSession[]          @relation("WinnerGameSessions")
+  gameRewards           GameReward[]
+
+  // Private Sessions & Bookings
+  bookingsAsFan         Booking[]              @relation("FanBookings")
+
+  // Payments & Financials
+  paymentTransactions   PaymentTransaction[]
+
+  // Trust, Safety & Compliance
+  ageAssuranceRecords   AgeAssuranceRecord[]
+  reportsSubmitted      Report[]               @relation("ReportedBy")
+  reportsReceived       Report[]               @relation("ReportedUser")
+  moderationCasesTarget ModerationCase[]       @relation("TargetUserCases")
+  moderatorCasesAssigned ModerationCase[]      @relation("ModeratorAssignedCases")
+  reviewedVerifications CreatorVerification[]  @relation("AdminVerifier")
+  reviewedPayouts       Payout[]               @relation("AdminPayoutReviewer")
+  auditEventsActor      AuditEvent[]           @relation("ActorAuditEvents")
+  notifications         Notification[]         @relation("UserNotifications")
+  notificationsSent     Notification[]         @relation("NotificationSender")
+
+  @@index([role])
+  @@index([kycStatus])
+  @@index([isBanned])
+  @@index([createdAt])
+  @@map("users")
 }
 
-// --------------------------------------------------------------------------
-// 2. CREATOR OPERATING SYSTEM
-// --------------------------------------------------------------------------
+// ============================================================================
+// 2. CREATOR PROFILES & VERIFICATION (2257 COMPLIANCE)
+// ============================================================================
 
 model CreatorProfile {
-  id                    String                 @id @default(cuid())
-  userId                String                 @unique
-  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bio                   String?
-  bannerUrl             String?
-  streamTitle           String                 @default("Welcome to my room! ✨")
-  streamKey             String                 @unique @default(cuid())
-  ingestUrl             String                 @default("rtmp://live.streamplatform.local/app")
-  isLive                Boolean                @default(false)
-  viewerCount           Int                    @default(0)
-  currentGoalTitle      String                 @default("Dance celebration at 500 tokens! 💃")
-  currentGoalTarget     Int                    @default(500)
-  currentGoalProgress   Int                    @default(0)
-  isPrivateShow         Boolean                @default(false)
-  minTipForPrivate      Int                    @default(1000)
-  tags                  String                 @default("dance,chill,interactive")
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  id                         String                       @id @default(uuid())
+  userId                     String                       @unique @map("user_id")
+  user                       User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stageName                  String?                      @map("stage_name")
+  bio                        String?
+  bannerUrl                  String?                      @map("banner_url")
+  category                   String?
+  tags                       String                       @default("interactive,live")
+  streamKey                  String                       @unique @default(uuid()) @map("stream_key")
+  ingestUrl                  String                       @default("rtmp://live.platform.local/app") @map("ingest_url")
+  playbackHlsUrl             String?                      @map("playback_hls_url")
+  playbackWhepUrl            String?                      @map("playback_whep_url")
+  isLive                     Boolean                      @default(false) @map("is_live")
+  totalFollowers             Int                          @default(0) @map("total_followers")
+  totalViews                 Int                          @default(0) @map("total_views")
+  totalEarnedCredits         BigInt                       @default(0) @map("total_earned_credits")
+  defaultMinTip              Int                          @default(0) @map("default_min_tip")
+  subscriptionTier1Price     Int                          @default(200) @map("subscription_tier1_price")
+  subscriptionTier2Price     Int                          @default(500) @map("subscription_tier2_price")
+  subscriptionTier3Price     Int                          @default(1500) @map("subscription_tier3_price")
+  customRules                String?                      @map("custom_rules")
+  createdAt                  DateTime                     @default(now()) @map("created_at")
+  updatedAt                  DateTime                     @updatedAt @map("updated_at")
 
-  interactionItems      InteractionMenuItem[]
-  ppvContents           PPVContent[]
-  liveSessions          LiveSession[]
-  mediaRooms            MediaRoom[]
-  videoLivestreams      VideoLivestream[]
-  audienceRules         AudienceRule[]
-  subscriberFans        Subscription[]         @relation("CreatorSubscriptions")
-  compliance2257        Compliance2257Record?
-  chatMessages          ChatMessage[]
-  discoveryEvents       DiscoveryEvent[]
+  // Associated Business Entities
+  verifications              CreatorVerification[]
+  followers                  Follow[]                     @relation("CreatorFollowers")
+  livestreams                Livestream[]
+  subscriptions              Subscription[]               @relation("CreatorSubscriptions")
+  products                   Product[]
+  contents                   Content[]
+  earnings                   CreatorEarning[]
+  payouts                    Payout[]
+  interactionDefinitions     InteractionDefinition[]
+  interactionPurchases       InteractionPurchase[]        @relation("CreatorInteractionPurchases")
+  collectiveGoals            CollectiveGoal[]
+  creatorRelationships       CreatorRelationship[]        @relation("CreatorProfileRelationships")
+  relationshipXpEvents       RelationshipXPEvent[]        @relation("CreatorRelationshipXPEvents")
+  privateSessionAvailabilities PrivateSessionAvailability[]
+  bookings                   Booking[]                    @relation("CreatorBookings")
+  gameSessions               GameSession[]
+  leaderboardRecords         LeaderboardRecord[]
+  conversations              Conversation[]
+  reportsReceived            Report[]                     @relation("ReportedCreator")
+
+  @@index([isLive])
+  @@index([category])
+  @@index([totalFollowers])
+  @@map("creator_profiles")
 }
 
-model InteractionMenuItem {
-  id               String         @id @default(cuid())
-  creatorId        String
-  creator          CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  title            String
-  description      String?
-  creditCost       Int            // Cost in credits (e.g. 50, 100, 250)
-  actionType       String         // ALERT_SOUND, DANCE, WHEEL_SPIN, CHAT_HIGHLIGHT, PRIVATE_SNAP, CUSTOM
-  isEnabled        Boolean        @default(true)
-  sortOrder        Int            @default(0)
-  createdAt        DateTime       @default(now())
+model CreatorVerification {
+  id                         String             @id @default(uuid())
+  creatorProfileId           String             @map("creator_profile_id")
+  creatorProfile             CreatorProfile     @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  userId                     String             @map("user_id")
+  user                       User               @relation("UserVerifications", fields: [userId], references: [id], onDelete: Cascade)
+  legalFirstName             String             @map("legal_first_name")
+  legalLastName              String             @map("legal_last_name")
+  dateOfBirth                DateTime           @map("date_of_birth")
+  idType                     GovIdType          @map("id_type")
+  idNumberEncrypted          String             @map("id_number_encrypted")
+  idDocumentFrontUrl         String             @map("id_document_front_url")
+  idDocumentBackUrl          String?            @map("id_document_back_url")
+  selfieWithIdUrl            String             @map("selfie_with_id_url")
+  secondaryCustodianName     String?            @default("Platform Legal Records Custodian") @map("secondary_custodian_name")
+  secondaryCustodianAddress  String?            @default("100 Compliance Way, Suite 400, Wilmington, DE") @map("secondary_custodian_address")
+  verificationStatus         VerificationStatus @default(PENDING) @map("verification_status")
+  rejectionReason            String?            @map("rejection_reason")
+  verifiedByAdminId          String?            @map("verified_by_admin_id")
+  verifiedByAdmin            User?              @relation("AdminVerifier", fields: [verifiedByAdminId], references: [id], onDelete: SetNull)
+  verifiedAt                 DateTime?          @map("verified_at")
+  expiresAt                  DateTime?          @map("expires_at")
+  complianceNotes            String?            @map("compliance_notes")
+  createdAt                  DateTime           @default(now()) @map("created_at")
+  updatedAt                  DateTime           @updatedAt @map("updated_at")
+
+  @@index([creatorProfileId])
+  @@index([userId])
+  @@index([verificationStatus])
+  @@map("creator_verifications")
 }
-
-// --------------------------------------------------------------------------
-// 3. ECONOMIC ENGINE (DOUBLE-ENTRY WALLET & LEDGER)
-// --------------------------------------------------------------------------
-
-model Wallet {
-  id               String         @id @default(cuid())
-  userId           String         @unique
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  balance          Int            @default(0) // Integer credit units (1 credit = $0.05 - $0.10)
-  lockedBalance    Int            @default(0) // Credits on hold for payout processing
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-
-  outgoingEntries  LedgerEntry[]  @relation("SourceWallet")
-  incomingEntries  LedgerEntry[]  @relation("DestinationWallet")
-}
-
-model LedgerEntry {
-  id                   String     @id @default(cuid())
-  transactionType      String     // CREDIT_PURCHASE, LIVE_TIP, PPV_UNLOCK, SUBSCRIPTION, CREATOR_PAYOUT, PLATFORM_RAKE
-  amount               Int        // Total credit magnitude
-  sourceWalletId       String?
-  sourceWallet         Wallet?    @relation("SourceWallet", fields: [sourceWalletId], references: [id])
-  destinationWalletId  String?
-  destinationWallet    Wallet?    @relation("DestinationWallet", fields: [destinationWalletId], references: [id])
-  platformRakeCredits  Int        @default(0) // Platform commission (e.g. 20%)
-  netCreatorCredits    Int        @default(0) // Net amount credited to creator (e.g. 80%)
-  status               String     @default("COMPLETED") // PENDING, COMPLETED, FAILED, REVERSED
-  idempotencyKey       String     @unique
-  referenceId          String?    // Associated tipId, streamId, ppvId
-  note                 String?
-  createdAt            DateTime   @default(now())
-}
-
-model Subscription {
-  id                   String         @id @default(cuid())
-  fanId                String
-  fan                  User           @relation("FanSubscriptions", fields: [fanId], references: [id])
-  creatorId            String
-  creator              CreatorProfile @relation("CreatorSubscriptions", fields: [creatorId], references: [id])
-  tier                 String         @default("VIP") // BASIC, VIP, DIAMOND
-  creditCostMonthly    Int            @default(200)
-  status               String         @default("ACTIVE") // ACTIVE, CANCELED, EXPIRED
-  currentPeriodEnd     DateTime
-  createdAt            DateTime       @default(now())
-}
-
-model PPVContent {
-  id                   String         @id @default(cuid())
-  creatorId            String
-  creator              CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  title                String
-  description          String?
-  previewUrl           String         // Watermarked/blurred preview
-  mediaUrl             String         // Secure S3/R2 signed URL
-  creditPrice          Int            // e.g. 150 credits
-  mediaType            String         @default("VIDEO") // PHOTO, VIDEO, ALBUM
-  isLocked             Boolean        @default(true)
-  createdAt            DateTime       @default(now())
-
-  purchases            PPVPurchase[]
-}
-
-model PPVPurchase {
-  id                   String         @id @default(cuid())
-  fanId                String
-  fan                  User           @relation("FanPurchases", fields: [fanId], references: [id])
-  ppvContentId         String
-  ppvContent           PPVContent     @relation(fields: [ppvContentId], references: [id])
-  creditsPaid          Int
-  transactionId        String
-  createdAt            DateTime       @default(now())
-
-  @@unique([fanId, ppvContentId])
-}
-
-// --------------------------------------------------------------------------
-// 4. REAL-TIME ENGINE & LIVESTREAMING
-// --------------------------------------------------------------------------
-
-model LiveSession {
-  id                   String         @id @default(cuid())
-  creatorId            String
-  creator              CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  title                String
-  startedAt            DateTime       @default(now())
-  endedAt              DateTime?
-  peakViewers          Int            @default(0)
-  totalCreditsEarned   Int            @default(0)
-  recordingUrl         String?
-  status               String         @default("ACTIVE") // ACTIVE, ENDED
-}
-
-model ChatMessage {
-  id                   String         @id @default(cuid())
-  creatorId            String
-  creator              CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  senderId             String
-  sender               User           @relation(fields: [senderId], references: [id])
-  senderName           String
-  senderRole           String         @default("FAN")
-  senderBadge          String?        // VIP, TOP_TIPPER, MOD
-  text                 String
-  isTipNotice          Boolean        @default(false)
-  tipAmount            Int            @default(0)
-  tipActionName        String?
-  createdAt            DateTime       @default(now())
-}
-
-// --------------------------------------------------------------------------
-// 5. TRUST & SAFETY ENGINE (KYC, 2257 COMPLIANCE & MODERATION)
-// --------------------------------------------------------------------------
 
 model AgeAssuranceRecord {
-  id                   String         @id @default(cuid())
-  userId               String
+  id                   String         @id @default(uuid())
+  userId               String         @map("user_id")
   user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   method               String         // CREDIT_CARD_ASSURANCE, ID_DOCUMENT_KYC, FACIAL_AGE_ESTIMATION
-  verificationToken    String         @unique
-  status               String         @default("APPROVED") // PENDING, APPROVED, REJECTED
-  verifiedAt           DateTime       @default(now())
-  expiresAt            DateTime
-  ipHash               String?
-  countryCode          String         @default("US")
+  verificationToken    String         @unique @map("verification_token")
+  status               String         @default("APPROVED")
+  verifiedAt           DateTime       @default(now()) @map("verified_at")
+  expiresAt            DateTime       @map("expires_at")
+  ipHash               String?        @map("ip_hash")
+  countryCode          String         @default("US") @map("country_code")
+
+  @@index([userId])
+  @@index([status])
+  @@map("age_assurance_records")
 }
 
-model Compliance2257Record {
-  id                          String         @id @default(cuid())
-  creatorId                   String         @unique
-  creator                     CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  legalFullName               String
-  dateOfBirth                 String         // YYYY-MM-DD
-  governmentIdType            String         // PASSPORT, DRIVERS_LICENSE, NATIONAL_ID
-  idNumberEncrypted           String
-  documentVaultUrl            String         // Encrypted S3 secure store
-  secondaryCustodianName      String         @default("Platform Legal Records Custodian")
-  secondaryCustodianAddress   String         @default("100 Compliance Way, Suite 400, Wilmington, DE")
-  verificationStatus          String         @default("APPROVED") // PENDING, APPROVED, REJECTED
-  approvedAt                  DateTime?
-  createdAt                   DateTime       @default(now())
+// ============================================================================
+// 3. SOCIAL & GRAPH (FOLLOWS)
+// ============================================================================
+
+model Follow {
+  id                   String           @id @default(uuid())
+  followerId           String           @map("follower_id")
+  follower             User             @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  creatorProfileId     String           @map("creator_profile_id")
+  creatorProfile       CreatorProfile   @relation("CreatorFollowers", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  notificationsEnabled Boolean          @default(true) @map("notifications_enabled")
+  notificationTier     FollowNotifyTier @default(ALL) @map("notification_tier")
+  createdAt            DateTime         @default(now()) @map("created_at")
+
+  @@unique([followerId, creatorProfileId])
+  @@index([followerId])
+  @@index([creatorProfileId])
+  @@map("follows")
 }
 
-model ModerationReport {
-  id                   String         @id @default(cuid())
-  reporterId           String
-  reporter             User           @relation("ReportedBy", fields: [reporterId], references: [id])
-  targetUserId         String?
-  targetUser           User?          @relation("ReportedUser", fields: [targetUserId], references: [id])
-  targetStreamId       String?
-  category             String         // UNDERAGE_SUSPICION, NON_CONSENSUAL, HARASSMENT, FRAUD, COPYRIGHT, OTHER
-  notes                String
-  status               String         @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, DISMISSED
-  resolutionNotes      String?
-  resolvedAt           DateTime?
-  createdAt            DateTime       @default(now())
+// ============================================================================
+// 4. LIVESTREAMS, PARTICIPANTS & STAGE SEATS
+// ============================================================================
+
+model Livestream {
+  id                   String                 @id @default(uuid())
+  creatorProfileId     String                 @map("creator_profile_id")
+  creatorProfile       CreatorProfile         @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  title                String
+  description          String?
+  category             String                 @default("Entertainment")
+  tags                 String                 @default("live,interactive")
+  streamMode           StreamMode             @default(PUBLIC_BROADCAST) @map("stream_mode")
+  status               StreamStatus           @default(SCHEDULED)
+  ticketPriceCredits   Int                    @default(0) @map("ticket_price_credits")
+  mediaRoomId          String?                @map("media_room_id")
+  mediaSessionId       String?                @map("media_session_id")
+  rtmpIngestUrl        String?                @map("rtmp_ingest_url")
+  whipIngestUrl        String?                @map("whip_ingest_url")
+  hlsPlaybackUrl       String?                @map("hls_playback_url")
+  whepPlaybackUrl      String?                @map("whep_playback_url")
+  recordingUrl         String?                @map("recording_url")
+  currentViewerCount   Int                    @default(0) @map("current_viewer_count")
+  peakViewerCount      Int                    @default(0) @map("peak_viewer_count")
+  totalUniqueViewers   Int                    @default(0) @map("total_unique_viewers")
+  totalCreditsEarned   Int                    @default(0) @map("total_credits_earned")
+  scheduledStartAt     DateTime?              @map("scheduled_start_at")
+  startedAt            DateTime?              @map("started_at")
+  endedAt              DateTime?              @map("ended_at")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+
+  participants         LivestreamParticipant[]
+  seats                Seat[]
+  interactionPurchases InteractionPurchase[]
+  interactionQueue     InteractionQueueEntry[]
+  collectiveGoals      CollectiveGoal[]
+  goalContributions    GoalContribution[]
+  leaderboardRecords   LeaderboardRecord[]
+  gameSessions         GameSession[]
+  reports              Report[]
+
+  @@index([creatorProfileId, status])
+  @@index([status, startedAt])
+  @@map("livestreams")
 }
 
-model AuditLog {
-  id                   String         @id @default(cuid())
-  actorId              String?
-  actor                User?          @relation(fields: [actorId], references: [id])
-  action               String         // e.g. WALLET_ADJUST, CREATOR_BANNED, 2257_APPROVED
-  targetType           String         // USER, WALLET, STREAM, TRANSACTION
-  targetId             String
-  ipAddress            String?
-  userAgent            String?
-  metadataJson         String?
-  createdAt            DateTime       @default(now())
+model LivestreamParticipant {
+  id                   String                @id @default(uuid())
+  livestreamId         String                @map("livestream_id")
+  livestream           Livestream            @relation(fields: [livestreamId], references: [id], onDelete: Cascade)
+  userId               String                @map("user_id")
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleInStream         ParticipantStreamRole @default(VIEWER) @map("role_in_stream")
+  joinedAt             DateTime              @default(now()) @map("joined_at")
+  leftAt               DateTime?             @map("left_at")
+  watchDurationSeconds Int                   @default(0) @map("watch_duration_seconds")
+  creditsSpent         Int                   @default(0) @map("credits_spent")
+  chatMessagesCount    Int                   @default(0) @map("chat_messages_count")
+  isMuted              Boolean               @default(false) @map("is_muted")
+  isBannedFromRoom     Boolean               @default(false) @map("is_banned_from_room")
+  ipAddress            String?               @map("ip_address")
+  userAgent            String?               @map("user_agent")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  @@index([livestreamId, userId])
+  @@index([userId, joinedAt])
+  @@map("livestream_participants")
 }
 
-// --------------------------------------------------------------------------
-// 6. DISCOVERY & RECOMMENDATION TELEMETRY ENGINE
-// --------------------------------------------------------------------------
+model Seat {
+  id                   String       @id @default(uuid())
+  livestreamId         String       @map("livestream_id")
+  livestream           Livestream   @relation(fields: [livestreamId], references: [id], onDelete: Cascade)
+  seatIndex            Int          @map("seat_index")
+  seatTier             SeatTier     @default(VIP_FRONT_ROW) @map("seat_tier")
+  currentUserId        String?      @map("current_user_id")
+  currentUser          User?        @relation("UserOccupiedSeats", fields: [currentUserId], references: [id], onDelete: SetNull)
+  pricePerMinuteCredits Int         @default(0) @map("price_per_minute_credits")
+  minimumBidCredits    Int          @default(0) @map("minimum_bid_credits")
+  isOccupied           Boolean      @default(false) @map("is_occupied")
+  occupiedAt           DateTime?    @map("occupied_at")
+  expiresAt            DateTime?    @map("expires_at")
+  isActive             Boolean      @default(true) @map("is_active")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
 
-model DiscoveryEvent {
-  id               String         @id @default(cuid())
-  sessionId        String         // Client browse session ID
-  userId           String?
-  user             User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  creatorId        String
-  creator          CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  streamId         String?
-  eventType        String         // IMPRESSION, WATCH_3S, WATCH_20S, WATCH_90S, WATCH_DURATION, IMMEDIATE_BOUNCE, FOLLOW, UNFOLLOW, INTERACTION_MENU_OPEN, STREAM_ENTER, STREAM_LEAVE, CHAT_OPEN, GIFT_OPEN, PPV_OPEN, LIKE, TIP
-  dwellTimeMs      Int            @default(0)
-  category         String?
-  positionIndex    Int?           // Rank in the feed batch
-  metadataJson     String?        // Extra behavioral signals (e.g. scroll speed, previous creator, audio unmuted)
-  createdAt        DateTime       @default(now())
+  @@unique([livestreamId, seatIndex])
+  @@index([livestreamId, isOccupied])
+  @@map("seats")
+}
+
+// ============================================================================
+// 5. SUBSCRIPTIONS & COMMERCE (PRODUCTS & CONTENT)
+// ============================================================================
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  fanId                String             @map("fan_id")
+  fan                  User               @relation("FanSubscriptions", fields: [fanId], references: [id], onDelete: Cascade)
+  creatorProfileId     String             @map("creator_profile_id")
+  creatorProfile       CreatorProfile     @relation("CreatorSubscriptions", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  tier                 SubscriptionTier   @default(VIP)
+  status               SubscriptionStatus @default(ACTIVE)
+  creditPriceMonthly   Int                @default(200) @map("credit_price_monthly")
+  currentPeriodStart   DateTime           @map("current_period_start")
+  currentPeriodEnd     DateTime           @map("current_period_end")
+  autoRenew            Boolean            @default(true) @map("auto_renew")
+  canceledAt           DateTime?          @map("canceled_at")
+  cancelReason         String?            @map("cancel_reason")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  @@unique([fanId, creatorProfileId])
+  @@index([fanId, status])
+  @@index([creatorProfileId, status])
+  @@map("subscriptions")
+}
+
+model Product {
+  id                   String         @id @default(uuid())
+  creatorProfileId     String?        @map("creator_profile_id")
+  creatorProfile       CreatorProfile? @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  title                String
+  description          String?
+  productType          ProductType    @map("product_type")
+  priceCredits         Int            @map("price_credits")
+  priceFiatCents       Int?           @map("price_fiat_cents")
+  currency             String         @default("USD")
+  inventoryCount       Int?           @map("inventory_count")
+  isActive             Boolean        @default(true) @map("is_active")
+  thumbnailUrl         String?        @map("thumbnail_url")
+  mediaUrls            String         @default("[]") @map("media_urls")
+  metadataJson         String?        @map("metadata_json")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  @@index([creatorProfileId, isActive])
+  @@index([productType])
+  @@map("products")
+}
+
+model Content {
+  id                   String             @id @default(uuid())
+  creatorProfileId     String             @map("creator_profile_id")
+  creatorProfile       CreatorProfile     @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  title                String
+  description          String?
+  contentType          ContentType        @default(VIDEO) @map("content_type")
+  accessLevel          ContentAccessLevel @default(PPV_PURCHASE) @map("access_level")
+  priceCredits         Int                @default(0) @map("price_credits")
+  previewUrl           String?            @map("preview_url")
+  mediaUrl             String             @map("media_url")
+  mediaDurationSeconds Int?               @map("media_duration_seconds")
+  fileSizeBytes        BigInt?            @map("file_size_bytes")
+  isPublished          Boolean            @default(true) @map("is_published")
+  isArchived           Boolean            @default(false) @map("is_archived")
+  viewCount            Int                @default(0) @map("view_count")
+  likeCount            Int                @default(0) @map("like_count")
+  purchaseCount        Int                @default(0) @map("purchase_count")
+  publishedAt          DateTime           @default(now()) @map("published_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  purchases            ContentPurchase[]
+  reports              Report[]
+
+  @@index([creatorProfileId, isPublished])
+  @@index([accessLevel, publishedAt])
+  @@map("contents")
+}
+
+model ContentPurchase {
+  id                   String            @id @default(uuid())
+  contentId            String            @map("content_id")
+  content              Content           @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  fanId                String            @map("fan_id")
+  fan                  User              @relation("UserPurchases", fields: [fanId], references: [id], onDelete: Cascade)
+  priceCreditsPaid     Int               @map("price_credits_paid")
+  platformFeeCredits   Int               @map("platform_fee_credits")
+  creatorNetCredits    Int               @map("creator_net_credits")
+  walletTransactionId  String?           @map("wallet_transaction_id")
+  walletTransaction    WalletTransaction? @relation(fields: [walletTransactionId], references: [id], onDelete: SetNull)
+  accessGrantedAt      DateTime          @default(now()) @map("access_granted_at")
+  expiresAt            DateTime?         @map("expires_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+
+  @@unique([contentId, fanId])
+  @@index([fanId])
+  @@index([contentId])
+  @@map("content_purchases")
+}
+
+// ============================================================================
+// 6. MESSAGING & CONVERSATIONS
+// ============================================================================
+
+model Conversation {
+  id                   String           @id @default(uuid())
+  conversationType     ConversationType @default(DIRECT_DM) @map("conversation_type")
+  title                String?
+  creatorProfileId     String?          @map("creator_profile_id")
+  creatorProfile       CreatorProfile?  @relation(fields: [creatorProfileId], references: [id], onDelete: SetNull)
+  initiatorUserId      String           @map("initiator_user_id")
+  initiatorUser        User             @relation("ConversationInitiator", fields: [initiatorUserId], references: [id], onDelete: Cascade)
+  recipientUserId      String?          @map("recipient_user_id")
+  recipientUser        User?            @relation("ConversationRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  lastMessageId        String?          @map("last_message_id")
+  lastMessagePreview   String?          @map("last_message_preview")
+  lastActivityAt       DateTime         @default(now()) @map("last_activity_at")
+  isArchived           Boolean          @default(false) @map("is_archived")
+  isLocked             Boolean          @default(false) @map("is_locked")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  messages             Message[]
+
+  @@index([initiatorUserId, lastActivityAt])
+  @@index([recipientUserId, lastActivityAt])
+  @@index([creatorProfileId])
+  @@map("conversations")
+}
+
+model Message {
+  id                   String           @id @default(uuid())
+  conversationId       String           @map("conversation_id")
+  conversation         Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId             String           @map("sender_id")
+  sender               User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId          String?          @map("recipient_id")
+  recipient            User?            @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: SetNull)
+  messageType          MessageType      @default(TEXT) @map("message_type")
+  body                 String?
+  mediaUrl             String?          @map("media_url")
+  isPpvLocked          Boolean          @default(false) @map("is_ppv_locked")
+  ppvPriceCredits      Int?             @default(0) @map("ppv_price_credits")
+  isPpvUnlocked        Boolean          @default(false) @map("is_ppv_unlocked")
+  tipCredits           Int?             @default(0) @map("tip_credits")
+  isRead               Boolean          @default(false) @map("is_read")
+  readAt               DateTime?        @map("read_at")
+  isDeleted            Boolean          @default(false) @map("is_deleted")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+  reports              Report[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([recipientId, isRead])
+  @@map("messages")
+}
+
+// ============================================================================
+// 7. ECONOMIC ENGINE (WALLETS, LEDGER, PAYMENTS, EARNINGS, PAYOUTS)
+// ============================================================================
+
+model Wallet {
+  id                       String               @id @default(uuid())
+  userId                   String               @unique @map("user_id")
+  user                     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency                 String               @default("CREDITS")
+  balance                  Int                  @default(0)
+  lockedBalance            Int                  @default(0) @map("locked_balance")
+  pendingBalance           Int                  @default(0) @map("pending_balance")
+  lifetimeDepositedCredits BigInt               @default(0) @map("lifetime_deposited_credits")
+  lifetimeEarnedCredits    BigInt               @default(0) @map("lifetime_earned_credits")
+  lifetimeSpentCredits     BigInt               @default(0) @map("lifetime_spent_credits")
+  lifetimeWithdrawnCredits BigInt               @default(0) @map("lifetime_withdrawn_credits")
+  status                   WalletStatus         @default(ACTIVE)
+  version                  Int                  @default(1)
+  createdAt                DateTime             @default(now()) @map("created_at")
+  updatedAt                DateTime             @updatedAt @map("updated_at")
+
+  outgoingTransactions     WalletTransaction[]  @relation("SourceWalletTransactions")
+  incomingTransactions     WalletTransaction[]  @relation("DestWalletTransactions")
+  paymentTransactions      PaymentTransaction[]
+
+  @@index([userId, status])
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id                   String                  @id @default(uuid())
+  sourceWalletId       String?                 @map("source_wallet_id")
+  sourceWallet         Wallet?                 @relation("SourceWalletTransactions", fields: [sourceWalletId], references: [id], onDelete: SetNull)
+  destinationWalletId  String?                 @map("destination_wallet_id")
+  destinationWallet    Wallet?                 @relation("DestWalletTransactions", fields: [destinationWalletId], references: [id], onDelete: SetNull)
+  transactionType      WalletTransactionType   @map("transaction_type")
+  direction            TransactionDirection    @default(TRANSFER)
+  amountCredits        Int                     @map("amount_credits")
+  platformFeeCredits   Int                     @default(0) @map("platform_fee_credits")
+  creatorNetCredits    Int                     @default(0) @map("creator_net_credits")
+  sourceBalanceBefore  Int?                    @map("source_balance_before")
+  sourceBalanceAfter   Int?                    @map("source_balance_after")
+  destBalanceBefore    Int?                    @map("dest_balance_before")
+  destBalanceAfter     Int?                    @map("dest_balance_after")
+  idempotencyKey       String                  @unique @map("idempotency_key")
+  referenceType        String?                 @map("reference_type")
+  referenceId          String?                 @map("reference_id")
+  status               WalletTransactionStatus @default(COMPLETED)
+  note                 String?
+  metadataJson         String?                 @map("metadata_json")
+  createdAt            DateTime                @default(now()) @map("created_at")
+
+  contentPurchases     ContentPurchase[]
+  creatorEarnings      CreatorEarning[]
+  bookings             Booking[]
+
+  @@index([sourceWalletId, createdAt])
+  @@index([destinationWalletId, createdAt])
+  @@index([transactionType, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("wallet_transactions")
+}
+
+model PaymentTransaction {
+  id                   String                   @id @default(uuid())
+  userId               String                   @map("user_id")
+  user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId             String                   @map("wallet_id")
+  wallet               Wallet                   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  paymentGateway       PaymentGateway           @map("payment_gateway")
+  gatewayTransactionId String?                  @map("gateway_transaction_id")
+  gatewayEventId       String?                  @map("gateway_event_id")
+  idempotencyKey       String                   @unique @map("idempotency_key")
+  amountFiatCents      Int                      @map("amount_fiat_cents")
+  currency             String                   @default("USD")
+  creditsPurchased     Int                      @map("credits_purchased")
+  bonusCredits         Int                      @default(0) @map("bonus_credits")
+  gatewayFeeCents      Int                      @default(0) @map("gateway_fee_cents")
+  paymentMethod        String?                  @map("payment_method")
+  status               PaymentTransactionStatus @default(INITIALIZED)
+  riskScore            Int?                     @map("risk_score")
+  ipAddress            String?                  @map("ip_address")
+  countryCode          String?                  @map("country_code")
+  rawGatewayPayload    String?                  @map("raw_gateway_payload")
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@index([paymentGateway, gatewayTransactionId])
+  @@map("payment_transactions")
+}
+
+model CreatorEarning {
+  id                      String                 @id @default(uuid())
+  creatorProfileId        String                 @map("creator_profile_id")
+  creatorProfile          CreatorProfile         @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  walletTransactionId     String?                @map("wallet_transaction_id")
+  walletTransaction       WalletTransaction?     @relation(fields: [walletTransactionId], references: [id], onDelete: SetNull)
+  earningSource           EarningSourceType      @map("earning_source")
+  sourceReferenceId       String?                @map("source_reference_id")
+  grossCredits            Int                    @map("gross_credits")
+  platformRakePercentage  Decimal                @default(0.20) @map("platform_rake_percentage") @db.Decimal(5, 2)
+  platformFeeCredits      Int                    @map("platform_fee_credits")
+  netCreatorCredits       Int                    @map("net_creator_credits")
+  fiatValueEstimatedCents Int                    @map("fiat_value_estimated_cents")
+  clearanceStatus         EarningClearanceStatus @default(CLEARED) @map("clearance_status")
+  clearsAt                DateTime?              @map("clears_at")
+  createdAt               DateTime               @default(now()) @map("created_at")
+
+  @@index([creatorProfileId, clearanceStatus])
+  @@index([earningSource, createdAt])
+  @@map("creator_earnings")
+}
+
+model Payout {
+  id                     String         @id @default(uuid())
+  creatorProfileId       String         @map("creator_profile_id")
+  creatorProfile         CreatorProfile @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  amountFiatCents        Int            @map("amount_fiat_cents")
+  creditsDeducted        Int            @map("credits_deducted")
+  currency               String         @default("USD")
+  payoutMethod           PayoutMethod   @map("payout_method")
+  payoutBeneficiaryInfo  String         @map("payout_beneficiary_info") // Encrypted / tokenized
+  status                 PayoutStatus   @default(REQUESTED)
+  gatewayReferenceId     String?        @map("gateway_reference_id")
+  failureReason          String?        @map("failure_reason")
+  reviewedByAdminId      String?        @map("reviewed_by_admin_id")
+  reviewedByAdmin        User?          @relation("AdminPayoutReviewer", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+  requestedAt            DateTime       @default(now()) @map("requested_at")
+  reviewedAt             DateTime?      @map("reviewed_at")
+  completedAt            DateTime?      @map("completed_at")
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
+
+  @@index([creatorProfileId, status])
+  @@index([status, requestedAt])
+  @@map("payouts")
+}
+
+// ============================================================================
+// 8. INTERACTION ENGINE (DEFINITIONS, PURCHASES, QUEUES)
+// ============================================================================
+
+model InteractionDefinition {
+  id                 String                @id @default(uuid())
+  creatorProfileId   String                @map("creator_profile_id")
+  creatorProfile     CreatorProfile        @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  title              String
+  description        String?
+  actionType         InteractionActionType @default(TIP_ALERT) @map("action_type")
+  priceCredits       Int                   @map("price_credits")
+  durationSeconds    Int                   @default(0) @map("duration_seconds")
+  intensityLevel     Int?                  @map("intensity_level")
+  toyCommandPattern  String?               @map("toy_command_pattern")
+  soundAssetUrl      String?               @map("sound_asset_url")
+  iconUrl            String?               @map("icon_url")
+  cooldownSeconds    Int                   @default(0) @map("cooldown_seconds")
+  isEnabled          Boolean               @default(true) @map("is_enabled")
+  sortOrder          Int                   @default(0) @map("sort_order")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  purchases          InteractionPurchase[]
+
+  @@index([creatorProfileId, isEnabled])
+  @@map("interaction_definitions")
+}
+
+model InteractionPurchase {
+  id                      String                    @id @default(uuid())
+  livestreamId            String?                   @map("livestream_id")
+  livestream              Livestream?               @relation(fields: [livestreamId], references: [id], onDelete: SetNull)
+  creatorProfileId        String                    @map("creator_profile_id")
+  creatorProfile          CreatorProfile            @relation("CreatorInteractionPurchases", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  fanId                   String                    @map("fan_id")
+  fan                     User                      @relation("FanInteractionPurchases", fields: [fanId], references: [id], onDelete: Cascade)
+  interactionDefinitionId String                    @map("interaction_definition_id")
+  interactionDefinition   InteractionDefinition     @relation(fields: [interactionDefinitionId], references: [id], onDelete: Cascade)
+  priceCreditsPaid        Int                       @map("price_credits_paid")
+  customMessage           String?                   @map("custom_message")
+  toyIntensity            Int?                      @map("toy_intensity")
+  status                  InteractionPurchaseStatus @default(PAID)
+  executedAt              DateTime?                 @map("executed_at")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+
+  queueEntry              InteractionQueueEntry?
+
+  @@index([livestreamId, status])
+  @@index([creatorProfileId, createdAt])
+  @@index([fanId])
+  @@map("interaction_purchases")
+}
+
+model InteractionQueueEntry {
+  id                     String              @id @default(uuid())
+  livestreamId           String              @map("livestream_id")
+  livestream             Livestream          @relation(fields: [livestreamId], references: [id], onDelete: Cascade)
+  interactionPurchaseId  String              @unique @map("interaction_purchase_id")
+  interactionPurchase    InteractionPurchase @relation(fields: [interactionPurchaseId], references: [id], onDelete: Cascade)
+  queuePosition          Int                 @map("queue_position")
+  status                 QueueEntryStatus    @default(PENDING)
+  scheduledExecutionTime DateTime?           @map("scheduled_execution_time")
+  startedPlayingAt       DateTime?           @map("started_playing_at")
+  completedAt            DateTime?           @map("completed_at")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  @@index([livestreamId, status, queuePosition])
+  @@map("interaction_queue_entries")
+}
+
+// ============================================================================
+// 9. COLLECTIVE GOALS & CONTRIBUTIONS
+// ============================================================================
+
+model CollectiveGoal {
+  id                 String             @id @default(uuid())
+  livestreamId       String?            @map("livestream_id")
+  livestream         Livestream?        @relation(fields: [livestreamId], references: [id], onDelete: SetNull)
+  creatorProfileId   String             @map("creator_profile_id")
+  creatorProfile     CreatorProfile     @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  title              String
+  description        String?
+  rewardDescription  String?            @map("reward_description")
+  targetCredits      Int                @map("target_credits")
+  currentCredits     Int                @default(0) @map("current_credits")
+  contributorCount   Int                @default(0) @map("contributor_count")
+  status             GoalStatus         @default(ACTIVE)
+  startedAt          DateTime           @default(now()) @map("started_at")
+  endsAt             DateTime?          @map("ends_at")
+  reachedAt          DateTime?          @map("reached_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  contributions      GoalContribution[]
+
+  @@index([creatorProfileId, status])
+  @@index([livestreamId, status])
+  @@map("collective_goals")
+}
+
+model GoalContribution {
+  id                 String         @id @default(uuid())
+  collectiveGoalId   String         @map("collective_goal_id")
+  collectiveGoal     CollectiveGoal @relation(fields: [collectiveGoalId], references: [id], onDelete: Cascade)
+  livestreamId       String?        @map("livestream_id")
+  livestream         Livestream?    @relation(fields: [livestreamId], references: [id], onDelete: SetNull)
+  fanId              String         @map("fan_id")
+  fan                User           @relation("FanGoalContributions", fields: [fanId], references: [id], onDelete: Cascade)
+  amountCredits      Int            @map("amount_credits")
+  message            String?
+  isAnonymous        Boolean        @default(false) @map("is_anonymous")
+  createdAt          DateTime       @default(now()) @map("created_at")
+
+  @@index([collectiveGoalId, createdAt])
+  @@index([fanId])
+  @@map("goal_contributions")
+}
+
+// ============================================================================
+// 10. CREATOR RELATIONSHIPS, PROGRESSION & XP
+// ============================================================================
+
+model CreatorRelationship {
+  id                     String                @id @default(uuid())
+  fanId                  String                @map("fan_id")
+  fan                    User                  @relation("FanCreatorRelationships", fields: [fanId], references: [id], onDelete: Cascade)
+  creatorProfileId       String                @map("creator_profile_id")
+  creatorProfile         CreatorProfile        @relation("CreatorProfileRelationships", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  relationshipTier       RelationshipTier      @default(STRANGER) @map("relationship_tier")
+  currentLevel           Int                   @default(1) @map("current_level")
+  totalXp               BigInt                @default(0) @map("total_xp")
+  totalCreditsSpent      BigInt                @default(0) @map("total_credits_spent")
+  totalMinutesWatched    Int                   @default(0) @map("total_minutes_watched")
+  currentStreakDays      Int                   @default(0) @map("current_streak_days")
+  longestStreakDays      Int                   @default(0) @map("longest_streak_days")
+  lastInteractedAt       DateTime              @default(now()) @map("last_interacted_at")
+  customNickname         String?               @map("custom_nickname")
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+
+  xpEvents               RelationshipXPEvent[]
+
+  @@unique([fanId, creatorProfileId])
+  @@index([fanId])
+  @@index([creatorProfileId, totalCreditsSpent])
+  @@map("creator_relationships")
+}
+
+model RelationshipXPEvent {
+  id                    String              @id @default(uuid())
+  creatorRelationshipId String              @map("creator_relationship_id")
+  creatorRelationship   CreatorRelationship @relation(fields: [creatorRelationshipId], references: [id], onDelete: Cascade)
+  fanId                 String              @map("fan_id")
+  fan                   User                @relation("FanRelationshipXPEvents", fields: [fanId], references: [id], onDelete: Cascade)
+  creatorProfileId      String              @map("creator_profile_id")
+  creatorProfile        CreatorProfile      @relation("CreatorRelationshipXPEvents", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  eventType             RelationshipXPType  @map("event_type")
+  xpAwarded             Int                 @map("xp_awarded")
+  creditsMultiplier     Float               @default(1.0) @map("credits_multiplier")
+  metadataJson          String?             @map("metadata_json")
+  createdAt             DateTime            @default(now()) @map("created_at")
+
+  @@index([creatorRelationshipId, createdAt])
+  @@index([fanId, createdAt])
+  @@map("relationship_xp_events")
+}
+
+model PlatformXPEvent {
+  id                    String         @id @default(uuid())
+  userId                String         @map("user_id")
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType             PlatformXPType @map("event_type")
+  xpAwarded             Int            @map("xp_awarded")
+  userLevelAfter        Int            @map("user_level_after")
+  metadataJson          String?        @map("metadata_json")
+  createdAt             DateTime       @default(now()) @map("created_at")
 
   @@index([userId, createdAt])
-  @@index([creatorId, eventType])
-  @@index([eventType, createdAt])
-  @@index([sessionId])
+  @@map("platform_xp_events")
 }
 
-// --------------------------------------------------------------------------
-// 7. VIDEO SYSTEM & SPECIALIZED STREAMING INFRASTRUCTURE CONTROL PLANE
-// --------------------------------------------------------------------------
+// ============================================================================
+// 11. ACHIEVEMENTS & LEADERBOARDS
+// ============================================================================
 
-model MediaRoom {
-  id                   String            @id @default(cuid())
-  creatorId            String
-  creator              CreatorProfile    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  roomName             String            @unique
-  streamKey            String            @unique @default(cuid())
+model Achievement {
+  id                    String              @id @default(uuid())
+  code                  String              @unique
+  name                  String
+  description           String
+  category              AchievementCategory @default(FAN_LOYALTY)
+  badgeIconUrl          String              @map("badge_icon_url")
+  badgeTier             BadgeTier           @default(BRONZE) @map("badge_tier")
+  xpReward              Int                 @default(100) @map("xp_reward")
+  creditBonusReward     Int                 @default(0) @map("credit_bonus_reward")
+  requirementThreshold  Int                 @default(1) @map("requirement_threshold")
+  requirementMetric     String              @default("TOTAL_CREDITS_SPENT") @map("requirement_metric")
+  isHidden              Boolean             @default(false) @map("is_hidden")
+  createdAt             DateTime            @default(now()) @map("created_at")
 
-  // Streaming Infrastructure Endpoints (No video passes through app server!)
-  mediaProvider        String            @default("CUSTOM_LIVEKIT_OR_SRS") // LIVEKIT, SRS, CLOUDFLARE_STREAM, LIVEPEER
-  rtmpIngestUrl        String            @default("rtmp://ingest.live.platform.local/app")
-  whipIngestUrl        String            @default("https://ingest.live.platform.local/whip")
-  playbackHlsUrl       String            @default("https://cdn.platform.local/hls")
-  playbackWhepUrl      String            @default("https://edge.live.platform.local/whep")
-  sfuRoomId            String?
+  userAchievements      UserAchievement[]
 
-  // WebRTC ICE / STUN / TURN Configuration
-  iceServersJson       String?           @default("[{\"urls\":\"stun:stun.l.google.com:19302\"}]")
-
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-
-  livestreams          VideoLivestream[]
-  private1on1Sessions  Private1on1Session[]
+  @@index([category])
+  @@map("achievements")
 }
 
-model AudienceRule {
-  id                   String            @id @default(cuid())
-  creatorId            String
-  creator              CreatorProfile    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  name                 String            @default("Default Room Policy")
+model UserAchievement {
+  id                    String      @id @default(uuid())
+  userId                String      @map("user_id")
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId         String      @map("achievement_id")
+  achievement           Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  currentProgress       Int         @default(0) @map("current_progress")
+  isUnlocked            Boolean     @default(false) @map("is_unlocked")
+  unlockedAt            DateTime?   @map("unlocked_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
 
-  // Rule matrix
-  minAge               Int               @default(18)
-  requireAgeAssurance  Boolean           @default(true)
-  isSubscribersOnly    Boolean           @default(false)
-  minSubscriptionTier  String?           // VIP, DIAMOND
-  ticketPriceCredits   Int               @default(0) // 0 = Free public, >0 = PPV Livestream
-  isFollowerOnly       Boolean           @default(false)
-  slowModeSeconds      Int               @default(0)
-  isChatDisabled       Boolean           @default(false)
-  geoBlockedCountries  String            @default("") // Comma-separated ISO country codes
-
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-
-  livestreams          VideoLivestream[]
+  @@unique([userId, achievementId])
+  @@index([userId, isUnlocked])
+  @@map("user_achievements")
 }
 
-model VideoLivestream {
-  id                   String            @id @default(cuid())
-  creatorId            String
-  creator              CreatorProfile    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  mediaRoomId          String
-  mediaRoom            MediaRoom         @relation(fields: [mediaRoomId], references: [id], onDelete: Cascade)
-  audienceRuleId       String?
-  audienceRule         AudienceRule?     @relation(fields: [audienceRuleId], references: [id], onDelete: SetNull)
+model LeaderboardRecord {
+  id                       String               @id @default(uuid())
+  scope                    LeaderboardScope     @map("scope")
+  timeframe                LeaderboardTimeframe @map("timeframe")
+  periodKey                String               @map("period_key") // e.g., '2026-W36', '2026-09', 'ALL'
+  creatorProfileId         String?              @map("creator_profile_id")
+  creatorProfile           CreatorProfile?      @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  livestreamId             String?              @map("livestream_id")
+  livestream               Livestream?          @relation(fields: [livestreamId], references: [id], onDelete: Cascade)
+  userId                   String               @map("user_id")
+  user                     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rank                     Int
+  totalCreditsContributed  BigInt               @default(0) @map("total_credits_contributed")
+  totalXpEarned            BigInt               @default(0) @map("total_xp_earned")
+  updatedAt                DateTime             @updatedAt @map("updated_at")
 
-  title                String
-  category             String            @default("Entertainment")
-  tags                 String            @default("live,interactive")
-
-  streamMode           String            @default("PUBLIC_BROADCAST") // PUBLIC_BROADCAST, PRIVATE_1ON1, VIP_GROUP
-  status               String            @default("IDLE") // IDLE, PROVISIONED, BROADCASTING, PAUSED, ENDED, BANNED
-
-  startedAt            DateTime?
-  endedAt              DateTime?
-
-  peakViewers          Int               @default(0)
-  totalViews           Int               @default(0)
-  totalCreditsEarned   Int               @default(0)
-
-  // Media Server Ingest/Egress Metrics & Session IDs
-  mediaSessionId       String?
-  recordingUrl         String?
-  hlsPlaybackUrl       String?
-  whepPlaybackUrl      String?
-
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-
-  @@index([creatorId, status])
-  @@index([status, startedAt])
+  @@unique([scope, timeframe, periodKey, creatorProfileId, livestreamId, userId])
+  @@index([scope, timeframe, periodKey, rank])
+  @@map("leaderboard_records")
 }
 
-model Private1on1Session {
-  id                   String            @id @default(cuid())
-  mediaRoomId          String
-  mediaRoom            MediaRoom         @relation(fields: [mediaRoomId], references: [id], onDelete: Cascade)
+// ============================================================================
+// 12. PRIVATE SESSIONS & BOOKINGS
+// ============================================================================
 
-  creatorUserId        String
-  creatorUser          User              @relation("Creator1on1Sessions", fields: [creatorUserId], references: [id])
-  fanUserId            String
-  fanUser              User              @relation("Fan1on1Sessions", fields: [fanUserId], references: [id])
+model PrivateSessionAvailability {
+  id                    String         @id @default(uuid())
+  creatorProfileId      String         @map("creator_profile_id")
+  creatorProfile        CreatorProfile @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  dayOfWeek             Int            @map("day_of_week") // 0 = Sunday, 6 = Saturday
+  startTimeUtc          String         @map("start_time_utc") // e.g. "14:00"
+  endTimeUtc            String         @map("end_time_utc")   // e.g. "22:00"
+  minDurationMinutes    Int            @default(10) @map("min_duration_minutes")
+  maxDurationMinutes    Int            @default(60) @map("max_duration_minutes")
+  creditRatePerMinute   Int            @default(100) @map("credit_rate_per_minute")
+  bufferTimeMinutes     Int            @default(5) @map("buffer_time_minutes")
+  isActive              Boolean        @default(true) @map("is_active")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
 
-  status               String            @default("REQUESTED") // REQUESTED, ACCEPTED, CONNECTED, COMPLETED, CANCELLED, REJECTED
-  creditRatePerMinute  Int               @default(100) // 100 credits per minute
-  totalCreditsCharged  Int               @default(0)
-
-  startedAt            DateTime?
-  endedAt              DateTime?
-  durationSeconds      Int               @default(0)
-
-  // WebRTC Session Metadata
-  creatorSignalingToken String?
-  fanSignalingToken     String?
-  sfuSessionId          String?
-
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-
-  @@index([creatorUserId, status])
-  @@index([fanUserId, status])
+  @@index([creatorProfileId, isActive])
+  @@map("private_session_availabilities")
 }
 
+model Booking {
+  id                    String             @id @default(uuid())
+  creatorProfileId      String             @map("creator_profile_id")
+  creatorProfile        CreatorProfile     @relation("CreatorBookings", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  fanId                 String             @map("fan_id")
+  fan                   User               @relation("FanBookings", fields: [fanId], references: [id], onDelete: Cascade)
+  scheduledStartTime    DateTime           @map("scheduled_start_time")
+  scheduledEndTime      DateTime           @map("scheduled_end_time")
+  durationMinutes       Int                @map("duration_minutes")
+  creditRatePerMinute   Int                @map("credit_rate_per_minute")
+  totalCreditsEscrowed  Int                @map("total_credits_escrowed")
+  status                BookingStatus      @default(PENDING_CREATOR_ACCEPT)
+  meetingRoomId         String?            @map("meeting_room_id")
+  fanNotes              String?            @map("fan_notes")
+  creatorNotes          String?            @map("creator_notes")
+  actualStartedAt       DateTime?          @map("actual_started_at")
+  actualEndedAt         DateTime?          @map("actual_ended_at")
+  actualDurationSeconds Int?               @map("actual_duration_seconds")
+  walletTransactionId   String?            @map("wallet_transaction_id")
+  walletTransaction     WalletTransaction? @relation(fields: [walletTransactionId], references: [id], onDelete: SetNull)
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  @@index([creatorProfileId, status])
+  @@index([fanId, status])
+  @@index([scheduledStartTime])
+  @@map("bookings")
+}
+
+// ============================================================================
+// 13. TRUST, SAFETY, REPORTS & MODERATION
+// ============================================================================
+
+model Report {
+  id                       String          @id @default(uuid())
+  reporterId               String          @map("reporter_id")
+  reporter                 User            @relation("ReportedBy", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId           String?         @map("reported_user_id")
+  reportedUser             User?           @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  reportedCreatorProfileId String?         @map("reported_creator_profile_id")
+  reportedCreatorProfile   CreatorProfile? @relation("ReportedCreator", fields: [reportedCreatorProfileId], references: [id], onDelete: SetNull)
+  reportedContentId        String?         @map("reported_content_id")
+  reportedContent          Content?        @relation(fields: [reportedContentId], references: [id], onDelete: SetNull)
+  reportedLivestreamId     String?         @map("reported_livestream_id")
+  reportedLivestream       Livestream?     @relation(fields: [reportedLivestreamId], references: [id], onDelete: SetNull)
+  reportedMessageId        String?         @map("reported_message_id")
+  reportedMessage          Message?        @relation(fields: [reportedMessageId], references: [id], onDelete: SetNull)
+  category                 ReportCategory
+  description              String
+  evidenceUrls             String?         @map("evidence_urls") // JSON array of urls
+  status                   ReportStatus    @default(OPEN)
+  assignedModeratorId      String?         @map("assigned_moderator_id")
+  moderatorNotes           String?         @map("moderator_notes")
+  resolvedAt               DateTime?       @map("resolved_at")
+  createdAt                DateTime        @default(now()) @map("created_at")
+  updatedAt                DateTime        @updatedAt @map("updated_at")
+
+  moderationCases          ModerationCase[]
+
+  @@index([status, createdAt])
+  @@index([reportedUserId])
+  @@index([reporterId])
+  @@map("reports")
+}
+
+model ModerationCase {
+  id                    String               @id @default(uuid())
+  caseNumber            String               @unique @map("case_number")
+  sourceReportId        String?              @map("source_report_id")
+  sourceReport          Report?              @relation(fields: [sourceReportId], references: [id], onDelete: SetNull)
+  targetUserId          String               @map("target_user_id")
+  targetUser            User                 @relation("TargetUserCases", fields: [targetUserId], references: [id], onDelete: Cascade)
+  assignedModeratorId   String?              @map("assigned_moderator_id")
+  assignedModerator     User?                @relation("ModeratorAssignedCases", fields: [assignedModeratorId], references: [id], onDelete: SetNull)
+  priority              ModerationPriority   @default(MEDIUM)
+  status                ModerationCaseStatus @default(OPEN)
+  actionTaken           ModerationActionType @default(NONE) @map("action_taken")
+  actionDurationHours   Int?                 @map("action_duration_hours")
+  summaryFindings       String?              @map("summary_findings")
+  internalNotes         String?              @map("internal_notes")
+  resolvedAt            DateTime?            @map("resolved_at")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
+
+  @@index([status, priority])
+  @@index([targetUserId])
+  @@map("moderation_cases")
+}
+
+model AuditEvent {
+  id                    String      @id @default(uuid())
+  actorId               String?     @map("actor_id")
+  actor                 User?       @relation("ActorAuditEvents", fields: [actorId], references: [id], onDelete: SetNull)
+  action                String      // e.g. "USER_BANNED", "WALLET_CREDIT_MINT", "2257_APPROVED"
+  targetEntityType      String      @map("target_entity_type") // e.g. "User", "Wallet", "Livestream"
+  targetEntityId        String      @map("target_entity_id")
+  ipAddress             String?     @map("ip_address")
+  userAgent             String?     @map("user_agent")
+  oldValues             String?     @map("old_values") // JSON serialized
+  newValues             String?     @map("new_values") // JSON serialized
+  metadataJson          String?     @map("metadata_json")
+  createdAt             DateTime    @default(now()) @map("created_at")
+
+  @@index([targetEntityType, targetEntityId])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_events")
+}
+
+// ============================================================================
+// 14. NOTIFICATIONS
+// ============================================================================
+
+model Notification {
+  id                    String           @id @default(uuid())
+  userId                String           @map("user_id")
+  user                  User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  senderUserId          String?          @map("sender_user_id")
+  senderUser            User?            @relation("NotificationSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+  type                  NotificationType
+  title                 String
+  body                  String
+  actionUrl             String?          @map("action_url")
+  isRead                Boolean          @default(false) @map("is_read")
+  readAt                DateTime?        @map("read_at")
+  metadataJson          String?          @map("metadata_json")
+  createdAt             DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+// ============================================================================
+// 15. INTERACTIVE GAMING & REWARDS
+// ============================================================================
+
+model GameSession {
+  id                    String            @id @default(uuid())
+  livestreamId          String?           @map("livestream_id")
+  livestream            Livestream?       @relation(fields: [livestreamId], references: [id], onDelete: SetNull)
+  creatorProfileId      String            @map("creator_profile_id")
+  creatorProfile        CreatorProfile    @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  gameType              GameType          @map("game_type")
+  title                 String
+  status                GameSessionStatus @default(LOBBY_WAITING)
+  entryCostCredits      Int               @default(0) @map("entry_cost_credits")
+  totalPrizePoolCredits Int               @default(0) @map("total_prize_pool_credits")
+  winningUserId         String?           @map("winning_user_id")
+  winnerUser            User?             @relation("WinnerGameSessions", fields: [winningUserId], references: [id], onDelete: SetNull)
+  gameStateJson         String?           @map("game_state_json")
+  startedAt             DateTime          @default(now()) @map("started_at")
+  endedAt               DateTime?         @map("ended_at")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  rewards               GameReward[]
+
+  @@index([creatorProfileId, status])
+  @@index([livestreamId, status])
+  @@map("game_sessions")
+}
+
+model GameReward {
+  id                    String         @id @default(uuid())
+  gameSessionId         String         @map("game_session_id")
+  gameSession           GameSession    @relation(fields: [gameSessionId], references: [id], onDelete: Cascade)
+  userId                String         @map("user_id")
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rewardType            GameRewardType @map("reward_type")
+  rewardValueCredits    Int            @default(0) @map("reward_value_credits")
+  isClaimed             Boolean        @default(false) @map("is_claimed")
+  claimedAt             DateTime?      @map("claimed_at")
+  claimMetadata         String?        @map("claim_metadata")
+  createdAt             DateTime       @default(now()) @map("created_at")
+
+  @@index([gameSessionId])
+  @@index([userId, isClaimed])
+  @@map("game_rewards")
+}
