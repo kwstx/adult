@@ -1,0 +1,251 @@
+// Prisma schema for High-Performance Real-Time Creator & Economic Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------------------------------------------
+// 1. IDENTITY & USER ACCOUNTS
+// --------------------------------------------------------------------------
+
+model User {
+  id               String                 @id @default(cuid())
+  email            String                 @unique
+  username         String                 @unique
+  displayName      String
+  avatarUrl        String?
+  role             String                 @default("FAN") // FAN, CREATOR, MODERATOR, ADMIN
+  kycStatus        String                 @default("UNVERIFIED") // UNVERIFIED, AGE_VERIFIED, COMPLIANCE_2257_APPROVED
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  wallet           Wallet?
+  creatorProfile   CreatorProfile?
+  subscriptions    Subscription[]         @relation("FanSubscriptions")
+  ppvPurchases     PPVPurchase[]          @relation("FanPurchases")
+  ageRecords       AgeAssuranceRecord[]
+  reportsSubmitted ModerationReport[]     @relation("ReportedBy")
+  reportsReceived  ModerationReport[]     @relation("ReportedUser")
+  chatMessages     ChatMessage[]
+  auditLogs        AuditLog[]
+}
+
+// --------------------------------------------------------------------------
+// 2. CREATOR OPERATING SYSTEM
+// --------------------------------------------------------------------------
+
+model CreatorProfile {
+  id                    String                 @id @default(cuid())
+  userId                String                 @unique
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio                   String?
+  bannerUrl             String?
+  streamTitle           String                 @default("Welcome to my room! ✨")
+  streamKey             String                 @unique @default(cuid())
+  ingestUrl             String                 @default("rtmp://live.streamplatform.local/app")
+  isLive                Boolean                @default(false)
+  viewerCount           Int                    @default(0)
+  currentGoalTitle      String                 @default("Dance celebration at 500 tokens! 💃")
+  currentGoalTarget     Int                    @default(500)
+  currentGoalProgress   Int                    @default(0)
+  isPrivateShow         Boolean                @default(false)
+  minTipForPrivate      Int                    @default(1000)
+  tags                  String                 @default("dance,chill,interactive")
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  interactionItems      InteractionMenuItem[]
+  ppvContents           PPVContent[]
+  liveSessions          LiveSession[]
+  subscriberFans        Subscription[]         @relation("CreatorSubscriptions")
+  compliance2257        Compliance2257Record?
+  chatMessages          ChatMessage[]
+}
+
+model InteractionMenuItem {
+  id               String         @id @default(cuid())
+  creatorId        String
+  creator          CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  creditCost       Int            // Cost in credits (e.g. 50, 100, 250)
+  actionType       String         // ALERT_SOUND, DANCE, WHEEL_SPIN, CHAT_HIGHLIGHT, PRIVATE_SNAP, CUSTOM
+  isEnabled        Boolean        @default(true)
+  sortOrder        Int            @default(0)
+  createdAt        DateTime       @default(now())
+}
+
+// --------------------------------------------------------------------------
+// 3. ECONOMIC ENGINE (DOUBLE-ENTRY WALLET & LEDGER)
+// --------------------------------------------------------------------------
+
+model Wallet {
+  id               String         @id @default(cuid())
+  userId           String         @unique
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance          Int            @default(0) // Integer credit units (1 credit = $0.05 - $0.10)
+  lockedBalance    Int            @default(0) // Credits on hold for payout processing
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  outgoingEntries  LedgerEntry[]  @relation("SourceWallet")
+  incomingEntries  LedgerEntry[]  @relation("DestinationWallet")
+}
+
+model LedgerEntry {
+  id                   String     @id @default(cuid())
+  transactionType      String     // CREDIT_PURCHASE, LIVE_TIP, PPV_UNLOCK, SUBSCRIPTION, CREATOR_PAYOUT, PLATFORM_RAKE
+  amount               Int        // Total credit magnitude
+  sourceWalletId       String?
+  sourceWallet         Wallet?    @relation("SourceWallet", fields: [sourceWalletId], references: [id])
+  destinationWalletId  String?
+  destinationWallet    Wallet?    @relation("DestinationWallet", fields: [destinationWalletId], references: [id])
+  platformRakeCredits  Int        @default(0) // Platform commission (e.g. 20%)
+  netCreatorCredits    Int        @default(0) // Net amount credited to creator (e.g. 80%)
+  status               String     @default("COMPLETED") // PENDING, COMPLETED, FAILED, REVERSED
+  idempotencyKey       String     @unique
+  referenceId          String?    // Associated tipId, streamId, ppvId
+  note                 String?
+  createdAt            DateTime   @default(now())
+}
+
+model Subscription {
+  id                   String         @id @default(cuid())
+  fanId                String
+  fan                  User           @relation("FanSubscriptions", fields: [fanId], references: [id])
+  creatorId            String
+  creator              CreatorProfile @relation("CreatorSubscriptions", fields: [creatorId], references: [id])
+  tier                 String         @default("VIP") // BASIC, VIP, DIAMOND
+  creditCostMonthly    Int            @default(200)
+  status               String         @default("ACTIVE") // ACTIVE, CANCELED, EXPIRED
+  currentPeriodEnd     DateTime
+  createdAt            DateTime       @default(now())
+}
+
+model PPVContent {
+  id                   String         @id @default(cuid())
+  creatorId            String
+  creator              CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title                String
+  description          String?
+  previewUrl           String         // Watermarked/blurred preview
+  mediaUrl             String         // Secure S3/R2 signed URL
+  creditPrice          Int            // e.g. 150 credits
+  mediaType            String         @default("VIDEO") // PHOTO, VIDEO, ALBUM
+  isLocked             Boolean        @default(true)
+  createdAt            DateTime       @default(now())
+
+  purchases            PPVPurchase[]
+}
+
+model PPVPurchase {
+  id                   String         @id @default(cuid())
+  fanId                String
+  fan                  User           @relation("FanPurchases", fields: [fanId], references: [id])
+  ppvContentId         String
+  ppvContent           PPVContent     @relation(fields: [ppvContentId], references: [id])
+  creditsPaid          Int
+  transactionId        String
+  createdAt            DateTime       @default(now())
+
+  @@unique([fanId, ppvContentId])
+}
+
+// --------------------------------------------------------------------------
+// 4. REAL-TIME ENGINE & LIVESTREAMING
+// --------------------------------------------------------------------------
+
+model LiveSession {
+  id                   String         @id @default(cuid())
+  creatorId            String
+  creator              CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title                String
+  startedAt            DateTime       @default(now())
+  endedAt              DateTime?
+  peakViewers          Int            @default(0)
+  totalCreditsEarned   Int            @default(0)
+  recordingUrl         String?
+  status               String         @default("ACTIVE") // ACTIVE, ENDED
+}
+
+model ChatMessage {
+  id                   String         @id @default(cuid())
+  creatorId            String
+  creator              CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  senderId             String
+  sender               User           @relation(fields: [senderId], references: [id])
+  senderName           String
+  senderRole           String         @default("FAN")
+  senderBadge          String?        // VIP, TOP_TIPPER, MOD
+  text                 String
+  isTipNotice          Boolean        @default(false)
+  tipAmount            Int            @default(0)
+  tipActionName        String?
+  createdAt            DateTime       @default(now())
+}
+
+// --------------------------------------------------------------------------
+// 5. TRUST & SAFETY ENGINE (KYC, 2257 COMPLIANCE & MODERATION)
+// --------------------------------------------------------------------------
+
+model AgeAssuranceRecord {
+  id                   String         @id @default(cuid())
+  userId               String
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  method               String         // CREDIT_CARD_ASSURANCE, ID_DOCUMENT_KYC, FACIAL_AGE_ESTIMATION
+  verificationToken    String         @unique
+  status               String         @default("APPROVED") // PENDING, APPROVED, REJECTED
+  verifiedAt           DateTime       @default(now())
+  expiresAt            DateTime
+  ipHash               String?
+  countryCode          String         @default("US")
+}
+
+model Compliance2257Record {
+  id                          String         @id @default(cuid())
+  creatorId                   String         @unique
+  creator                     CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  legalFullName               String
+  dateOfBirth                 String         // YYYY-MM-DD
+  governmentIdType            String         // PASSPORT, DRIVERS_LICENSE, NATIONAL_ID
+  idNumberEncrypted           String
+  documentVaultUrl            String         // Encrypted S3 secure store
+  secondaryCustodianName      String         @default("Platform Legal Records Custodian")
+  secondaryCustodianAddress   String         @default("100 Compliance Way, Suite 400, Wilmington, DE")
+  verificationStatus          String         @default("APPROVED") // PENDING, APPROVED, REJECTED
+  approvedAt                  DateTime?
+  createdAt                   DateTime       @default(now())
+}
+
+model ModerationReport {
+  id                   String         @id @default(cuid())
+  reporterId           String
+  reporter             User           @relation("ReportedBy", fields: [reporterId], references: [id])
+  targetUserId         String?
+  targetUser           User?          @relation("ReportedUser", fields: [targetUserId], references: [id])
+  targetStreamId       String?
+  category             String         // UNDERAGE_SUSPICION, NON_CONSENSUAL, HARASSMENT, FRAUD, COPYRIGHT, OTHER
+  notes                String
+  status               String         @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, DISMISSED
+  resolutionNotes      String?
+  resolvedAt           DateTime?
+  createdAt            DateTime       @default(now())
+}
+
+model AuditLog {
+  id                   String         @id @default(cuid())
+  actorId              String?
+  actor                User?          @relation(fields: [actorId], references: [id])
+  action               String         // e.g. WALLET_ADJUST, CREATOR_BANNED, 2257_APPROVED
+  targetType           String         // USER, WALLET, STREAM, TRANSACTION
+  targetId             String
+  ipAddress            String?
+  userAgent            String?
+  metadataJson         String?
+  createdAt            DateTime       @default(now())
+}
