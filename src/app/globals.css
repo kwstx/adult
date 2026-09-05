@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: #09090b;
+  --background: #000000;
   --foreground: #fafafa;
 }
 
@@ -17,11 +17,11 @@ body {
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #18181b;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #3f3f46;
@@ -33,14 +33,14 @@ body {
 
 /* Glassmorphism Classes */
 .glass-panel {
-  background: rgba(24, 24, 27, 0.75);
-  backdrop-filter: blur(12px);
+  background: rgba(18, 18, 22, 0.75);
+  backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .glass-panel-glow {
-  background: rgba(24, 24, 27, 0.85);
-  backdrop-filter: blur(16px);
+  background: rgba(18, 18, 22, 0.85);
+  backdrop-filter: blur(20px);
   border: 1px solid rgba(236, 72, 153, 0.3);
   box-shadow: 0 0 25px rgba(236, 72, 153, 0.15);
 }
@@ -51,4 +51,75 @@ body {
 
 .neon-border-gold {
   box-shadow: 0 0 15px rgba(245, 158, 11, 0.35);
+}
+
+/* Keyframes & Animations */
+@keyframes float-heart {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(0.8) rotate(0deg);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-120px) scale(1.2) rotate(15deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-240px) scale(1.4) rotate(-15deg);
+  }
+}
+
+@keyframes double-tap-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  40% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.3);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -60%) scale(0.9);
+  }
+}
+
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-float-heart {
+  animation: float-heart 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.animate-double-tap-pop {
+  animation: double-tap-pop 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
 }
