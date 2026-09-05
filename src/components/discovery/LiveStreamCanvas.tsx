@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Lock, Radio, Sparkles, Volume2, VolumeX } from "lucide-react";
+import { Lock, Radio, Sparkles, Volume2, VolumeX, ShieldCheck, Flame } from "lucide-react";
 
 interface LiveStreamCanvasProps {
   streamUrl?: string;
@@ -9,6 +9,8 @@ interface LiveStreamCanvasProps {
   creatorName: string;
   isLive: boolean;
   isPrivateShow?: boolean;
+  isActive?: boolean;
+  isPreloaded?: boolean;
   onDoubleTapLike?: () => void;
   isMuted?: boolean;
   onToggleMute?: () => void;
@@ -19,12 +21,24 @@ export function LiveStreamCanvas({
   creatorName,
   isLive,
   isPrivateShow = false,
+  isActive = true,
+  isPreloaded = false,
   onDoubleTapLike,
   isMuted = true,
   onToggleMute,
 }: LiveStreamCanvasProps) {
   const lastTapRef = useRef<number>(0);
   const [showHeartBurst, setShowHeartBurst] = useState<{ x: number; y: number } | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Preload high-res image asset into browser cache immediately if preloading
+  useEffect(() => {
+    if (posterUrl && (isActive || isPreloaded)) {
+      const img = new Image();
+      img.src = posterUrl;
+      img.onload = () => setIsLoaded(true);
+    }
+  }, [posterUrl, isActive, isPreloaded]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const now = Date.now();
@@ -64,16 +78,23 @@ export function LiveStreamCanvas({
               "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1200&auto=format&fit=crop&q=80"
             }
             alt={creatorName}
-            className="h-full w-full object-cover object-center filter contrast-[1.03] brightness-95 transform scale-100 transition-transform duration-700"
+            className={`h-full w-full object-cover object-center filter contrast-[1.03] brightness-95 transform transition-all duration-700 ${
+              isActive ? "scale-100 opacity-100" : "scale-105 opacity-90"
+            }`}
+            loading={isPreloaded ? "eager" : "lazy"}
           />
 
           {/* Dynamic Ambient Atmosphere Gradients (Top & Bottom Vignettes) */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/30 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-black/90 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/40 pointer-events-none" />
 
           {/* Subtle Live Stage Scanline & Neon Ambient Backlight */}
-          <div className="absolute top-1/3 left-1/4 h-64 w-64 rounded-full bg-pink-600/15 blur-3xl pointer-events-none animate-pulse" />
-          <div className="absolute bottom-1/3 right-1/4 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+          {isActive && (
+            <>
+              <div className="absolute top-1/4 left-1/4 h-72 w-72 rounded-full bg-pink-600/15 blur-3xl pointer-events-none animate-pulse" />
+              <div className="absolute bottom-1/3 right-1/4 h-72 w-72 rounded-full bg-rose-500/10 blur-3xl pointer-events-none" />
+            </>
+          )}
 
           {/* Locked Overlay if Private Show */}
           {isPrivateShow && (

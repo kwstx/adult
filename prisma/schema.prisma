@@ -33,6 +33,7 @@ model User {
   reportsReceived  ModerationReport[]     @relation("ReportedUser")
   chatMessages     ChatMessage[]
   auditLogs        AuditLog[]
+  discoveryEvents  DiscoveryEvent[]
 }
 
 // --------------------------------------------------------------------------
@@ -65,6 +66,7 @@ model CreatorProfile {
   subscriberFans        Subscription[]         @relation("CreatorSubscriptions")
   compliance2257        Compliance2257Record?
   chatMessages          ChatMessage[]
+  discoveryEvents       DiscoveryEvent[]
 }
 
 model InteractionMenuItem {
@@ -249,3 +251,29 @@ model AuditLog {
   metadataJson         String?
   createdAt            DateTime       @default(now())
 }
+
+// --------------------------------------------------------------------------
+// 6. DISCOVERY & RECOMMENDATION TELEMETRY ENGINE
+// --------------------------------------------------------------------------
+
+model DiscoveryEvent {
+  id               String         @id @default(cuid())
+  sessionId        String         // Client browse session ID
+  userId           String?
+  user             User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  creatorId        String
+  creator          CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  streamId         String?
+  eventType        String         // IMPRESSION, WATCH_3S, WATCH_20S, WATCH_90S, WATCH_DURATION, IMMEDIATE_BOUNCE, FOLLOW, UNFOLLOW, INTERACTION_MENU_OPEN, STREAM_ENTER, STREAM_LEAVE, CHAT_OPEN, GIFT_OPEN, PPV_OPEN, LIKE, TIP
+  dwellTimeMs      Int            @default(0)
+  category         String?
+  positionIndex    Int?           // Rank in the feed batch
+  metadataJson     String?        // Extra behavioral signals (e.g. scroll speed, previous creator, audio unmuted)
+  createdAt        DateTime       @default(now())
+
+  @@index([userId, createdAt])
+  @@index([creatorId, eventType])
+  @@index([eventType, createdAt])
+  @@index([sessionId])
+}
+
