@@ -1,5 +1,6 @@
 import prisma from "@/lib/db";
 import { mediaInfrastructure } from "./media-infrastructure.adapter";
+import { EntitlementService } from "@/modules/subscription";
 import {
   SignedMediaToken,
   AudienceRulesConfig,
@@ -105,25 +106,25 @@ export class VideoAuthService {
       viewerUser = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          subscriptions: {
+          subscriptionsFan: {
             where: {
-              creatorId: mediaRoom.creatorId,
+              creatorProfileId: mediaRoom.creatorId,
               status: "ACTIVE",
               currentPeriodEnd: { gte: new Date() },
             },
           },
-          ageRecords: {
+          ageAssuranceRecords: {
             where: { status: "APPROVED" },
             take: 1,
           },
-          ppvPurchases: true,
+          contentPurchases: true,
         },
       });
 
       if (viewerUser) {
         isCreator = viewerUser.id === mediaRoom.creator.userId;
         isModerator = viewerUser.role === "MODERATOR" || viewerUser.role === "ADMIN" || isCreator;
-        isVip = Boolean(viewerUser.subscriptions.length > 0) || isCreator || isModerator;
+        isVip = Boolean(viewerUser.subscriptionsFan && viewerUser.subscriptionsFan.length > 0) || isCreator || isModerator;
       }
     }
 
@@ -153,7 +154,7 @@ export class VideoAuthService {
       const isAgeVerified =
         viewerUser?.kycStatus === "AGE_VERIFIED" ||
         viewerUser?.kycStatus === "COMPLIANCE_2257_APPROVED" ||
-        (viewerUser?.ageRecords?.length ?? 0) > 0;
+        (viewerUser?.ageAssuranceRecords?.length ?? 0) > 0;
 
       if (!isAgeVerified && process.env.AGE_GATE_ENFORCEMENT === "true") {
         return {
@@ -164,13 +165,21 @@ export class VideoAuthService {
       }
     }
 
-    // 5. Subscribers-Only / VIP Gate Check
+    // 5. Subscribers-Only / VIP Gate Check using Authoritative Entitlement Service
     if (rules.isSubscribersOnly && !isVip) {
-      return {
-        allowed: false,
-        reason: "This live broadcast is restricted to active VIP subscribers.",
-        statusCode: 403,
-      };
+      const entCheck = await EntitlementService.hasEntitlement({
+        fanId: userId,
+        creatorProfileId: mediaRoom.creatorId,
+        entitlement: "SUBSCRIBER_LIVE",
+      });
+
+      if (!entCheck.hasEntitlement) {
+        return {
+          allowed: false,
+          reason: entCheck.reason || "This live broadcast is restricted to active subscribers.",
+          statusCode: 403,
+        };
+      }
     }
 
     // 6. PPV Ticketed Stream Check

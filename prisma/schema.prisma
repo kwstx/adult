@@ -199,6 +199,7 @@ enum PaymentGateway {
   NOWPAYMENTS
   COINBASE_COMMERCE
   MANUAL_BANK
+  WALLET_CREDITS
 }
 
 enum PaymentTransactionStatus {
@@ -208,6 +209,15 @@ enum PaymentTransactionStatus {
   FAILED
   DISPUTED_CHARGEBACK
   REFUNDED
+}
+
+enum SubscriptionPaymentStatus {
+  INITIALIZED
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  DISPUTED_CHARGEBACK
 }
 
 enum EarningSourceType {
@@ -480,6 +490,7 @@ model User {
   creatorVerifications  CreatorVerification[]  @relation("UserVerifications")
   followsGiven          Follow[]               @relation("UserFollows")
   subscriptionsFan      Subscription[]         @relation("FanSubscriptions")
+  subscriptionPaymentsFan SubscriptionPayment[] @relation("FanSubscriptionPayments")
   contentPurchases      ContentPurchase[]      @relation("UserPurchases")
   
   // Direct Messaging
@@ -561,7 +572,9 @@ model CreatorProfile {
   verifications              CreatorVerification[]
   followers                  Follow[]                     @relation("CreatorFollowers")
   livestreams                Livestream[]
+  subscriptionProducts       SubscriptionProduct[]        @relation("CreatorSubscriptionProducts")
   subscriptions              Subscription[]               @relation("CreatorSubscriptions")
+  subscriptionPayments       SubscriptionPayment[]        @relation("CreatorSubscriptionPayments")
   products                   Product[]
   contents                   Content[]
   earnings                   CreatorEarning[]
@@ -750,27 +763,134 @@ model Seat {
 // 5. SUBSCRIPTIONS & COMMERCE (PRODUCTS & CONTENT)
 // ============================================================================
 
+model SubscriptionProduct {
+  id                 String                 @id @default(uuid())
+  creatorProfileId   String                 @map("creator_profile_id")
+  creatorProfile     CreatorProfile         @relation("CreatorSubscriptionProducts", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  name               String                 // e.g. "Fan", "VIP", "Diamond"
+  tier               SubscriptionTier       @default(VIP)
+  tierLevel          Int                    @default(1) @map("tier_level")
+  description        String?
+  priceFiatCents     Int                    @map("price_fiat_cents") // e.g. 999 for €9.99, 2499 for €24.99
+  currency           String                 @default("EUR")
+  creditPriceMonthly Int?                   @map("credit_price_monthly")
+  billingInterval    String                 @default("MONTHLY") @map("billing_interval")
+  entitlements       String                 @default("SUBSCRIBER_CONTENT,SUBSCRIBER_CHAT,SUBSCRIBER_LIVE")
+  badgeIconUrl       String?                @map("badge_icon_url")
+  badgeColorHex      String?                @default("#9333EA") @map("badge_color_hex")
+  isActive           Boolean                @default(true) @map("is_active")
+  isArchived         Boolean                @default(false) @map("is_archived")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+
+  subscriptions      Subscription[]
+  payments           SubscriptionPayment[]
+
+  @@unique([creatorProfileId, name])
+  @@index([creatorProfileId, isActive])
+  @@map("subscription_products")
+}
+
 model Subscription {
-  id                   String             @id @default(uuid())
-  fanId                String             @map("fan_id")
-  fan                  User               @relation("FanSubscriptions", fields: [fanId], references: [id], onDelete: Cascade)
-  creatorProfileId     String             @map("creator_profile_id")
-  creatorProfile       CreatorProfile     @relation("CreatorSubscriptions", fields: [creatorProfileId], references: [id], onDelete: Cascade)
-  tier                 SubscriptionTier   @default(VIP)
-  status               SubscriptionStatus @default(ACTIVE)
-  creditPriceMonthly   Int                @default(200) @map("credit_price_monthly")
-  currentPeriodStart   DateTime           @map("current_period_start")
-  currentPeriodEnd     DateTime           @map("current_period_end")
-  autoRenew            Boolean            @default(true) @map("auto_renew")
-  canceledAt           DateTime?          @map("canceled_at")
-  cancelReason         String?            @map("cancel_reason")
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @updatedAt @map("updated_at")
+  id                              String                 @id @default(uuid())
+  fanId                           String                 @map("fan_id")
+  fan                             User                   @relation("FanSubscriptions", fields: [fanId], references: [id], onDelete: Cascade)
+  creatorProfileId                String                 @map("creator_profile_id")
+  creatorProfile                  CreatorProfile         @relation("CreatorSubscriptions", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  productId                       String?                @map("product_id")
+  product                         SubscriptionProduct?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  tier                            SubscriptionTier       @default(VIP)
+  tierName                        String                 @default("Fan") @map("tier_name")
+  tierLevel                       Int                    @default(1) @map("tier_level")
+  status                          SubscriptionStatus     @default(ACTIVE)
+
+  // Pricing & Price Grandfathering Rules
+  billingPriceCents               Int                    @default(999) @map("billing_price_cents")
+  billingCurrency                 String                 @default("EUR") @map("billing_currency")
+  creditPriceMonthly              Int                    @default(200) @map("credit_price_monthly")
+  isPriceGrandfathered            Boolean                @default(false) @map("is_price_grandfathered")
+  grandfatheredOriginalPriceCents Int?                   @map("grandfathered_original_price_cents")
+
+  // Billing Periods & Renewal Dates
+  currentPeriodStart              DateTime               @map("current_period_start")
+  currentPeriodEnd                DateTime               @map("current_period_end")
+  renewalDate                     DateTime               @map("renewal_date")
+  autoRenew                       Boolean                @default(true) @map("auto_renew")
+  cancelAtPeriodEnd               Boolean                @default(false) @map("cancel_at_period_end")
+  canceledAt                      DateTime?              @map("canceled_at")
+  cancelReason                    String?                @map("cancel_reason")
+
+  // Pausing Support
+  isPaused                        Boolean                @default(false) @map("is_paused")
+  pausedAt                        DateTime?              @map("paused_at")
+  pauseResumeAt                   DateTime?              @map("pause_resume_at")
+  pauseReason                     String?                @map("pause_reason")
+
+  // Past Due, Grace Period & Dunning Retries
+  failedPaymentAttempts           Int                    @default(0) @map("failed_payment_attempts")
+  gracePeriodEndsAt               DateTime?              @map("grace_period_ends_at")
+  lastPaymentError                String?                @map("last_payment_error")
+  lastPaymentAt                   DateTime?              @map("last_payment_at")
+
+  createdAt                       DateTime               @default(now()) @map("created_at")
+  updatedAt                       DateTime               @updatedAt @map("updated_at")
+
+  payments                        SubscriptionPayment[]
 
   @@unique([fanId, creatorProfileId])
   @@index([fanId, status])
   @@index([creatorProfileId, status])
+  @@index([renewalDate, status])
   @@map("subscriptions")
+}
+
+model SubscriptionPayment {
+  id                   String                    @id @default(uuid())
+  subscriptionId       String                    @map("subscription_id")
+  subscription         Subscription              @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  fanId                String                    @map("fan_id")
+  fan                  User                      @relation("FanSubscriptionPayments", fields: [fanId], references: [id], onDelete: Cascade)
+  creatorProfileId     String                    @map("creator_profile_id")
+  creatorProfile       CreatorProfile            @relation("CreatorSubscriptionPayments", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  productId            String?                   @map("product_id")
+  product              SubscriptionProduct?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // Billing cycle info
+  billingCycleIndex    Int                       @default(1) @map("billing_cycle_index")
+  periodStart          DateTime                  @map("period_start")
+  periodEnd            DateTime                  @map("period_end")
+
+  // Amounts & Fees
+  amountCents          Int                       @map("amount_cents")
+  currency             String                    @default("EUR")
+  creditsDeducted      Int?                      @map("credits_deducted")
+  platformFeeCents     Int                       @map("platform_fee_cents")
+  creatorNetCents      Int                       @map("creator_net_cents")
+
+  // Gateway & Tracking
+  paymentGateway       PaymentGateway            @default(STRIPE) @map("payment_gateway")
+  gatewayTransactionId String?                   @map("gateway_transaction_id")
+  gatewayInvoiceId     String?                   @map("gateway_invoice_id")
+  idempotencyKey       String                    @unique @map("idempotency_key")
+  paymentMethod        String?                   @map("payment_method")
+
+  // Status & Dunning
+  status               SubscriptionPaymentStatus @default(INITIALIZED)
+  failureReason        String?                   @map("failure_reason")
+  retryCount           Int                       @default(0) @map("retry_count")
+  nextRetryAt          DateTime?                 @map("next_retry_at")
+  paidAt               DateTime?                 @map("paid_at")
+  refundedAt           DateTime?                 @map("refunded_at")
+  disputedAt           DateTime?                 @map("disputed_at")
+  rawGatewayPayload    String?                   @map("raw_gateway_payload")
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
+
+  @@index([subscriptionId, status])
+  @@index([fanId, createdAt])
+  @@index([creatorProfileId, createdAt])
+  @@index([paymentGateway, gatewayTransactionId])
+  @@map("subscription_payments")
 }
 
 model Product {
