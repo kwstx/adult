@@ -7,13 +7,18 @@ import {
   ProcessProductPurchaseInput,
   ProcessRefundInput,
   ProcessChargebackInput,
+  GrantPromotionalCreditsInput,
+  GrantBonusCreditsInput,
+  ExpireStaleCreditsInput,
   RequestPayoutInput,
   LedgerOperationResult,
   TransactionForensicReport,
   WalletStatement,
   WalletStatementItem,
   WalletReconciliationResult,
+  TypedWalletBalance,
 } from "./types";
+import { CreditLotService } from "./credit-lot.service";
 import { eventBus } from "@/modules/realtime/event-bus";
 
 const DEFAULT_PLATFORM_RAKE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENTAGE || 20);
@@ -69,6 +74,9 @@ export class WalletLedgerService {
       data: {
         userId,
         balance: 0,
+        purchasedBalance: 0,
+        promotionalBalance: 0,
+        bonusBalance: 0,
         lockedBalance: 0,
         pendingBalance: 0,
         lifetimeDepositedCredits: BigInt(0),
@@ -104,9 +112,10 @@ export class WalletLedgerService {
    * Processes a confirmed fiat deposit webhook from a payment gateway.
    * Atomically:
    * 1. Records/updates `PaymentTransaction` with fiat details (€/$)
-   * 2. Mints credit transaction to user's wallet
-   * 3. Records immutable `WalletTransaction` (type: DEPOSIT, direction: CREDIT)
-   * 4. Updates running balance before/after
+   * 2. Mints PURCHASED credit lot (non-expiring, deferred revenue liability)
+   * 3. Mints BONUS credit lot if package includes bonus credits
+   * 4. Records immutable `WalletTransaction` (type: DEPOSIT, direction: CREDIT)
+   * 5. Updates running balance before/after
    */
   static async processDeposit(input: ProcessDepositInput): Promise<LedgerOperationResult> {
     const {
@@ -144,11 +153,15 @@ export class WalletLedgerService {
           transactionType: existingTx.transactionType,
           destinationWalletId: existingTx.destinationWalletId,
           amountCredits: existingTx.amountCredits,
+          primaryCreditType: existingTx.primaryCreditType || "PURCHASED",
           platformFeeCredits: 0,
           creatorNetCredits: 0,
           destBalanceBefore: existingTx.destBalanceBefore,
           destBalanceAfter: existingTx.destBalanceAfter,
           fanRemainingBalance: wallet?.balance || 0,
+          fanPurchasedBalance: wallet?.purchasedBalance || 0,
+          fanPromotionalBalance: wallet?.promotionalBalance || 0,
+          fanBonusBalance: wallet?.bonusBalance || 0,
           timestamp: existingTx.createdAt,
         };
       }
@@ -187,17 +200,43 @@ export class WalletLedgerService {
         },
       });
 
-      // 4. Update Wallet Balance atomically
+      // 4. Mint PURCHASED Credit Lot
+      await CreditLotService.grantLot(
+        wallet.id,
+        {
+          creditType: "PURCHASED",
+          amount: creditsPurchased,
+          fiatValueCents: amountFiatCents,
+          fiatCurrency: currency,
+          grantReason: `Deposit: ${creditsPurchased} credits for ${(amountFiatCents / 100).toFixed(2)} ${currency}`,
+          paymentTransactionId: paymentTx.id,
+        },
+        tx
+      );
+
+      // 5. Mint BONUS Credit Lot if applicable
+      if (bonusCredits > 0) {
+        await CreditLotService.grantLot(
+          wallet.id,
+          {
+            creditType: "BONUS",
+            amount: bonusCredits,
+            grantReason: `Package Bonus: +${bonusCredits} credits included with package`,
+            paymentTransactionId: paymentTx.id,
+          },
+          tx
+        );
+      }
+
+      // 6. Update lifetime deposited credits
       const updatedWallet = await tx.wallet.update({
         where: { id: wallet.id },
         data: {
-          balance: { increment: totalCreditsToMint },
           lifetimeDepositedCredits: { increment: BigInt(totalCreditsToMint) },
-          version: { increment: 1 },
         },
       });
 
-      // 5. Write Immutable Ledger Entry
+      // 7. Write Immutable Ledger Entry
       const ledgerEntry = await tx.walletTransaction.create({
         data: {
           sourceWalletId: null,
@@ -205,6 +244,7 @@ export class WalletLedgerService {
           transactionType: "DEPOSIT",
           direction: "CREDIT",
           amountCredits: totalCreditsToMint,
+          primaryCreditType: "PURCHASED",
           platformFeeCredits: 0,
           creatorNetCredits: 0,
           destBalanceBefore: balanceBefore,
@@ -213,12 +253,13 @@ export class WalletLedgerService {
           referenceType: "PAYMENT_TRANSACTION",
           referenceId: paymentTx.id,
           status: "COMPLETED",
-          note: `Credit Purchase: +${totalCreditsToMint} credits (${(amountFiatCents / 100).toFixed(2)} ${currency})`,
+          note: `Credit Purchase: +${totalCreditsToMint} credits (${creditsPurchased} purchased${bonusCredits > 0 ? ` + ${bonusCredits} bonus` : ""} for ${(amountFiatCents / 100).toFixed(2)} ${currency})`,
           metadataJson: JSON.stringify({
             gateway,
             gatewayTransactionId: paymentTx.gatewayTransactionId,
             currency,
             amountFiatCents,
+            creditsPurchased,
             bonusCredits,
             ...metadata,
           }),
@@ -232,16 +273,247 @@ export class WalletLedgerService {
         transactionType: "DEPOSIT",
         destinationWalletId: wallet.id,
         amountCredits: totalCreditsToMint,
+        primaryCreditType: "PURCHASED",
         platformFeeCredits: 0,
         creatorNetCredits: 0,
         destBalanceBefore: balanceBefore,
         destBalanceAfter: balanceAfter,
         fanRemainingBalance: updatedWallet.balance,
+        fanPurchasedBalance: updatedWallet.purchasedBalance,
+        fanPromotionalBalance: updatedWallet.promotionalBalance,
+        fanBonusBalance: updatedWallet.bonusBalance,
         timestamp: ledgerEntry.createdAt,
         metadata: {
           paymentTransactionId: paymentTx.id,
           gatewayTransactionId: paymentTx.gatewayTransactionId,
+          creditsPurchased,
+          bonusCredits,
         },
+      };
+    });
+  }
+
+  // ============================================================================
+  // 1b. PROMOTIONAL & BONUS CREDIT GRANTS
+  // ============================================================================
+
+  /**
+   * Grants promotional marketing credits to a user (with explicit expiration date).
+   */
+  static async grantPromotionalCredits(
+    input: GrantPromotionalCreditsInput
+  ): Promise<LedgerOperationResult> {
+    const {
+      userId,
+      amountCredits,
+      reason,
+      durationDays = 30,
+      expiresAt: customExpiresAt,
+      idempotencyKey = `promo_${userId}_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      adminUserId,
+      metadata = {},
+    } = input;
+
+    if (amountCredits <= 0) {
+      throw new Error("Promotional credits amount must be greater than zero.");
+    }
+
+    const expiresAt =
+      customExpiresAt || new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+    return await prisma.$transaction(async (tx: any) => {
+      const existingTx = await tx.walletTransaction.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existingTx) {
+        const wallet = await tx.wallet.findUnique({ where: { id: existingTx.destinationWalletId } });
+        return {
+          success: true,
+          transactionId: existingTx.id,
+          idempotencyKey: existingTx.idempotencyKey,
+          transactionType: existingTx.transactionType,
+          destinationWalletId: existingTx.destinationWalletId,
+          amountCredits: existingTx.amountCredits,
+          primaryCreditType: "PROMOTIONAL",
+          platformFeeCredits: 0,
+          creatorNetCredits: 0,
+          destBalanceBefore: existingTx.destBalanceBefore,
+          destBalanceAfter: existingTx.destBalanceAfter,
+          fanRemainingBalance: wallet?.balance || 0,
+          timestamp: existingTx.createdAt,
+        };
+      }
+
+      const wallet = await WalletLedgerService.getOrCreateWallet(userId, tx);
+      const balanceBefore = wallet.balance;
+      const balanceAfter = balanceBefore + amountCredits;
+
+      // Create lot
+      const lot = await CreditLotService.grantLot(
+        wallet.id,
+        {
+          creditType: "PROMOTIONAL",
+          amount: amountCredits,
+          expiresAt,
+          grantReason: reason,
+        },
+        tx
+      );
+
+      // Create ledger entry
+      const ledgerEntry = await tx.walletTransaction.create({
+        data: {
+          sourceWalletId: null,
+          destinationWalletId: wallet.id,
+          transactionType: "PROMOTIONAL_GRANT",
+          direction: "CREDIT",
+          amountCredits,
+          primaryCreditType: "PROMOTIONAL",
+          platformFeeCredits: 0,
+          creatorNetCredits: 0,
+          destBalanceBefore: balanceBefore,
+          destBalanceAfter: balanceAfter,
+          idempotencyKey,
+          referenceType: "CREDIT_LOT",
+          referenceId: lot.id,
+          status: "COMPLETED",
+          note: `Promotional Grant: +${amountCredits} credits (${reason}, expires ${expiresAt.toISOString().split("T")[0]})`,
+          metadataJson: JSON.stringify({
+            reason,
+            durationDays,
+            expiresAt: expiresAt.toISOString(),
+            adminUserId,
+            lotId: lot.id,
+            ...metadata,
+          }),
+        },
+      });
+
+      const updatedWallet = await tx.wallet.findUnique({ where: { id: wallet.id } });
+
+      return {
+        success: true,
+        transactionId: ledgerEntry.id,
+        idempotencyKey: ledgerEntry.idempotencyKey,
+        transactionType: "PROMOTIONAL_GRANT",
+        destinationWalletId: wallet.id,
+        amountCredits,
+        primaryCreditType: "PROMOTIONAL",
+        platformFeeCredits: 0,
+        creatorNetCredits: 0,
+        destBalanceBefore: balanceBefore,
+        destBalanceAfter: balanceAfter,
+        fanRemainingBalance: updatedWallet.balance,
+        fanPurchasedBalance: updatedWallet.purchasedBalance,
+        fanPromotionalBalance: updatedWallet.promotionalBalance,
+        fanBonusBalance: updatedWallet.bonusBalance,
+        timestamp: ledgerEntry.createdAt,
+        metadata: {
+          lotId: lot.id,
+          expiresAt,
+        },
+      };
+    });
+  }
+
+  /**
+   * Grants bonus credits to a user (e.g. loyalty reward, tier achievement).
+   */
+  static async grantBonusCredits(input: GrantBonusCreditsInput): Promise<LedgerOperationResult> {
+    const {
+      userId,
+      amountCredits,
+      reason,
+      expiresAt,
+      idempotencyKey = `bonus_${userId}_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      adminUserId,
+      metadata = {},
+    } = input;
+
+    if (amountCredits <= 0) {
+      throw new Error("Bonus credits amount must be greater than zero.");
+    }
+
+    return await prisma.$transaction(async (tx: any) => {
+      const existingTx = await tx.walletTransaction.findUnique({ where: { idempotencyKey } });
+      if (existingTx) {
+        const wallet = await tx.wallet.findUnique({ where: { id: existingTx.destinationWalletId } });
+        return {
+          success: true,
+          transactionId: existingTx.id,
+          idempotencyKey: existingTx.idempotencyKey,
+          transactionType: existingTx.transactionType,
+          destinationWalletId: existingTx.destinationWalletId,
+          amountCredits: existingTx.amountCredits,
+          primaryCreditType: "BONUS",
+          platformFeeCredits: 0,
+          creatorNetCredits: 0,
+          fanRemainingBalance: wallet?.balance || 0,
+          timestamp: existingTx.createdAt,
+        };
+      }
+
+      const wallet = await WalletLedgerService.getOrCreateWallet(userId, tx);
+      const balanceBefore = wallet.balance;
+      const balanceAfter = balanceBefore + amountCredits;
+
+      const lot = await CreditLotService.grantLot(
+        wallet.id,
+        {
+          creditType: "BONUS",
+          amount: amountCredits,
+          expiresAt: expiresAt || null,
+          grantReason: reason,
+        },
+        tx
+      );
+
+      const ledgerEntry = await tx.walletTransaction.create({
+        data: {
+          sourceWalletId: null,
+          destinationWalletId: wallet.id,
+          transactionType: "BONUS_GRANT",
+          direction: "CREDIT",
+          amountCredits,
+          primaryCreditType: "BONUS",
+          platformFeeCredits: 0,
+          creatorNetCredits: 0,
+          destBalanceBefore: balanceBefore,
+          destBalanceAfter: balanceAfter,
+          idempotencyKey,
+          referenceType: "CREDIT_LOT",
+          referenceId: lot.id,
+          status: "COMPLETED",
+          note: `Bonus Grant: +${amountCredits} credits (${reason})`,
+          metadataJson: JSON.stringify({
+            reason,
+            expiresAt: expiresAt?.toISOString(),
+            adminUserId,
+            lotId: lot.id,
+            ...metadata,
+          }),
+        },
+      });
+
+      const updatedWallet = await tx.wallet.findUnique({ where: { id: wallet.id } });
+
+      return {
+        success: true,
+        transactionId: ledgerEntry.id,
+        idempotencyKey: ledgerEntry.idempotencyKey,
+        transactionType: "BONUS_GRANT",
+        destinationWalletId: wallet.id,
+        amountCredits,
+        primaryCreditType: "BONUS",
+        platformFeeCredits: 0,
+        creatorNetCredits: 0,
+        destBalanceBefore: balanceBefore,
+        destBalanceAfter: balanceAfter,
+        fanRemainingBalance: updatedWallet.balance,
+        fanPurchasedBalance: updatedWallet.purchasedBalance,
+        fanPromotionalBalance: updatedWallet.promotionalBalance,
+        fanBonusBalance: updatedWallet.bonusBalance,
+        timestamp: ledgerEntry.createdAt,
       };
     });
   }
@@ -251,13 +523,14 @@ export class WalletLedgerService {
   // ============================================================================
 
   /**
-   * Processes a live gift or tip from fan to creator.
+   * Processes a live gift or tip from fan to creator with FEFO typed lot drawdown.
    * Atomically:
    * 1. Checks fan balance >= credits
    * 2. Calculates platform rake (e.g. 20%) and creator net (80%)
-   * 3. Debits fan wallet, credits creator wallet
-   * 4. Records `CreatorEarning` for creator payout clearance
-   * 5. Writes immutable `WalletTransaction` (type: LIVE_TIP, direction: TRANSFER)
+   * 3. Draws down credits from fan's lots (expiring promotional -> bonus -> purchased)
+   * 4. Debits fan wallet, credits creator wallet
+   * 5. Records `CreatorEarning` for creator payout clearance
+   * 6. Writes immutable `WalletTransaction` (type: LIVE_TIP, direction: TRANSFER)
    */
   static async processLiveTip(input: ProcessLiveTipInput): Promise<LedgerOperationResult> {
     const {
@@ -297,6 +570,9 @@ export class WalletLedgerService {
           destBalanceBefore: existingTx.destBalanceBefore,
           destBalanceAfter: existingTx.destBalanceAfter,
           fanRemainingBalance: fanWallet?.balance || 0,
+          fanPurchasedBalance: fanWallet?.purchasedBalance || 0,
+          fanPromotionalBalance: fanWallet?.promotionalBalance || 0,
+          fanBonusBalance: fanWallet?.bonusBalance || 0,
           timestamp: existingTx.createdAt,
         };
       }
@@ -387,7 +663,15 @@ export class WalletLedgerService {
         },
       });
 
-      // 7. Write Creator Earning Record
+      // 7. Execute Granular FEFO Credit Lot Drawdown
+      const drawdownSummary = await CreditLotService.drawdownCredits(
+        fanWallet.id,
+        credits,
+        ledgerEntry.id,
+        tx
+      );
+
+      // 8. Write Creator Earning Record
       const creatorEarning = await tx.creatorEarning.create({
         data: {
           creatorProfileId: creatorProfile.id,
@@ -403,6 +687,8 @@ export class WalletLedgerService {
         },
       });
 
+      const refreshedFanWallet = await tx.wallet.findUnique({ where: { id: fanWallet.id } });
+
       return {
         success: true,
         transactionId: ledgerEntry.id,
@@ -411,23 +697,28 @@ export class WalletLedgerService {
         sourceWalletId: fanWallet.id,
         destinationWalletId: creatorWallet.id,
         amountCredits: credits,
+        drawdownSummary,
         platformFeeCredits: platformFee,
         creatorNetCredits: creatorNet,
         sourceBalanceBefore: fanBalanceBefore,
         sourceBalanceAfter: fanBalanceAfter,
         destBalanceBefore: creatorBalanceBefore,
         destBalanceAfter: creatorBalanceAfter,
-        fanRemainingBalance: updatedFanWallet.balance,
+        fanRemainingBalance: refreshedFanWallet.balance,
+        fanPurchasedBalance: refreshedFanWallet.purchasedBalance,
+        fanPromotionalBalance: refreshedFanWallet.promotionalBalance,
+        fanBonusBalance: refreshedFanWallet.bonusBalance,
         creatorRemainingBalance: updatedCreatorWallet.balance,
         timestamp: ledgerEntry.createdAt,
         metadata: {
           creatorEarningId: creatorEarning.id,
           creatorDisplayName: creatorProfile.user.displayName,
+          drawdownSummary,
         },
       };
     });
 
-    // 8. Publish Real-time Broadcast Event (outside DB transaction)
+    // Publish Real-time Broadcast Event
     eventBus.publish(`room:${creatorProfileId}`, {
       type: "TIP_EVENT",
       payload: {
@@ -447,8 +738,7 @@ export class WalletLedgerService {
   // ============================================================================
 
   /**
-   * Processes a paid question or interactive item request.
-   * Atomically debits fan, credits creator, logs interaction purchase & earnings.
+   * Processes a paid question or interactive item request with FEFO typed lot drawdown.
    */
   static async processPaidQuestion(input: ProcessPaidQuestionInput): Promise<LedgerOperationResult> {
     const {
@@ -509,7 +799,7 @@ export class WalletLedgerService {
       const creatorBalanceAfter = creatorBalanceBefore + creatorNet;
 
       // 5. Debit / Credit Wallets
-      const updatedFanWallet = await tx.wallet.update({
+      await tx.wallet.update({
         where: { id: fanWallet.id },
         data: {
           balance: { decrement: credits },
@@ -571,7 +861,15 @@ export class WalletLedgerService {
         },
       });
 
-      // 8. Write Creator Earning
+      // 8. Drawdown Typed Credit Lots (FEFO)
+      const drawdownSummary = await CreditLotService.drawdownCredits(
+        fanWallet.id,
+        credits,
+        ledgerEntry.id,
+        tx
+      );
+
+      // 9. Write Creator Earning
       await tx.creatorEarning.create({
         data: {
           creatorProfileId: creatorProfile.id,
@@ -587,6 +885,8 @@ export class WalletLedgerService {
         },
       });
 
+      const refreshedFanWallet = await tx.wallet.findUnique({ where: { id: fanWallet.id } });
+
       return {
         success: true,
         transactionId: ledgerEntry.id,
@@ -595,17 +895,22 @@ export class WalletLedgerService {
         sourceWalletId: fanWallet.id,
         destinationWalletId: creatorWallet.id,
         amountCredits: credits,
+        drawdownSummary,
         platformFeeCredits: platformFee,
         creatorNetCredits: creatorNet,
         sourceBalanceBefore: fanBalanceBefore,
         sourceBalanceAfter: fanBalanceAfter,
         destBalanceBefore: creatorBalanceBefore,
         destBalanceAfter: creatorBalanceAfter,
-        fanRemainingBalance: updatedFanWallet.balance,
+        fanRemainingBalance: refreshedFanWallet.balance,
+        fanPurchasedBalance: refreshedFanWallet.purchasedBalance,
+        fanPromotionalBalance: refreshedFanWallet.promotionalBalance,
+        fanBonusBalance: refreshedFanWallet.bonusBalance,
         creatorRemainingBalance: updatedCreatorWallet.balance,
         timestamp: ledgerEntry.createdAt,
         metadata: {
           questionText,
+          drawdownSummary,
         },
       };
     });
@@ -616,8 +921,7 @@ export class WalletLedgerService {
   // ============================================================================
 
   /**
-   * Processes Pay-Per-View video or media purchase.
-   * Atomically debits fan, credits creator, creates content unlock record & ledger entry.
+   * Processes Pay-Per-View video or media purchase with FEFO typed lot drawdown.
    */
   static async processPPVPurchase(input: ProcessPPVPurchaseInput): Promise<LedgerOperationResult> {
     const {
@@ -689,7 +993,7 @@ export class WalletLedgerService {
       const creatorBalanceAfter = creatorBalanceBefore + creatorNet;
 
       // 6. Debit / Credit Wallets
-      const updatedFanWallet = await tx.wallet.update({
+      await tx.wallet.update({
         where: { id: fanWallet.id },
         data: {
           balance: { decrement: credits },
@@ -741,7 +1045,15 @@ export class WalletLedgerService {
         },
       });
 
-      // 8. Record Content Purchase
+      // 8. Drawdown Typed Credit Lots (FEFO)
+      const drawdownSummary = await CreditLotService.drawdownCredits(
+        fanWallet.id,
+        credits,
+        ledgerEntry.id,
+        tx
+      );
+
+      // 9. Record Content Purchase
       await tx.contentPurchase.create({
         data: {
           contentId: content.id,
@@ -753,7 +1065,7 @@ export class WalletLedgerService {
         },
       });
 
-      // 9. Write Creator Earning
+      // 10. Write Creator Earning
       await tx.creatorEarning.create({
         data: {
           creatorProfileId: content.creatorProfileId,
@@ -769,6 +1081,8 @@ export class WalletLedgerService {
         },
       });
 
+      const refreshedFanWallet = await tx.wallet.findUnique({ where: { id: fanWallet.id } });
+
       return {
         success: true,
         transactionId: ledgerEntry.id,
@@ -777,17 +1091,22 @@ export class WalletLedgerService {
         sourceWalletId: fanWallet.id,
         destinationWalletId: creatorWallet.id,
         amountCredits: credits,
+        drawdownSummary,
         platformFeeCredits: platformFee,
         creatorNetCredits: creatorNet,
         sourceBalanceBefore: fanBalanceBefore,
         sourceBalanceAfter: fanBalanceAfter,
         destBalanceBefore: creatorBalanceBefore,
         destBalanceAfter: creatorBalanceAfter,
-        fanRemainingBalance: updatedFanWallet.balance,
+        fanRemainingBalance: refreshedFanWallet.balance,
+        fanPurchasedBalance: refreshedFanWallet.purchasedBalance,
+        fanPromotionalBalance: refreshedFanWallet.promotionalBalance,
+        fanBonusBalance: refreshedFanWallet.bonusBalance,
         creatorRemainingBalance: updatedCreatorWallet.balance,
         timestamp: ledgerEntry.createdAt,
         metadata: {
           contentTitle: content.title,
+          drawdownSummary,
         },
       };
     });
@@ -798,9 +1117,7 @@ export class WalletLedgerService {
   // ============================================================================
 
   /**
-   * Atomically executes a refund on an existing transaction.
-   * Restores fan balance, debits or adjusts creator balance, updates original tx to REVERSED,
-   * and creates a linked REFUND ledger entry.
+   * Atomically executes a refund on an existing transaction and restores typed lots.
    */
   static async processRefund(input: ProcessRefundInput): Promise<LedgerOperationResult> {
     const {
@@ -844,17 +1161,23 @@ export class WalletLedgerService {
       let creatorBalanceBefore: number | null = null;
       let creatorBalanceAfter: number | null = null;
 
-      // 2. Credit Fan Wallet
+      // 2. Restore Consumed Typed Credit Lots
+      const restoration = await CreditLotService.restoreLotDeductions(originalTx.id, tx);
+
+      // 3. Credit Fan Wallet & increment typed balances accordingly
       const updatedFanWallet = await tx.wallet.update({
         where: { id: fanWallet.id },
         data: {
           balance: { increment: creditsToRefund },
+          purchasedBalance: { increment: restoration.restoredPurchased },
+          promotionalBalance: { increment: restoration.restoredPromo },
+          bonusBalance: { increment: restoration.restoredBonus },
           lifetimeSpentCredits: { decrement: BigInt(creditsToRefund) },
           version: { increment: 1 },
         },
       });
 
-      // 3. Debit Creator Wallet if creator was credited
+      // 4. Debit Creator Wallet if creator was credited
       let updatedCreatorWallet: any = null;
       if (creatorWallet && creatorNetToDeduct > 0) {
         creatorBalanceBefore = creatorWallet.balance;
@@ -878,7 +1201,7 @@ export class WalletLedgerService {
         });
       }
 
-      // 4. Mark Original Transaction as REVERSED
+      // 5. Mark Original Transaction as REVERSED
       await tx.walletTransaction.update({
         where: { id: originalTx.id },
         data: {
@@ -886,7 +1209,7 @@ export class WalletLedgerService {
         },
       });
 
-      // 5. Create Linked Refund Ledger Entry
+      // 6. Create Linked Refund Ledger Entry
       const refundEntry = await tx.walletTransaction.create({
         data: {
           sourceWalletId: creatorWallet ? creatorWallet.id : null,
@@ -910,6 +1233,7 @@ export class WalletLedgerService {
             reason,
             requestedByUserId,
             adminUserId,
+            restoration,
           }),
         },
       });
@@ -929,10 +1253,14 @@ export class WalletLedgerService {
         destBalanceBefore: fanBalanceBefore,
         destBalanceAfter: fanBalanceAfter,
         fanRemainingBalance: updatedFanWallet.balance,
+        fanPurchasedBalance: updatedFanWallet.purchasedBalance,
+        fanPromotionalBalance: updatedFanWallet.promotionalBalance,
+        fanBonusBalance: updatedFanWallet.bonusBalance,
         creatorRemainingBalance: updatedCreatorWallet?.balance,
         timestamp: refundEntry.createdAt,
         metadata: {
           originalTransactionId: originalTx.id,
+          restoration,
         },
       };
     });
@@ -944,15 +1272,15 @@ export class WalletLedgerService {
 
   /**
    * Processes a chargeback notification from payment processor.
-   * Marks PaymentTransaction as DISPUTED_CHARGEBACK, claws back credits,
-   * flags wallet as SUSPENDED_CHARGEBACK, and writes a CHARGEBACK_REVERSAL ledger entry.
+   * Claws back the specific purchased lot, marks PaymentTransaction as disputed,
+   * flags wallet as SUSPENDED_CHARGEBACK, and logs CHARGEBACK_REVERSAL.
    */
   static async processChargebackDispute(input: ProcessChargebackInput): Promise<LedgerOperationResult> {
     const {
       gatewayTransactionId,
       paymentTransactionId,
       disputeReferenceId,
-      disputeFeeCents = 1500, // e.g. $15 dispute fee
+      disputeFeeCents = 1500,
       reason,
       rawGatewayPayload,
       idempotencyKey = `cb_${disputeReferenceId}_${Date.now()}`,
@@ -984,7 +1312,16 @@ export class WalletLedgerService {
       const balanceBefore = wallet.balance;
       const balanceAfter = balanceBefore - creditsToClawback;
 
-      // 2. Flag Payment Transaction as Disputed
+      // 2. Revoke associated credit lots
+      await tx.creditLot.updateMany({
+        where: { paymentTransactionId: paymentTx.id },
+        data: {
+          status: "REVOKED",
+          remainingAmount: 0,
+        },
+      });
+
+      // 3. Flag Payment Transaction as Disputed
       await tx.paymentTransaction.update({
         where: { id: paymentTx.id },
         data: {
@@ -993,18 +1330,20 @@ export class WalletLedgerService {
         },
       });
 
-      // 3. Freeze Wallet & Deduct Balance
+      // 4. Freeze Wallet & Deduct Balance
       const updatedWallet = await tx.wallet.update({
         where: { id: wallet.id },
         data: {
           balance: { decrement: creditsToClawback },
+          purchasedBalance: { decrement: Math.min(wallet.purchasedBalance, paymentTx.creditsPurchased) },
+          bonusBalance: { decrement: Math.min(wallet.bonusBalance, paymentTx.bonusCredits) },
           lifetimeDepositedCredits: { decrement: BigInt(creditsToClawback) },
           status: "SUSPENDED_CHARGEBACK",
           version: { increment: 1 },
         },
       });
 
-      // 4. Create Reversal Ledger Entry
+      // 5. Create Reversal Ledger Entry
       const reversalTx = await tx.walletTransaction.create({
         data: {
           sourceWalletId: wallet.id,
@@ -1012,6 +1351,7 @@ export class WalletLedgerService {
           transactionType: "CHARGEBACK_REVERSAL",
           direction: "DEBIT",
           amountCredits: creditsToClawback,
+          primaryCreditType: "PURCHASED",
           platformFeeCredits: 0,
           creatorNetCredits: 0,
           sourceBalanceBefore: balanceBefore,
@@ -1038,11 +1378,15 @@ export class WalletLedgerService {
         sourceWalletId: wallet.id,
         destinationWalletId: null,
         amountCredits: creditsToClawback,
+        primaryCreditType: "PURCHASED",
         platformFeeCredits: 0,
         creatorNetCredits: 0,
         sourceBalanceBefore: balanceBefore,
         sourceBalanceAfter: balanceAfter,
         fanRemainingBalance: updatedWallet.balance,
+        fanPurchasedBalance: updatedWallet.purchasedBalance,
+        fanPromotionalBalance: updatedWallet.promotionalBalance,
+        fanBonusBalance: updatedWallet.bonusBalance,
         timestamp: reversalTx.createdAt,
         metadata: {
           walletStatus: updatedWallet.status,
@@ -1053,18 +1397,36 @@ export class WalletLedgerService {
   }
 
   // ============================================================================
-  // 7. FORENSIC AUDIT & THE 7 QUESTIONS INQUIRY
+  // 7. EXPIRATION & TYPED BALANCE HELPERS
   // ============================================================================
 
   /**
-   * Forensic analysis answering the 7 fundamental financial questions for any transaction ID:
-   * 1. Where did the balance come from?
-   * 2. Why did it change?
-   * 3. What was purchased?
-   * 4. When?
-   * 5. Which creator received the associated earnings?
-   * 6. Was it refunded?
-   * 7. Was the payment charged back?
+   * Sweeps expired promotional lots across all wallets or a specific wallet.
+   */
+  static async expireStaleCredits(input: ExpireStaleCreditsInput = {}) {
+    return await CreditLotService.expireStaleLots(input.walletId, input.now || new Date());
+  }
+
+  /**
+   * Authoritatively computes and returns typed wallet breakdown and expiration status.
+   */
+  static async getTypedBalance(userIdOrWalletId: string): Promise<TypedWalletBalance> {
+    let wallet = await prisma.wallet.findUnique({ where: { id: userIdOrWalletId } });
+    if (!wallet) {
+      wallet = await prisma.wallet.findUnique({ where: { userId: userIdOrWalletId } });
+    }
+    if (!wallet) {
+      throw new Error(`Wallet not found for ${userIdOrWalletId}`);
+    }
+    return await CreditLotService.getTypedBalance(wallet.id);
+  }
+
+  // ============================================================================
+  // 8. FORENSIC AUDIT & THE 7 QUESTIONS INQUIRY
+  // ============================================================================
+
+  /**
+   * Forensic analysis answering the 7 fundamental financial questions for any transaction ID.
    */
   static async explainTransaction(transactionId: string): Promise<TransactionForensicReport> {
     const tx = await prisma.walletTransaction.findUnique({
@@ -1074,6 +1436,7 @@ export class WalletLedgerService {
         destinationWallet: { include: { user: true } },
         creatorEarnings: { include: { creatorProfile: { include: { user: true } } } },
         contentPurchases: { include: { content: true } },
+        creditLotDeductions: { include: { creditLot: true } },
       },
     });
 
@@ -1098,7 +1461,6 @@ export class WalletLedgerService {
       }
     }
 
-    // Check if source wallet had prior deposits
     if (!fundingDeposit && tx.sourceWalletId) {
       const priorDeposit = await prisma.walletTransaction.findFirst({
         where: {
@@ -1124,6 +1486,34 @@ export class WalletLedgerService {
       }
     }
 
+    // 2. Credit Type Drawdown Analysis
+    let creditTypeDrawdown = null;
+    if (tx.creditLotDeductions && tx.creditLotDeductions.length > 0) {
+      let promoDeducted = 0;
+      let bonusDeducted = 0;
+      let purchasedDeducted = 0;
+
+      const lotsUsed = tx.creditLotDeductions.map((d: any) => {
+        if (d.creditType === "PROMOTIONAL") promoDeducted += d.amountDeducted;
+        else if (d.creditType === "BONUS") bonusDeducted += d.amountDeducted;
+        else if (d.creditType === "PURCHASED") purchasedDeducted += d.amountDeducted;
+
+        return {
+          lotId: d.creditLotId,
+          creditType: d.creditType,
+          amountDeducted: d.amountDeducted,
+          expiresAt: d.creditLot?.expiresAt || null,
+        };
+      });
+
+      creditTypeDrawdown = {
+        promotionalCreditsDeducted: promoDeducted,
+        bonusCreditsDeducted: bonusDeducted,
+        purchasedCreditsDeducted: purchasedDeducted,
+        lotsUsed,
+      };
+    }
+
     // 3. What was purchased?
     let itemTitle = tx.note || "Platform Transaction";
     let itemDescription: string | null = null;
@@ -1138,7 +1528,7 @@ export class WalletLedgerService {
         if (meta.contentTitle) itemTitle = meta.contentTitle;
         if (meta.customMessage) itemDescription = `Message: "${meta.customMessage}"`;
       } catch (e) {
-        // ignore parse error
+        // ignore
       }
     }
 
@@ -1231,9 +1621,11 @@ export class WalletLedgerService {
       cause: {
         transactionType: tx.transactionType,
         direction: tx.direction,
+        primaryCreditType: tx.primaryCreditType,
         note: tx.note,
         metadata: parsedMetadata,
       },
+      creditTypeDrawdown,
       itemPurchased: {
         referenceType: tx.referenceType,
         referenceId: tx.referenceId,
@@ -1262,11 +1654,11 @@ export class WalletLedgerService {
   }
 
   // ============================================================================
-  // 8. WALLET STATEMENT GENERATOR
+  // 9. WALLET STATEMENT GENERATOR
   // ============================================================================
 
   /**
-   * Generates a chronologically verified wallet statement with running balance.
+   * Generates a chronologically verified wallet statement with running balances.
    */
   static async getWalletStatement(
     userIdOrWalletId: string,
@@ -1298,6 +1690,7 @@ export class WalletLedgerService {
       include: {
         sourceWallet: { include: { user: true } },
         destinationWallet: { include: { user: true } },
+        creditLotDeductions: true,
       },
       orderBy: { createdAt: "asc" },
       take: limit,
@@ -1315,7 +1708,6 @@ export class WalletLedgerService {
       let balanceAfter = 0;
 
       if (isCredit && isDebit) {
-        // Self-transfer / Adjustment
         netChange = 0;
         balanceBefore = t.sourceBalanceBefore || wallet.balance;
         balanceAfter = t.sourceBalanceAfter || wallet.balance;
@@ -1333,12 +1725,27 @@ export class WalletLedgerService {
 
       const counterpartyUser = isCredit ? t.sourceWallet?.user : t.destinationWallet?.user;
 
+      let drawdownBreakdown = null;
+      if (t.creditLotDeductions && t.creditLotDeductions.length > 0) {
+        let promo = 0;
+        let bonus = 0;
+        let purchased = 0;
+        for (const d of t.creditLotDeductions) {
+          if (d.creditType === "PROMOTIONAL") promo += d.amountDeducted;
+          else if (d.creditType === "BONUS") bonus += d.amountDeducted;
+          else if (d.creditType === "PURCHASED") purchased += d.amountDeducted;
+        }
+        drawdownBreakdown = { promotional: promo, bonus, purchased };
+      }
+
       return {
         id: t.id,
         timestamp: t.createdAt,
         type: t.transactionType,
         direction: t.direction,
         amount: t.amountCredits,
+        primaryCreditType: t.primaryCreditType,
+        drawdownBreakdown,
         netChange,
         balanceBefore,
         balanceAfter,
@@ -1361,6 +1768,9 @@ export class WalletLedgerService {
       userId: wallet.userId,
       currency: wallet.currency,
       currentBalance: wallet.balance,
+      purchasedBalance: wallet.purchasedBalance,
+      promotionalBalance: wallet.promotionalBalance,
+      bonusBalance: wallet.bonusBalance,
       lockedBalance: wallet.lockedBalance,
       pendingBalance: wallet.pendingBalance,
       lifetimeDeposited: Number(wallet.lifetimeDepositedCredits),
@@ -1381,12 +1791,14 @@ export class WalletLedgerService {
   }
 
   // ============================================================================
-  // 9. LEDGER RECONCILIATION ENGINE
+  // 10. LEDGER RECONCILIATION ENGINE WITH TYPED POOLS
   // ============================================================================
 
   /**
-   * Mathematically sums every ledger debit and credit from historical records
-   * and verifies consistency against the cached `wallet.balance`.
+   * Mathematically reconciles:
+   * 1. Sum of debits and credits against `wallet.balance`
+   * 2. Sum of active, unexpired credit lots against `wallet.balance`
+   * 3. Typed balance field consistency (`purchased + promo + bonus === balance`)
    */
   static async reconcileWallet(walletId: string): Promise<WalletReconciliationResult> {
     const wallet = await prisma.wallet.findUnique({ where: { id: walletId } });
@@ -1394,7 +1806,9 @@ export class WalletLedgerService {
       throw new Error(`Wallet ${walletId} not found.`);
     }
 
-    const [incomingCredits, outgoingDebits] = await Promise.all([
+    const now = new Date();
+
+    const [incomingCredits, outgoingDebits, activeLots] = await Promise.all([
       prisma.walletTransaction.aggregate({
         where: {
           destinationWalletId: wallet.id,
@@ -1420,16 +1834,20 @@ export class WalletLedgerService {
           id: true,
         },
       }),
+      prisma.creditLot.findMany({
+        where: {
+          walletId: wallet.id,
+          status: "ACTIVE",
+          remainingAmount: { gt: 0 },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      }),
     ]);
 
-    // Incoming credits:
-    // If user is creator receiving net, or fan receiving deposits/refunds
-    // To calculate fan balance:
-    // Credits In: deposits (dest=wallet) + refunds (dest=wallet) + tip earnings (if creator dest=wallet.creatorNetCredits)
     const totalDeposits = await prisma.walletTransaction.aggregate({
       where: {
         destinationWalletId: wallet.id,
-        transactionType: { in: ["DEPOSIT", "REFUND", "ADMIN_ADJUSTMENT"] },
+        transactionType: { in: ["DEPOSIT", "REFUND", "ADMIN_ADJUSTMENT", "PROMOTIONAL_GRANT", "BONUS_GRANT"] },
         status: "COMPLETED",
       },
       _sum: { amountCredits: true },
@@ -1447,7 +1865,17 @@ export class WalletLedgerService {
     const totalSpentOrClawedBack = await prisma.walletTransaction.aggregate({
       where: {
         sourceWalletId: wallet.id,
-        transactionType: { in: ["LIVE_TIP", "PPV_PURCHASE", "INTERACTION_FEE", "PRODUCT_PURCHASE", "CHARGEBACK_REVERSAL", "WITHDRAWAL"] },
+        transactionType: {
+          in: [
+            "LIVE_TIP",
+            "PPV_PURCHASE",
+            "INTERACTION_FEE",
+            "PRODUCT_PURCHASE",
+            "CHARGEBACK_REVERSAL",
+            "WITHDRAWAL",
+            "CREDIT_EXPIRATION",
+          ],
+        },
         status: "COMPLETED",
       },
       _sum: { amountCredits: true },
@@ -1458,6 +1886,8 @@ export class WalletLedgerService {
     const totalDebitsOut = totalSpentOrClawedBack._sum.amountCredits || 0;
 
     const calculatedBalance = totalCreditsIn - totalDebitsOut;
+    const sumOfActiveLots = activeLots.reduce((sum, lot) => sum + lot.remainingAmount, 0);
+
     const discrepancy = wallet.balance - calculatedBalance;
     const isConsistent = discrepancy === 0;
 
@@ -1468,11 +1898,16 @@ export class WalletLedgerService {
       userId: wallet.userId,
       cachedBalance: wallet.balance,
       calculatedBalance,
+      purchasedBalance: wallet.purchasedBalance,
+      promotionalBalance: wallet.promotionalBalance,
+      bonusBalance: wallet.bonusBalance,
       totalCreditsIn,
       totalDebitsOut,
+      sumOfActiveLots,
       isConsistent,
       discrepancy,
       transactionCount,
+      activeLotsCount: activeLots.length,
       reconciledAt: new Date(),
     };
   }

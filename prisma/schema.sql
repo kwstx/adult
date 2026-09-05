@@ -135,6 +135,19 @@ CREATE TYPE message_type AS ENUM (
     'SYSTEM_NOTICE'
 );
 
+CREATE TYPE credit_type AS ENUM (
+    'PURCHASED',
+    'PROMOTIONAL',
+    'BONUS'
+);
+
+CREATE TYPE credit_lot_status AS ENUM (
+    'ACTIVE',
+    'DEPLETED',
+    'EXPIRED',
+    'REVOKED'
+);
+
 CREATE TYPE wallet_status AS ENUM (
     'ACTIVE',
     'FROZEN_SECURITY',
@@ -156,7 +169,10 @@ CREATE TYPE wallet_transaction_type AS ENUM (
     'PLATFORM_FEE_RAKE',
     'REFUND',
     'CHARGEBACK_REVERSAL',
-    'ADMIN_ADJUSTMENT'
+    'ADMIN_ADJUSTMENT',
+    'PROMOTIONAL_GRANT',
+    'BONUS_GRANT',
+    'CREDIT_EXPIRATION'
 );
 
 CREATE TYPE transaction_direction AS ENUM (
@@ -738,6 +754,9 @@ CREATE TABLE wallets (
     user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     currency VARCHAR(16) NOT NULL DEFAULT 'CREDITS',
     balance INT NOT NULL DEFAULT 0 CHECK (balance >= 0),
+    purchased_balance INT NOT NULL DEFAULT 0 CHECK (purchased_balance >= 0),
+    promotional_balance INT NOT NULL DEFAULT 0 CHECK (promotional_balance >= 0),
+    bonus_balance INT NOT NULL DEFAULT 0 CHECK (bonus_balance >= 0),
     locked_balance INT NOT NULL DEFAULT 0 CHECK (locked_balance >= 0),
     pending_balance INT NOT NULL DEFAULT 0 CHECK (pending_balance >= 0),
     lifetime_deposited_credits BIGINT NOT NULL DEFAULT 0 CHECK (lifetime_deposited_credits >= 0),
@@ -757,6 +776,33 @@ BEFORE UPDATE ON wallets
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ----------------------------------------------------------------------------
+-- TABLE 13b: credit_lots (Granular Accounting Lots / Buckets per Credit Type)
+-- ----------------------------------------------------------------------------
+CREATE TABLE credit_lots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wallet_id UUID NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+    credit_type credit_type NOT NULL DEFAULT 'PURCHASED',
+    original_amount INT NOT NULL CHECK (original_amount > 0),
+    remaining_amount INT NOT NULL CHECK (remaining_amount >= 0),
+    fiat_value_cents INT CHECK (fiat_value_cents >= 0),
+    fiat_currency VARCHAR(8) NOT NULL DEFAULT 'USD',
+    expires_at TIMESTAMPTZ,
+    grant_reason VARCHAR(255),
+    payment_transaction_id VARCHAR(255),
+    status credit_lot_status NOT NULL DEFAULT 'ACTIVE',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_credit_lots_wallet_status ON credit_lots(wallet_id, status);
+CREATE INDEX idx_credit_lots_wallet_expiry ON credit_lots(wallet_id, expires_at);
+CREATE INDEX idx_credit_lots_type_status ON credit_lots(credit_type, status);
+
+CREATE TRIGGER trg_credit_lots_updated_at
+BEFORE UPDATE ON credit_lots
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ----------------------------------------------------------------------------
 -- TABLE 14: wallet_transactions (Immutable Double-Entry Ledger Entries)
 -- ----------------------------------------------------------------------------
 CREATE TABLE wallet_transactions (
@@ -766,6 +812,7 @@ CREATE TABLE wallet_transactions (
     transaction_type wallet_transaction_type NOT NULL,
     direction transaction_direction NOT NULL DEFAULT 'TRANSFER',
     amount_credits INT NOT NULL CHECK (amount_credits > 0),
+    primary_credit_type credit_type,
     platform_fee_credits INT NOT NULL DEFAULT 0 CHECK (platform_fee_credits >= 0),
     creator_net_credits INT NOT NULL DEFAULT 0 CHECK (creator_net_credits >= 0),
     source_balance_before INT,
@@ -785,6 +832,21 @@ CREATE INDEX idx_wallet_tx_source ON wallet_transactions(source_wallet_id, creat
 CREATE INDEX idx_wallet_tx_dest ON wallet_transactions(destination_wallet_id, created_at DESC);
 CREATE INDEX idx_wallet_tx_type ON wallet_transactions(transaction_type, created_at DESC);
 CREATE INDEX idx_wallet_tx_ref ON wallet_transactions(reference_type, reference_id);
+
+-- ----------------------------------------------------------------------------
+-- TABLE 14b: credit_lot_deductions (Granular Lot Split Consumption Audit)
+-- ----------------------------------------------------------------------------
+CREATE TABLE credit_lot_deductions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    credit_lot_id UUID NOT NULL REFERENCES credit_lots(id) ON DELETE CASCADE,
+    wallet_transaction_id UUID NOT NULL REFERENCES wallet_transactions(id) ON DELETE CASCADE,
+    amount_deducted INT NOT NULL CHECK (amount_deducted > 0),
+    credit_type credit_type NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_lot_deductions_lot ON credit_lot_deductions(credit_lot_id);
+CREATE INDEX idx_lot_deductions_tx ON credit_lot_deductions(wallet_transaction_id);
 
 -- ----------------------------------------------------------------------------
 -- TABLE 10: content_purchases

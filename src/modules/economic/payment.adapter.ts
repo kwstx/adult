@@ -86,18 +86,24 @@ export class PaymentAdapter {
     userId: string;
     packageId: string;
     credits: number;
+    bonusCredits?: number;
     currency?: string;
     amountPaid: number;
   }) {
+    const pkg = CREDIT_PACKAGES.find((p) => p.id === payload.packageId);
+    const baseCredits = pkg ? pkg.credits : payload.credits;
+    const bonusCredits = pkg ? pkg.bonusCredits : (payload.bonusCredits || 0);
+
     const idempotencyKey = `webhook_pay_${payload.transactionId}`;
 
     return await LedgerService.creditUserWalletFromPurchase({
       userId: payload.userId,
-      creditsAmount: payload.credits,
+      creditsAmount: baseCredits,
+      bonusCredits,
       paymentReference: payload.transactionId,
       idempotencyKey,
       amountFiat: payload.amountPaid,
-      currency: payload.currency || "EUR",
+      currency: payload.currency || (pkg?.currency || "EUR"),
     });
   }
 }

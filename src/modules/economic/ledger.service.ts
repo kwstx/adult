@@ -47,18 +47,28 @@ export class LedgerService {
   static async creditUserWalletFromPurchase(params: {
     userId: string;
     creditsAmount: number;
+    bonusCredits?: number;
     paymentReference: string;
     idempotencyKey: string;
     amountFiat?: number;
     currency?: string;
   }) {
-    const { userId, creditsAmount, paymentReference, idempotencyKey, amountFiat = 9.99, currency = "EUR" } = params;
+    const {
+      userId,
+      creditsAmount,
+      bonusCredits = 0,
+      paymentReference,
+      idempotencyKey,
+      amountFiat = 9.99,
+      currency = "EUR",
+    } = params;
 
     const result = await WalletLedgerService.processDeposit({
       userId,
       amountFiatCents: Math.round(amountFiat * 100),
       currency,
       creditsPurchased: creditsAmount,
+      bonusCredits,
       gateway: "CCBILL",
       gatewayTransactionId: paymentReference,
       idempotencyKey,
@@ -161,6 +171,47 @@ export class LedgerService {
   }
 
   /**
+   * Grant promotional marketing credits with expiration.
+   */
+  static async grantPromotionalCredits(params: {
+    userId: string;
+    amountCredits: number;
+    reason: string;
+    durationDays?: number;
+    expiresAt?: Date;
+    adminUserId?: string;
+  }) {
+    return await WalletLedgerService.grantPromotionalCredits(params);
+  }
+
+  /**
+   * Grant bonus credits to user.
+   */
+  static async grantBonusCredits(params: {
+    userId: string;
+    amountCredits: number;
+    reason: string;
+    expiresAt?: Date;
+    adminUserId?: string;
+  }) {
+    return await WalletLedgerService.grantBonusCredits(params);
+  }
+
+  /**
+   * Sweeps expired promotional lots.
+   */
+  static async expireStaleCredits(walletId?: string, now?: Date) {
+    return await WalletLedgerService.expireStaleCredits({ walletId, now });
+  }
+
+  /**
+   * Get typed balance breakdown (purchased, promotional, bonus, next expiring).
+   */
+  static async getTypedBalance(userIdOrWalletId: string) {
+    return await WalletLedgerService.getTypedBalance(userIdOrWalletId);
+  }
+
+  /**
    * Explain transaction ("The 7 Questions" Forensic Audit).
    */
   static async explainTransaction(transactionId: string): Promise<TransactionForensicReport> {
@@ -181,3 +232,4 @@ export class LedgerService {
     return await WalletLedgerService.reconcileWallet(walletId);
   }
 }
+

@@ -1,9 +1,13 @@
 /**
  * Financial Ledger & Wallet Engine Core Types
- * Authoritative Type Definitions for Immutable Double-Entry Ledger System
+ * Authoritative Type Definitions for Immutable Double-Entry Ledger System with Typed Credits
  */
 
 export type WalletStatusType = "ACTIVE" | "FROZEN_SECURITY" | "SUSPENDED_CHARGEBACK";
+
+export type CreditType = "PURCHASED" | "PROMOTIONAL" | "BONUS";
+
+export type CreditLotStatusType = "ACTIVE" | "DEPLETED" | "EXPIRED" | "REVOKED";
 
 export type LedgerTransactionType =
   | "DEPOSIT"
@@ -20,7 +24,10 @@ export type LedgerTransactionType =
   | "PLATFORM_FEE_RAKE"
   | "REFUND"
   | "CHARGEBACK_REVERSAL"
-  | "ADMIN_ADJUSTMENT";
+  | "ADMIN_ADJUSTMENT"
+  | "PROMOTIONAL_GRANT"
+  | "BONUS_GRANT"
+  | "CREDIT_EXPIRATION";
 
 export type LedgerTransactionDirection = "DEBIT" | "CREDIT" | "TRANSFER";
 
@@ -67,6 +74,63 @@ export interface CreditPackage {
 }
 
 // ============================================================================
+// TYPED CREDIT LOTS & BALANCE BREAKDOWNS
+// ============================================================================
+
+export interface CreditLotRecord {
+  id: string;
+  walletId: string;
+  creditType: CreditType;
+  originalAmount: number;
+  remainingAmount: number;
+  fiatValueCents?: number | null;
+  fiatCurrency: string;
+  expiresAt?: Date | null;
+  grantReason?: string | null;
+  paymentTransactionId?: string | null;
+  status: CreditLotStatusType;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreditLotDeductionRecord {
+  id: string;
+  creditLotId: string;
+  walletTransactionId: string;
+  amountDeducted: number;
+  creditType: CreditType;
+  createdAt: Date;
+}
+
+export interface CreditTypeDrawdownSummary {
+  promotionalDeducted: number;
+  bonusDeducted: number;
+  purchasedDeducted: number;
+  totalDeducted: number;
+  deductions: Array<{
+    lotId: string;
+    creditType: CreditType;
+    amount: number;
+    expiresAt?: Date | null;
+  }>;
+}
+
+export interface TypedWalletBalance {
+  totalCredits: number;
+  purchasedCredits: number;
+  promotionalCredits: number;
+  bonusCredits: number;
+  lockedBalance: number;
+  pendingBalance: number;
+  expiringSoon: {
+    amount: number;
+    expiresAt: Date;
+    daysRemaining: number;
+  } | null;
+  activeLotsCount: number;
+}
+
+// ============================================================================
 // OPERATION INPUT INTERFACES
 // ============================================================================
 
@@ -84,6 +148,32 @@ export interface ProcessDepositInput {
   ipAddress?: string;
   countryCode?: string;
   metadata?: Record<string, any>;
+}
+
+export interface GrantPromotionalCreditsInput {
+  userId: string;
+  amountCredits: number;
+  reason: string;
+  durationDays?: number; // e.g. 14, 30 days
+  expiresAt?: Date;
+  idempotencyKey?: string;
+  adminUserId?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface GrantBonusCreditsInput {
+  userId: string;
+  amountCredits: number;
+  reason: string;
+  expiresAt?: Date;
+  idempotencyKey?: string;
+  adminUserId?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ExpireStaleCreditsInput {
+  walletId?: string; // If omitted, sweeps all wallets
+  now?: Date;
 }
 
 export interface ProcessLiveTipInput {
@@ -182,6 +272,8 @@ export interface LedgerOperationResult {
   sourceWalletId?: string | null;
   destinationWalletId?: string | null;
   amountCredits: number;
+  primaryCreditType?: CreditType | null;
+  drawdownSummary?: CreditTypeDrawdownSummary | null;
   platformFeeCredits: number;
   creatorNetCredits: number;
   sourceBalanceBefore?: number | null;
@@ -189,6 +281,9 @@ export interface LedgerOperationResult {
   destBalanceBefore?: number | null;
   destBalanceAfter?: number | null;
   fanRemainingBalance?: number;
+  fanPurchasedBalance?: number;
+  fanPromotionalBalance?: number;
+  fanBonusBalance?: number;
   creatorRemainingBalance?: number;
   timestamp: Date;
   metadata?: Record<string, any>;
@@ -234,9 +329,23 @@ export interface TransactionForensicReport {
   cause: {
     transactionType: LedgerTransactionType;
     direction: LedgerTransactionDirection;
+    primaryCreditType?: CreditType | null;
     note: string | null;
     metadata: Record<string, any> | null;
   };
+
+  // Detailed Credit Type Drawdown (Which types were consumed)
+  creditTypeDrawdown?: {
+    promotionalCreditsDeducted: number;
+    bonusCreditsDeducted: number;
+    purchasedCreditsDeducted: number;
+    lotsUsed: Array<{
+      lotId: string;
+      creditType: CreditType;
+      amountDeducted: number;
+      expiresAt: Date | null;
+    }>;
+  } | null;
 
   // 3. What was purchased?
   itemPurchased: {
@@ -292,6 +401,12 @@ export interface WalletStatementItem {
   direction: LedgerTransactionDirection;
   amount: number;
   netChange: number; // positive for credit, negative for debit
+  primaryCreditType?: CreditType | null;
+  drawdownBreakdown?: {
+    promotional: number;
+    bonus: number;
+    purchased: number;
+  } | null;
   balanceBefore: number;
   balanceAfter: number;
   counterparty: {
@@ -310,6 +425,9 @@ export interface WalletStatement {
   userId: string;
   currency: string;
   currentBalance: number;
+  purchasedBalance: number;
+  promotionalBalance: number;
+  bonusBalance: number;
   lockedBalance: number;
   pendingBalance: number;
   lifetimeDeposited: number;
@@ -333,10 +451,15 @@ export interface WalletReconciliationResult {
   userId: string;
   cachedBalance: number;
   calculatedBalance: number;
+  purchasedBalance: number;
+  promotionalBalance: number;
+  bonusBalance: number;
   totalCreditsIn: number;
   totalDebitsOut: number;
+  sumOfActiveLots: number;
   isConsistent: boolean;
   discrepancy: number;
   transactionCount: number;
+  activeLotsCount: number;
   reconciledAt: Date;
 }

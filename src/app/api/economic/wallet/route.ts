@@ -17,10 +17,16 @@ export async function GET(req: NextRequest) {
 
     const wallet = await WalletLedgerService.getOrCreateWallet(userId);
 
-    // Fetch recent ledger transactions
+    // Fetch typed balance and expiration info
+    const typedBalance = await WalletLedgerService.getTypedBalance(wallet.id);
+
+    // Fetch recent ledger transactions with granular lot deductions
     const ledgerEntries = await prisma.walletTransaction.findMany({
       where: {
         OR: [{ sourceWalletId: wallet.id }, { destinationWalletId: wallet.id }],
+      },
+      include: {
+        creditLotDeductions: true,
       },
       orderBy: { createdAt: "desc" },
       take: 30,
@@ -37,6 +43,7 @@ export async function GET(req: NextRequest) {
         lifetimeSpentCredits: wallet.lifetimeSpentCredits.toString(),
         lifetimeWithdrawnCredits: wallet.lifetimeWithdrawnCredits.toString(),
       },
+      typedBalance,
       ledgerEntries,
       reconciliation,
     });

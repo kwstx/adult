@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Sparkles, CheckCircle2, ShieldCheck, CreditCard, Lock, ArrowRight, Coins } from "lucide-react";
+import { X, Sparkles, CheckCircle2, ShieldCheck, CreditCard, Lock, ArrowRight, Coins, Gift } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { CREDIT_PACKAGES } from "@/modules/economic/payment.adapter";
 
@@ -42,7 +42,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
       // Update local wallet balance state
       const grantedCredits = data.session?.creditsToGrant || 0;
       updateBalance(currentUser.walletBalance + grantedCredits);
-      setSuccessMessage(data.message || `Added ${grantedCredits} tokens to your wallet!`);
+      setSuccessMessage(data.message || `Added ${grantedCredits.toLocaleString()} credits to your wallet!`);
     } catch (err: any) {
       setErrorMessage(err.message || "Payment processing encountered an error.");
     } finally {
@@ -66,9 +66,9 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 mb-3 ring-1 ring-amber-500/40">
             <Coins className="h-6 w-6" />
           </div>
-          <h2 className="text-2xl font-bold text-white">Get Platform Tokens</h2>
+          <h2 className="text-2xl font-bold text-white">Buy Platform Credits</h2>
           <p className="text-sm text-zinc-400 mt-1">
-            Backend-authoritative ledger with discrete adult billing descriptors.
+            Authoritative double-entry ledger with discrete billing and non-expiring purchased funds.
           </p>
         </div>
 
@@ -91,7 +91,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           {CREDIT_PACKAGES.map((pkg) => {
             const isSelected = selectedPkgId === pkg.id;
-            const totalTokens = pkg.credits + pkg.bonusCredits;
+            const totalCredits = pkg.credits + pkg.bonusCredits;
 
             return (
               <button
@@ -112,17 +112,18 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                 <span className="text-xs font-semibold text-zinc-400">{pkg.name}</span>
                 <div className="flex items-baseline gap-1 mt-1">
                   <span className="text-2xl font-extrabold text-white">
-                    {totalTokens.toLocaleString()}
+                    {totalCredits.toLocaleString()}
                   </span>
-                  <span className="text-xs font-semibold text-amber-400">Tokens</span>
+                  <span className="text-xs font-semibold text-amber-400">credits</span>
                 </div>
                 {pkg.bonusCredits > 0 && (
-                  <span className="text-[11px] font-medium text-emerald-400 mt-0.5">
+                  <span className="text-[11px] font-medium text-emerald-400 mt-0.5 flex items-center gap-1">
+                    <Gift className="h-3 w-3" />
                     +{pkg.bonusCredits} Bonus Included
                   </span>
                 )}
                 <div className="mt-3 text-sm font-bold text-zinc-200">
-                  ${pkg.priceUsd.toFixed(2)} USD
+                  {pkg.currency === "EUR" ? "€" : "$"}{pkg.priceFiat.toFixed(2)} {pkg.currency}
                 </div>
               </button>
             );
@@ -148,7 +149,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
             <span className="animate-pulse">Authorizing High-Risk Gateway...</span>
           ) : (
             <>
-              <span>Load Tokens Now</span>
+              <span>Load Credits Now</span>
               <ArrowRight className="h-4 w-4" />
             </>
           )}

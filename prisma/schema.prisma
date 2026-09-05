@@ -138,6 +138,19 @@ enum MessageType {
   SYSTEM_NOTICE
 }
 
+enum CreditType {
+  PURCHASED
+  PROMOTIONAL
+  BONUS
+}
+
+enum CreditLotStatus {
+  ACTIVE
+  DEPLETED
+  EXPIRED
+  REVOKED
+}
+
 enum WalletStatus {
   ACTIVE
   FROZEN_SECURITY
@@ -160,6 +173,9 @@ enum WalletTransactionType {
   REFUND
   CHARGEBACK_REVERSAL
   ADMIN_ADJUSTMENT
+  PROMOTIONAL_GRANT
+  BONUS_GRANT
+  CREDIT_EXPIRATION
 }
 
 enum TransactionDirection {
@@ -899,6 +915,9 @@ model Wallet {
   user                     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   currency                 String               @default("CREDITS")
   balance                  Int                  @default(0)
+  purchasedBalance         Int                  @default(0) @map("purchased_balance")
+  promotionalBalance       Int                  @default(0) @map("promotional_balance")
+  bonusBalance             Int                  @default(0) @map("bonus_balance")
   lockedBalance            Int                  @default(0) @map("locked_balance")
   pendingBalance           Int                  @default(0) @map("pending_balance")
   lifetimeDepositedCredits BigInt               @default(0) @map("lifetime_deposited_credits")
@@ -910,12 +929,52 @@ model Wallet {
   createdAt                DateTime             @default(now()) @map("created_at")
   updatedAt                DateTime             @updatedAt @map("updated_at")
 
+  creditLots               CreditLot[]
   outgoingTransactions     WalletTransaction[]  @relation("SourceWalletTransactions")
   incomingTransactions     WalletTransaction[]  @relation("DestWalletTransactions")
   paymentTransactions      PaymentTransaction[]
 
   @@index([userId, status])
   @@map("wallets")
+}
+
+model CreditLot {
+  id                   String            @id @default(uuid())
+  walletId             String            @map("wallet_id")
+  wallet               Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  creditType           CreditType        @default(PURCHASED) @map("credit_type")
+  originalAmount       Int               @map("original_amount")
+  remainingAmount      Int               @map("remaining_amount")
+  fiatValueCents       Int?              @map("fiat_value_cents")
+  fiatCurrency         String            @default("USD") @map("fiat_currency")
+  expiresAt            DateTime?         @map("expires_at")
+  grantReason          String?           @map("grant_reason")
+  paymentTransactionId String?           @map("payment_transaction_id")
+  status               CreditLotStatus   @default(ACTIVE)
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  deductions           CreditLotDeduction[]
+
+  @@index([walletId, status])
+  @@index([walletId, expiresAt])
+  @@index([creditType, status])
+  @@map("credit_lots")
+}
+
+model CreditLotDeduction {
+  id                  String             @id @default(uuid())
+  creditLotId         String             @map("credit_lot_id")
+  creditLot           CreditLot          @relation(fields: [creditLotId], references: [id], onDelete: Cascade)
+  walletTransactionId String             @map("wallet_transaction_id")
+  walletTransaction   WalletTransaction  @relation(fields: [walletTransactionId], references: [id], onDelete: Cascade)
+  amountDeducted      Int                @map("amount_deducted")
+  creditType          CreditType         @map("credit_type")
+  createdAt           DateTime           @default(now()) @map("created_at")
+
+  @@index([creditLotId])
+  @@index([walletTransactionId])
+  @@map("credit_lot_deductions")
 }
 
 model WalletTransaction {
@@ -927,6 +986,7 @@ model WalletTransaction {
   transactionType      WalletTransactionType   @map("transaction_type")
   direction            TransactionDirection    @default(TRANSFER)
   amountCredits        Int                     @map("amount_credits")
+  primaryCreditType    CreditType?             @map("primary_credit_type")
   platformFeeCredits   Int                     @default(0) @map("platform_fee_credits")
   creatorNetCredits    Int                     @default(0) @map("creator_net_credits")
   sourceBalanceBefore  Int?                    @map("source_balance_before")
@@ -941,6 +1001,7 @@ model WalletTransaction {
   metadataJson         String?                 @map("metadata_json")
   createdAt            DateTime                @default(now()) @map("created_at")
 
+  creditLotDeductions  CreditLotDeduction[]
   contentPurchases     ContentPurchase[]
   creatorEarnings      CreatorEarning[]
   bookings             Booking[]
