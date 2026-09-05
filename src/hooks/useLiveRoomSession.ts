@@ -11,7 +11,15 @@ import type {
   PPVVaultItem,
   RoomSessionPayload,
 } from "@/modules/livestream/room-session.service";
-import type { ChatMessagePayload, TipEventPayload } from "@/modules/realtime/types";
+import type {
+  ChatMessagePayload,
+  GiftSentPayload,
+  LeaderboardEntry,
+  InteractionPurchasedPayload,
+  InteractionAcceptedPayload,
+  GoalUpdatedPayload,
+  ViewerPresenceEventPayload,
+} from "@/modules/realtime/types";
 
 export type ConnectionState = "INITIALIZING" | "CONNECTING" | "CONNECTED" | "RECONNECTING" | "DISCONNECTED" | "ERROR";
 export type MediaPlaybackState = "IDLE" | "PREWARMING" | "PLAYING" | "PAUSED" | "RESTRICTED" | "OFFLINE";
@@ -36,10 +44,11 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
   const [posterUrl, setPosterUrl] = useState<string | undefined>(undefined);
 
   // -------------------------------------------------------------
-  // 2. REAL-TIME CONNECTION STATE
+  // 2. REAL-TIME CONNECTION STATE & VISUAL EVENTS
   // -------------------------------------------------------------
   const [connectionStatus, setConnectionStatus] = useState<ConnectionState>("INITIALIZING");
   const [socketId, setSocketId] = useState<string | null>(null);
+  const [activeGiftEvent, setActiveGiftEvent] = useState<GiftSentPayload | null>(null);
   const [recentTipAlerts, setRecentTipAlerts] = useState<TipAlertItem[]>([]);
 
   // -------------------------------------------------------------
@@ -74,14 +83,15 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
   const [viewerCount, setViewerCount] = useState<number>(0);
 
   // -------------------------------------------------------------
-  // 7. INTERACTION CATALOGUE & PPV VAULT
+  // 7. INTERACTION CATALOGUE, QUEUE & PPV VAULT
   // -------------------------------------------------------------
   const [interactions, setInteractions] = useState<InteractionCatalogueItem[]>([]);
+  const [interactionQueue, setInteractionQueue] = useState<InteractionPurchasedPayload[]>([]);
   const [ppvVault, setPpvVault] = useState<PPVVaultItem[]>([]);
   const [isTriggeringInteraction, setIsTriggeringInteraction] = useState<string | null>(null);
 
   // -------------------------------------------------------------
-  // 8. CREATOR LIVE GOAL
+  // 8. CREATOR LIVE GOAL & LEADERBOARD
   // -------------------------------------------------------------
   const [goal, setGoal] = useState<StreamGoalData>({
     title: "Stream Goal",
@@ -91,9 +101,16 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
     remaining: 500,
     isCompleted: false,
   });
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   // -------------------------------------------------------------
-  // 9. VIEWER RELATIONSHIP LEVEL
+  // 9. CREATOR LIVE EARNINGS
+  // -------------------------------------------------------------
+  const [creatorGrossCredits, setCreatorGrossCredits] = useState<number>(0);
+  const [creatorNetUsd, setCreatorNetUsd] = useState<number>(0);
+
+  // -------------------------------------------------------------
+  // 10. VIEWER RELATIONSHIP LEVEL & WALLET
   // -------------------------------------------------------------
   const [relationship, setRelationship] = useState<ViewerRelationship>({
     isFollowing: false,
@@ -107,11 +124,7 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
     topContributorRank: null,
   });
 
-  // -------------------------------------------------------------
-  // 10. WALLET BALANCE
-  // -------------------------------------------------------------
   const [walletBalance, setWalletBalance] = useState<number>(currentUser.walletBalance);
-
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const activeCreatorIdRef = useRef<string | null>(null);
@@ -178,7 +191,7 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
   }, [loadRoomSession]);
 
   // =============================================================
-  // CHAT HISTORY HYDRATION
+  // CHAT & LEADERBOARD INITIAL HYDRATION
   // =============================================================
   useEffect(() => {
     const creatorId = roomConfig?.creatorId;
@@ -192,17 +205,33 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
         }
       })
       .catch((err) => console.error("Chat hydration error:", err));
+
+    fetch(`/api/realtime/${creatorId}/leaderboard`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data?.topContributors)) {
+          setLeaderboard(data.topContributors);
+        }
+      })
+      .catch((err) => console.error("Leaderboard hydration error:", err));
   }, [roomConfig?.creatorId]);
 
   // =============================================================
-  // REAL-TIME SSE & PRESENCE MULTIPLEXING
+  // REAL-TIME PERSISTENT SSE STREAM & AUTHORITATIVE EVENT ROUTER
   // =============================================================
   useEffect(() => {
     const creatorId = roomConfig?.creatorId;
     if (!creatorId) return;
 
     setConnectionStatus("CONNECTING");
-    const eventSource = new EventSource(`/api/realtime/${creatorId}/sse`);
+
+    const params = new URLSearchParams({
+      userId: currentUser.id,
+      displayName: currentUser.displayName,
+      badge: relationship.fanBadge || "",
+    });
+
+    const eventSource = new EventSource(`/api/realtime/${creatorId}/sse?${params.toString()}`);
 
     eventSource.onopen = () => {
       setConnectionStatus("CONNECTED");
@@ -213,64 +242,85 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
         const event = JSON.parse(e.data);
 
         switch (event.type) {
+          // ---------------------------------------------------------
+          // 1. CONNECTION & PRESENCE
+          // ---------------------------------------------------------
           case "CONNECTED":
             setSocketId(event.payload.socketId);
             if (typeof event.payload.viewerCount === "number") {
               setViewerCount(event.payload.viewerCount);
             }
-            break;
-
-          case "HEARTBEAT":
-            if (typeof event.payload.viewerCount === "number") {
-              setViewerCount(event.payload.viewerCount);
+            if (Array.isArray(event.payload.leaderboard)) {
+              setLeaderboard(event.payload.leaderboard);
             }
             break;
 
+          case "HEARTBEAT":
           case "PRESENCE_COUNT":
             if (typeof event.payload.viewerCount === "number") {
               setViewerCount(event.payload.viewerCount);
             }
             break;
 
-          case "CHAT_MESSAGE":
-            setChatMessages((prev) => [...prev, event.payload]);
+          case "VIEWER_JOINED":
+          case "VIEWER_LEFT": {
+            const presence = event.payload as ViewerPresenceEventPayload;
+            if (typeof presence.viewerCount === "number") {
+              setViewerCount(presence.viewerCount);
+            }
             break;
+          }
 
-          case "TIP_EVENT": {
-            const tip = event.payload as TipEventPayload;
-            // 1. Update live goal progress
-            if (tip.newGoalProgress !== undefined) {
-              setGoal((prev) => {
-                const target = tip.goalTarget || prev.target;
-                const progress = tip.newGoalProgress;
-                return {
-                  ...prev,
-                  target,
-                  progress,
-                  percentage: Math.min(100, Math.round((progress / (target || 1)) * 100)),
-                  remaining: Math.max(0, target - progress),
-                  isCompleted: progress >= target,
-                };
-              });
+          // ---------------------------------------------------------
+          // 2. AUTHORITATIVE GIFT_SENT EVENT
+          // ---------------------------------------------------------
+          case "GIFT_SENT": {
+            const gift = event.payload as GiftSentPayload;
+
+            // A. Trigger Visual Canvas Animation
+            setActiveGiftEvent(gift);
+
+            // B. Update Stream Goal State
+            if (gift.updatedGoal) {
+              setGoal((prev) => ({
+                ...prev,
+                title: gift.updatedGoal.title,
+                target: gift.updatedGoal.target,
+                progress: gift.updatedGoal.progress,
+                percentage: gift.updatedGoal.percentage,
+                remaining: Math.max(0, gift.updatedGoal.target - gift.updatedGoal.progress),
+                isCompleted: gift.updatedGoal.isCompleted,
+              }));
             }
 
-            // 2. Add floating tip alert toast
+            // C. Update Top Leaderboard
+            if (Array.isArray(gift.updatedLeaderboard)) {
+              setLeaderboard(gift.updatedLeaderboard);
+            }
+
+            // D. Update Creator Live Earnings Ticker
+            if (gift.creatorEarningsDelta) {
+              setCreatorGrossCredits((prev) => prev + gift.creatorEarningsDelta.grossCredits);
+              setCreatorNetUsd((prev) => prev + gift.creatorEarningsDelta.netCredits * 0.08);
+            }
+
+            // E. Floating Toast Notification
             const alertItem: TipAlertItem = {
-              id: tip.tipId || `alert_${Date.now()}`,
-              senderName: tip.senderName,
-              credits: tip.credits,
-              actionTitle: tip.actionTitle,
-              customMessage: tip.customMessage,
+              id: gift.eventId,
+              senderName: gift.sender.displayName,
+              credits: gift.gift.creditAmount,
+              actionTitle: gift.gift.name,
+              customMessage: gift.gift.customMessage,
             };
             setRecentTipAlerts((prev) => [...prev, alertItem]);
             setTimeout(() => {
               setRecentTipAlerts((prev) => prev.filter((a) => a.id !== alertItem.id));
             }, 6000);
 
-            // 3. Update viewer's relationship if viewer is the tipper
-            if (tip.senderId === currentUser.id) {
+            // F. If Current User is the Sender (e.g. Sarah) -> Sync relationship & level
+            if (gift.sender.userId === currentUser.id) {
               setRelationship((prev) => {
-                const total = prev.totalTokensContributed + tip.credits;
+                const total = prev.totalTokensContributed + gift.gift.creditAmount;
                 const fanLevel = Math.max(1, Math.floor(Math.sqrt(total / 40)) + 1);
                 return {
                   ...prev,
@@ -283,6 +333,56 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
             break;
           }
 
+          // ---------------------------------------------------------
+          // 3. CHAT MESSAGE EVENT
+          // ---------------------------------------------------------
+          case "NEW_MESSAGE":
+          case "CHAT_MESSAGE":
+            setChatMessages((prev) => [...prev, event.payload]);
+            break;
+
+          // ---------------------------------------------------------
+          // 4. GOAL UPDATED EVENT
+          // ---------------------------------------------------------
+          case "GOAL_UPDATED": {
+            const goalData = event.payload as GoalUpdatedPayload;
+            setGoal((prev) => ({
+              ...prev,
+              title: goalData.title,
+              target: goalData.target,
+              progress: goalData.progress,
+              percentage: goalData.percentage,
+              remaining: goalData.remaining,
+              isCompleted: goalData.isCompleted,
+            }));
+            break;
+          }
+
+          // ---------------------------------------------------------
+          // 5. LEADERBOARD UPDATED EVENT
+          // ---------------------------------------------------------
+          case "LEADERBOARD_UPDATED":
+            if (Array.isArray(event.payload.topContributors)) {
+              setLeaderboard(event.payload.topContributors);
+            }
+            break;
+
+          // ---------------------------------------------------------
+          // 6. INTERACTION EVENTS
+          // ---------------------------------------------------------
+          case "INTERACTION_PURCHASED":
+            setInteractionQueue((prev) => [...prev, event.payload]);
+            break;
+
+          case "INTERACTION_ACCEPTED": {
+            const accepted = event.payload as InteractionAcceptedPayload;
+            setInteractionQueue((prev) => prev.filter((i) => i.queueId !== accepted.queueId));
+            break;
+          }
+
+          // ---------------------------------------------------------
+          // 7. ROOM STATUS
+          // ---------------------------------------------------------
           case "ROOM_STATUS":
             if (event.payload.isLive !== undefined) {
               setRoomConfig((prev) => (prev ? { ...prev, isLive: event.payload.isLive } : null));
@@ -294,7 +394,7 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
             break;
         }
       } catch (err) {
-        console.error("SSE parse error:", err);
+        console.error("SSE parsing error:", err);
       }
     };
 
@@ -306,7 +406,88 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
       eventSource.close();
       setConnectionStatus("DISCONNECTED");
     };
-  }, [roomConfig?.creatorId, currentUser.id]);
+  }, [roomConfig?.creatorId, currentUser.id, currentUser.displayName, relationship.fanBadge]);
+
+  // =============================================================
+  // ACTION: Send Authoritative Gift (e.g. Sarah sends 500 tokens)
+  // =============================================================
+  const sendGift = async (params: {
+    credits: number;
+    giftId?: string;
+    giftName?: string;
+    giftIcon?: string;
+    customMessage?: string;
+  }): Promise<boolean> => {
+    const creatorId = roomConfig?.creatorId;
+    if (!creatorId || params.credits <= 0) return false;
+
+    if (walletBalance < params.credits) {
+      return false;
+    }
+
+    try {
+      const res = await fetch(`/api/realtime/${creatorId}/gift`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fanUserId: currentUser.id,
+          credits: params.credits,
+          giftId: params.giftId || "gift_custom",
+          giftName: params.giftName || "Diamond Spark",
+          giftIcon: params.giftIcon || "💎",
+          customMessage: params.customMessage,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send gift.");
+
+      if (typeof data.fanRemainingBalance === "number") {
+        setWalletBalance(data.fanRemainingBalance);
+        updateBalance(data.fanRemainingBalance);
+      }
+      return true;
+    } catch (err: any) {
+      console.error("Send gift failed:", err);
+      alert(err.message || "Failed to send gift.");
+      return false;
+    }
+  };
+
+  // =============================================================
+  // ACTION: Trigger Interaction Menu Item
+  // =============================================================
+  const triggerInteraction = async (
+    item: InteractionCatalogueItem,
+    customMessage?: string
+  ): Promise<boolean> => {
+    return await sendGift({
+      credits: item.creditCost,
+      giftId: item.id,
+      giftName: item.title,
+      giftIcon: "✨",
+      customMessage: customMessage || `Triggered ${item.title}!`,
+    });
+  };
+
+  // =============================================================
+  // ACTION: Accept Interaction (Creator Action)
+  // =============================================================
+  const acceptInteraction = async (queueId: string): Promise<boolean> => {
+    const creatorId = roomConfig?.creatorId;
+    if (!creatorId) return false;
+
+    try {
+      const res = await fetch(`/api/realtime/${creatorId}/interaction`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ACCEPT", queueId }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
 
   // =============================================================
   // ACTION: Send Chat Message
@@ -346,79 +527,15 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
   };
 
   // =============================================================
-  // ACTION: Trigger Interaction Catalogue Item / Send Tip
-  // =============================================================
-  const triggerInteraction = async (
-    item: InteractionCatalogueItem,
-    customMessage?: string
-  ): Promise<boolean> => {
-    const creatorId = roomConfig?.creatorId;
-    if (!creatorId) return false;
-
-    if (walletBalance < item.creditCost) {
-      return false; // Calling UI will open wallet top-up drawer
-    }
-
-    setIsTriggeringInteraction(item.id);
-    try {
-      const res = await fetch("/api/economic/tip", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fanUserId: currentUser.id,
-          creatorId,
-          credits: item.creditCost,
-          menuItemId: item.id,
-          customMessage: customMessage || `Triggered ${item.title}! ✨`,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to trigger interaction.");
-
-      setWalletBalance(data.fanRemainingBalance);
-      updateBalance(data.fanRemainingBalance);
-      return true;
-    } catch (err: any) {
-      console.error("Interaction trigger failed:", err);
-      alert(err.message || "Interaction failed.");
-      return false;
-    } finally {
-      setIsTriggeringInteraction(null);
-    }
-  };
-
-  // =============================================================
   // ACTION: Chip in Tokens Toward Live Goal
   // =============================================================
   const chipInGoal = async (credits: number): Promise<boolean> => {
-    const creatorId = roomConfig?.creatorId;
-    if (!creatorId || credits <= 0) return false;
-
-    if (walletBalance < credits) return false;
-
-    try {
-      const res = await fetch("/api/economic/tip", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fanUserId: currentUser.id,
-          creatorId,
-          credits,
-          customMessage: `Chipped in ${credits} tokens toward milestone goal! 🎯`,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to contribute tokens.");
-
-      setWalletBalance(data.fanRemainingBalance);
-      updateBalance(data.fanRemainingBalance);
-      return true;
-    } catch (err: any) {
-      console.error("Goal chip-in failed:", err);
-      return false;
-    }
+    return await sendGift({
+      credits,
+      giftName: "Goal Support",
+      giftIcon: "🎯",
+      customMessage: `Chipped in ${credits} tokens toward milestone goal! 🎯`,
+    });
   };
 
   // =============================================================
@@ -488,9 +605,11 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
     isMuted,
     toggleMute: () => setIsMuted((prev) => !prev),
 
-    // 2. Real-time Connection
+    // 2. Real-time Connection & Animations
     connectionStatus,
     socketId,
+    activeGiftEvent,
+    clearActiveGiftEvent: () => setActiveGiftEvent(null),
     recentTipAlerts,
 
     // 3. Room Configuration
@@ -512,20 +631,26 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
 
     // 7. Interactions & PPV
     interactions,
+    interactionQueue,
     ppvVault,
     isTriggeringInteraction,
     triggerInteraction,
+    acceptInteraction,
     unlockPPV,
 
-    // 8. Live Goal
+    // 8. Live Goal & Leaderboard
     goal,
+    leaderboard,
     chipInGoal,
+    sendGift,
 
-    // 9. Relationship
+    // 9. Creator Live Earnings
+    creatorGrossCredits,
+    creatorNetUsd,
+
+    // 10. Relationship & Wallet
     relationship,
     toggleFollow,
-
-    // 10. Wallet
     walletBalance,
   };
 }

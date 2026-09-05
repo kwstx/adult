@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Trophy,
   AlertCircle,
-  Flame,
+  Gift,
 } from "lucide-react";
 import type {
   InteractionCatalogueItem,
@@ -25,7 +25,7 @@ import type {
 interface InteractionMarketplaceDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: "interactions" | "goal" | "ppv" | "vip";
+  initialTab?: "gifts" | "interactions" | "goal" | "ppv" | "vip";
   creatorId: string;
   creatorName: string;
   walletBalance: number;
@@ -34,16 +34,24 @@ interface InteractionMarketplaceDrawerProps {
   ppvVault: PPVVaultItem[];
   relationship: ViewerRelationship;
   isTriggeringInteraction: string | null;
+  onSendGift?: (params: { credits: number; giftId: string; giftName: string; giftIcon: string; customMessage?: string }) => Promise<boolean>;
   onTriggerInteraction: (item: InteractionCatalogueItem) => Promise<boolean>;
   onChipInGoal: (credits: number) => Promise<boolean>;
   onUnlockPPV: (ppvId: string) => Promise<boolean>;
   onOpenWalletModal: () => void;
 }
 
+const PRESET_GIFTS = [
+  { id: "gift_rose", name: "Neon Rose", icon: "🌹", credits: 50, tier: "SMALL", desc: "Cute appreciation gesture" },
+  { id: "gift_heart", name: "Fire Heart", icon: "🔥", credits: 100, tier: "MEDIUM", desc: "Confetti shower effect" },
+  { id: "gift_diamond_500", name: "Diamond Spark", icon: "💎", credits: 500, tier: "LEGENDARY", desc: "Grand 3D particle explosion + screen shake!" },
+  { id: "gift_galaxy", name: "Galaxy Crown", icon: "👑", credits: 1000, tier: "LEGENDARY", desc: "Ultimate top-tipper room broadcast!" },
+];
+
 export function InteractionMarketplaceDrawer({
   isOpen,
   onClose,
-  initialTab = "interactions",
+  initialTab = "gifts",
   creatorId,
   creatorName,
   walletBalance,
@@ -52,13 +60,15 @@ export function InteractionMarketplaceDrawer({
   ppvVault,
   relationship,
   isTriggeringInteraction,
+  onSendGift,
   onTriggerInteraction,
   onChipInGoal,
   onUnlockPPV,
   onOpenWalletModal,
 }: InteractionMarketplaceDrawerProps) {
-  const [activeTab, setActiveTab] = useState<"interactions" | "goal" | "ppv" | "vip">(initialTab);
+  const [activeTab, setActiveTab] = useState<"gifts" | "interactions" | "goal" | "ppv" | "vip">(initialTab);
   const [selectedChipAmount, setSelectedChipAmount] = useState<number>(50);
+  const [customGiftMsg, setCustomGiftMsg] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
@@ -67,6 +77,31 @@ export function InteractionMarketplaceDrawer({
   const showFeedback = (text: string, type: "success" | "error") => {
     setFeedbackMsg({ text, type });
     setTimeout(() => setFeedbackMsg(null), 4000);
+  };
+
+  const handleGiftClick = async (gift: typeof PRESET_GIFTS[0]) => {
+    if (walletBalance < gift.credits) {
+      showFeedback(`You need ${gift.credits} tokens. Please top up your wallet.`, "error");
+      onOpenWalletModal();
+      return;
+    }
+
+    if (!onSendGift) return;
+
+    setIsProcessing(true);
+    const success = await onSendGift({
+      credits: gift.credits,
+      giftId: gift.id,
+      giftName: gift.name,
+      giftIcon: gift.icon,
+      customMessage: customGiftMsg || undefined,
+    });
+    setIsProcessing(false);
+
+    if (success) {
+      showFeedback(`Sent ${gift.name} (${gift.credits} tokens)! ✨`, "success");
+      setCustomGiftMsg("");
+    }
   };
 
   const handleInteractionClick = async (item: InteractionCatalogueItem) => {
@@ -131,7 +166,7 @@ export function InteractionMarketplaceDrawer({
             </div>
             <div>
               <h3 className="text-sm font-extrabold text-white">
-                Interaction Marketplace
+                Live Room Marketplace & Gifts
               </h3>
               <p className="text-[11px] text-zinc-400">
                 Live with {creatorName} • Available: {walletBalance.toLocaleString()} 🪙
@@ -148,10 +183,11 @@ export function InteractionMarketplaceDrawer({
         </div>
 
         {/* 2. Drawer Navigation Tabs */}
-        <div className="flex items-center gap-1 border-b border-zinc-800/80 bg-zinc-900/20 px-4 py-2">
+        <div className="flex items-center gap-1 border-b border-zinc-800/80 bg-zinc-900/20 px-3 py-2 overflow-x-auto">
           {[
-            { id: "interactions", label: "Interactions", icon: Zap, badge: interactions.length },
-            { id: "goal", label: "Stream Goal", icon: Target, badge: `${goal.percentage}%` },
+            { id: "gifts", label: "Gifts", icon: Gift, badge: null },
+            { id: "interactions", label: "Actions", icon: Zap, badge: interactions.length },
+            { id: "goal", label: "Goal", icon: Target, badge: `${goal.percentage}%` },
             { id: "ppv", label: "PPV Vault", icon: ImageIcon, badge: ppvVault.length },
             { id: "vip", label: "VIP Club", icon: Crown, badge: null },
           ].map((tab) => {
@@ -161,7 +197,7 @@ export function InteractionMarketplaceDrawer({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 px-2 text-xs font-bold whitespace-nowrap transition-all ${
                   isActive
                     ? "bg-pink-600 text-white shadow-md shadow-pink-600/30"
                     : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
@@ -203,6 +239,67 @@ export function InteractionMarketplaceDrawer({
 
         {/* 4. Drawer Body Content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* TAB 0: LIVE GIFTS (INCLUDING 500-CREDIT LEGENDARY GIFT) */}
+          {activeTab === "gifts" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                  Select a Real-Time Gift
+                </span>
+                <span className="text-[11px] text-amber-400 font-bold">Authoritative Sync ⚡</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {PRESET_GIFTS.map((g) => {
+                  const isLegendary = g.tier === "LEGENDARY";
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => handleGiftClick(g)}
+                      disabled={isProcessing}
+                      className={`relative flex flex-col items-center text-center p-4 rounded-2xl border transition-all group disabled:opacity-50 active:scale-95 ${
+                        isLegendary
+                          ? "bg-gradient-to-b from-amber-950/30 to-zinc-900 border-amber-500/50 hover:border-amber-400 shadow-lg shadow-amber-500/10"
+                          : "bg-zinc-900/60 border-zinc-800 hover:border-pink-500/50 hover:bg-zinc-900"
+                      }`}
+                    >
+                      {isLegendary && (
+                        <span className="absolute -top-2 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-pink-500 text-black text-[9px] font-black uppercase">
+                          Legendary
+                        </span>
+                      )}
+
+                      <span className="text-3xl mb-1 group-hover:scale-125 transition-transform duration-200">
+                        {g.icon}
+                      </span>
+                      <span className="text-xs font-extrabold text-white mt-1">{g.name}</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5 line-clamp-1">{g.desc}</p>
+
+                      <div className="mt-2.5 flex items-center gap-1 rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-400 border border-amber-500/30">
+                        <Coins className="h-3 w-3" />
+                        <span>{g.credits} Tokens</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Optional Custom Message Input */}
+              <div className="pt-2">
+                <label className="text-[11px] font-bold text-zinc-400 block mb-1.5">
+                  Optional Gift Note / Shoutout
+                </label>
+                <input
+                  type="text"
+                  value={customGiftMsg}
+                  onChange={(e) => setCustomGiftMsg(e.target.value)}
+                  placeholder="e.g., Amazing stream! Keep crushing the goals ✨"
+                  className="w-full rounded-xl bg-zinc-900/80 border border-zinc-800 px-3.5 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-pink-500 transition-colors"
+                />
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: INTERACTIONS CATALOGUE */}
           {activeTab === "interactions" && (
             <div className="space-y-3">
@@ -250,10 +347,9 @@ export function InteractionMarketplaceDrawer({
             </div>
           )}
 
-          {/* TAB 2: STREAM GOAL & LEADERBOARD */}
+          {/* TAB 2: STREAM GOAL */}
           {activeTab === "goal" && (
             <div className="space-y-4">
-              {/* Main Goal Card */}
               <div className="rounded-3xl bg-zinc-900/80 border border-zinc-800 p-5 shadow-inner">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-white">{goal.title}</span>
@@ -262,7 +358,6 @@ export function InteractionMarketplaceDrawer({
                   </span>
                 </div>
 
-                {/* Progress Bar */}
                 <div className="h-3.5 w-full rounded-full bg-zinc-950 overflow-hidden p-0.5 border border-zinc-800 mb-3">
                   <div
                     className="h-full bg-gradient-to-r from-pink-500 via-rose-500 to-amber-400 rounded-full transition-all duration-500 shadow-md shadow-pink-500/20"
@@ -286,7 +381,6 @@ export function InteractionMarketplaceDrawer({
                 </div>
               </div>
 
-              {/* Quick Chip In Buttons */}
               <div>
                 <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-2 block">
                   Chip In Instant Tokens
@@ -305,31 +399,6 @@ export function InteractionMarketplaceDrawer({
                       +{amt} 🪙
                     </button>
                   ))}
-                </div>
-              </div>
-
-              {/* Top Room Contributors */}
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Trophy className="h-4 w-4 text-amber-400" />
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                    Top Room Patrons
-                  </h4>
-                </div>
-
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-zinc-300 font-medium">
-                      <span className="text-amber-400 font-bold">#1</span> Alex Patron 💎
-                    </span>
-                    <span className="font-black text-amber-400">500 🪙</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-zinc-300 font-medium">
-                      <span className="text-zinc-400 font-bold">#2</span> Neon Rider ⚡
-                    </span>
-                    <span className="font-black text-amber-400">180 🪙</span>
-                  </div>
                 </div>
               </div>
 
@@ -364,7 +433,6 @@ export function InteractionMarketplaceDrawer({
                     key={item.id}
                     className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3 hover:border-zinc-700 transition-all"
                   >
-                    {/* Thumbnail with Blur Lock */}
                     <div className="relative h-28 sm:h-20 w-full sm:w-28 shrink-0 rounded-xl overflow-hidden bg-zinc-950">
                       <img
                         src={item.previewUrl}

@@ -10,6 +10,7 @@ import {
   Coins,
   ShieldAlert,
   Target,
+  Trophy,
   Zap,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ interface FloatingInteractionControlsProps {
   onToggleMute: () => void;
   onOpenMarketplace: () => void;
   onOpenGoalTab: () => void;
+  onOpenLeaderboard: () => void;
   onOpenWalletModal: () => void;
   onOpenReportModal: () => void;
   onSendHeart: () => void;
@@ -30,6 +32,7 @@ export function FloatingInteractionControls({
   onToggleMute,
   onOpenMarketplace,
   onOpenGoalTab,
+  onOpenLeaderboard,
   onOpenWalletModal,
   onOpenReportModal,
   onSendHeart,
@@ -62,7 +65,7 @@ export function FloatingInteractionControls({
       <button
         onClick={onOpenMarketplace}
         className="relative flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-tr from-pink-600 via-rose-600 to-amber-500 text-white shadow-2xl shadow-pink-600/50 hover:scale-110 active:scale-95 transition-all group"
-        title="Open Interaction Marketplace"
+        title="Open Interaction Marketplace & Gifts"
       >
         <Zap className="h-6 w-6 group-hover:animate-bounce" />
         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-black text-[9px] font-black">
@@ -70,16 +73,25 @@ export function FloatingInteractionControls({
         </span>
       </button>
 
-      {/* 3. Stream Goal Milestone Button */}
+      {/* 3. Live Leaderboard Button */}
+      <button
+        onClick={onOpenLeaderboard}
+        className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/60 backdrop-blur-xl border border-amber-500/40 text-amber-400 shadow-xl hover:scale-105 hover:bg-black/80 hover:border-amber-400 transition-all"
+        title="Live Top Tippers Leaderboard"
+      >
+        <Trophy className="h-5 w-5" />
+      </button>
+
+      {/* 4. Stream Goal Milestone Button */}
       <button
         onClick={onOpenGoalTab}
-        className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/60 backdrop-blur-xl border border-white/15 text-amber-400 shadow-xl hover:scale-105 hover:bg-black/80 hover:border-amber-400/60 transition-all"
+        className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/60 backdrop-blur-xl border border-white/15 text-pink-400 shadow-xl hover:scale-105 hover:bg-black/80 hover:border-pink-400/60 transition-all"
         title="Stream Milestone Goal"
       >
         <Target className="h-5 w-5" />
       </button>
 
-      {/* 4. Floating Like / Heart Burst Button */}
+      {/* 5. Floating Like / Heart Burst Button */}
       <button
         onClick={handleHeartClick}
         className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-black/60 backdrop-blur-xl border border-white/15 text-rose-400 shadow-xl hover:scale-105 hover:bg-black/80 hover:border-rose-400/60 transition-all ${
@@ -90,7 +102,7 @@ export function FloatingInteractionControls({
         <Heart className={`h-5 w-5 ${isLiking ? "fill-current" : ""}`} />
       </button>
 
-      {/* 5. Audio Mute / Unmute Toggle */}
+      {/* 6. Audio Mute / Unmute Toggle */}
       <button
         onClick={onToggleMute}
         className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 backdrop-blur-xl border border-white/15 text-white shadow-xl hover:scale-105 hover:bg-black/80 transition-all"
@@ -103,7 +115,7 @@ export function FloatingInteractionControls({
         )}
       </button>
 
-      {/* 6. Trust & Safety / Report Button */}
+      {/* 7. Trust & Safety / Report Button */}
       <button
         onClick={onOpenReportModal}
         className="flex h-9 w-9 items-center justify-center rounded-2xl bg-black/50 backdrop-blur-xl border border-white/10 text-zinc-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-black/80 transition-all"

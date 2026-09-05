@@ -3,31 +3,29 @@
 import React, { useState } from "react";
 import { useParams } from "next/navigation";
 import { useLiveRoomSession } from "@/hooks/useLiveRoomSession";
+import { useUser } from "@/lib/user-context";
 import { LiveRoomBackgroundVideo } from "@/components/live-room/LiveRoomBackgroundVideo";
 import { CreatorIdentityOverlay } from "@/components/live-room/CreatorIdentityOverlay";
 import { TranslucentChatPanel } from "@/components/live-room/TranslucentChatPanel";
 import { FloatingInteractionControls } from "@/components/live-room/FloatingInteractionControls";
 import { InteractionMarketplaceDrawer } from "@/components/live-room/InteractionMarketplaceDrawer";
 import { LiveTipToast } from "@/components/live-room/LiveTipToast";
+import { GiftCelebrationCanvas } from "@/components/live-room/GiftCelebrationCanvas";
+import { LiveRoomLeaderboard } from "@/components/live-room/LiveRoomLeaderboard";
+import { CreatorLiveEarningsHUD } from "@/components/live-room/CreatorLiveEarningsHUD";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { ReportModal } from "@/components/trust/ReportModal";
 
 export default function LiveRoomPage() {
   const params = useParams();
   const creatorId = (params?.creatorId as string) || "mayavelvet";
+  const { currentUser } = useUser();
 
   // --------------------------------------------------------------------------
-  // 10 INDEPENDENT CONCURRENT SYSTEMS ORCHESTRATED VIA SINGLE HOOK:
-  // 1. Video Player receiving media
-  // 2. Real-time application connection (SSE / EventBus)
-  // 3. Room configuration loading
-  // 4. Backend viewer permissions determination
-  // 5. Chat connection & message streaming
-  // 6. Audience presence system & live viewer counting
-  // 7. Interaction catalogue loading & execution
-  // 8. Creator live goal loading & real-time milestones
-  // 9. Viewer relationship level loading & progression
-  // 10. User wallet balance loading & ledger synchronization
+  // REAL-TIME ENGINE ORCHESTRATED VIA SINGLE PERSISTENT HOOK:
+  // Zero polling - all state originates from authoritative backend events:
+  // - GIFT_SENT, NEW_MESSAGE, VIEWER_JOINED, VIEWER_LEFT, GOAL_UPDATED,
+  //   INTERACTION_PURCHASED, INTERACTION_ACCEPTED, LEADERBOARD_UPDATED
   // --------------------------------------------------------------------------
   const {
     // 1. Media
@@ -37,8 +35,10 @@ export default function LiveRoomPage() {
     isMuted,
     toggleMute,
 
-    // 2. Real-time Connection
+    // 2. Real-time Connection & Animations
     connectionStatus,
+    activeGiftEvent,
+    clearActiveGiftEvent,
     recentTipAlerts,
 
     // 3. Room Configuration
@@ -57,28 +57,35 @@ export default function LiveRoomPage() {
     // 6. Presence
     viewerCount,
 
-    // 7. Interactions & PPV
+    // 7. Interactions, Queue & PPV
     interactions,
+    interactionQueue,
     ppvVault,
     isTriggeringInteraction,
     triggerInteraction,
+    acceptInteraction,
     unlockPPV,
 
-    // 8. Live Goal
+    // 8. Live Goal, Leaderboard & Gifts
     goal,
+    leaderboard,
     chipInGoal,
+    sendGift,
 
-    // 9. Relationship
+    // 9. Creator Live Earnings
+    creatorGrossCredits,
+    creatorNetUsd,
+
+    // 10. Relationship & Wallet
     relationship,
     toggleFollow,
-
-    // 10. Wallet
     walletBalance,
   } = useLiveRoomSession(creatorId);
 
   // UI Drawer & Modal State
   const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
-  const [marketplaceTab, setMarketplaceTab] = useState<"interactions" | "goal" | "ppv" | "vip">("interactions");
+  const [marketplaceTab, setMarketplaceTab] = useState<"gifts" | "interactions" | "goal" | "ppv" | "vip">("gifts");
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
@@ -96,7 +103,7 @@ export default function LiveRoomPage() {
               Entering Live Room...
             </p>
             <p className="text-xs text-zinc-500 mt-1">
-              Establishing real-time connection & syncing systems
+              Establishing persistent real-time streaming connection (zero polling)
             </p>
           </div>
         </div>
@@ -124,6 +131,8 @@ export default function LiveRoomPage() {
     );
   }
 
+  const isCreator = permissions.isCreator || currentUser.id === roomConfig.creatorId;
+
   return (
     <main className="relative h-screen w-full overflow-hidden bg-black select-none">
       {/* ------------------------------------------------------------- */}
@@ -145,11 +154,32 @@ export default function LiveRoomPage() {
         }}
       />
 
-      {/* Real-Time Floating Tip Celebration Toasts */}
+      {/* ------------------------------------------------------------- */}
+      {/* 2. REAL-TIME MULTI-TIER GIFT CELEBRATION CANVAS               */}
+      {/* Handles Sarah (Sender), Creator, and Spectators distinctly    */}
+      {/* ------------------------------------------------------------- */}
+      <GiftCelebrationCanvas
+        giftEvent={activeGiftEvent}
+        currentUserId={currentUser.id}
+        isCreator={isCreator}
+        onAnimationEnd={clearActiveGiftEvent}
+      />
+
+      {/* Real-Time Floating Tip Toasts */}
       <LiveTipToast alerts={recentTipAlerts} />
 
+      {/* Creator Real-Time Live Earnings & Interaction Requests HUD */}
+      {isCreator && (
+        <CreatorLiveEarningsHUD
+          grossTokens={creatorGrossCredits}
+          netUsd={creatorNetUsd}
+          interactionQueue={interactionQueue}
+          onAcceptInteraction={acceptInteraction}
+        />
+      )}
+
       {/* ------------------------------------------------------------- */}
-      {/* 2. TOP OVERLAY: CREATOR IDENTITY & STATUS                     */}
+      {/* 3. TOP OVERLAY: CREATOR IDENTITY & LIVE STREAM GOAL          */}
       {/* ------------------------------------------------------------- */}
       <CreatorIdentityOverlay
         roomConfig={roomConfig}
@@ -164,7 +194,7 @@ export default function LiveRoomPage() {
       />
 
       {/* ------------------------------------------------------------- */}
-      {/* 3. BOTTOM OVERLAY: TRANSLUCENT / GRADIENT CHAT PANEL         */}
+      {/* 4. BOTTOM OVERLAY: TRANSLUCENT CHAT PANEL                    */}
       {/* ------------------------------------------------------------- */}
       <TranslucentChatPanel
         messages={chatMessages}
@@ -172,33 +202,34 @@ export default function LiveRoomPage() {
         canChat={permissions.canChat}
         onSendMessage={sendChatMessage}
         onOpenMarketplace={() => {
-          setMarketplaceTab("interactions");
+          setMarketplaceTab("gifts");
           setIsMarketplaceOpen(true);
         }}
       />
 
       {/* ------------------------------------------------------------- */}
-      {/* 4. FLOATING INTERACTION CONTROLS (RIGHT-SIDE BUTTONS)         */}
+      {/* 5. FLOATING INTERACTION CONTROLS (RIGHT-SIDE BUTTONS)         */}
       {/* ------------------------------------------------------------- */}
       <FloatingInteractionControls
         walletBalance={walletBalance}
         isMuted={isMuted}
         onToggleMute={toggleMute}
         onOpenMarketplace={() => {
-          setMarketplaceTab("interactions");
+          setMarketplaceTab("gifts");
           setIsMarketplaceOpen(true);
         }}
         onOpenGoalTab={() => {
           setMarketplaceTab("goal");
           setIsMarketplaceOpen(true);
         }}
+        onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
         onOpenWalletModal={() => setIsWalletModalOpen(true)}
         onOpenReportModal={() => setIsReportModalOpen(true)}
         onSendHeart={() => {}}
       />
 
       {/* ------------------------------------------------------------- */}
-      {/* 5. INTERACTION MARKETPLACE DRAWER                             */}
+      {/* 6. INTERACTION & GIFT MARKETPLACE DRAWER                     */}
       {/* ------------------------------------------------------------- */}
       <InteractionMarketplaceDrawer
         isOpen={isMarketplaceOpen}
@@ -212,6 +243,7 @@ export default function LiveRoomPage() {
         ppvVault={ppvVault}
         relationship={relationship}
         isTriggeringInteraction={isTriggeringInteraction}
+        onSendGift={sendGift}
         onTriggerInteraction={triggerInteraction}
         onChipInGoal={chipInGoal}
         onUnlockPPV={unlockPPV}
@@ -219,6 +251,17 @@ export default function LiveRoomPage() {
           setIsMarketplaceOpen(false);
           setIsWalletModalOpen(true);
         }}
+      />
+
+      {/* ------------------------------------------------------------- */}
+      {/* 7. LIVE ROOM LEADERBOARD MODAL                                */}
+      {/* ------------------------------------------------------------- */}
+      <LiveRoomLeaderboard
+        isOpen={isLeaderboardOpen}
+        onClose={() => setIsLeaderboardOpen(false)}
+        leaderboard={leaderboard}
+        currentUserId={currentUser.id}
+        creatorName={roomConfig.displayName}
       />
 
       {/* Modals */}
