@@ -4,7 +4,11 @@ export type RealtimeEventType =
   | "GOAL_UPDATED"
   | "PRESENCE_COUNT"
   | "ROOM_STATUS"
-  | "MODERATION_ACTION";
+  | "INTERACTION_TRIGGERED"
+  | "RELATIONSHIP_UPDATE"
+  | "MODERATION_ACTION"
+  | "CONNECTED"
+  | "HEARTBEAT";
 
 export interface RealtimeEvent<T = unknown> {
   type: RealtimeEventType;
@@ -22,7 +26,7 @@ export interface TipEventPayload {
   customMessage?: string;
   newGoalProgress: number;
   goalTarget: number;
-  createdAt: Date;
+  createdAt: Date | string;
 }
 
 export interface ChatMessagePayload {
@@ -36,10 +40,19 @@ export interface ChatMessagePayload {
   isTipNotice?: boolean;
   tipAmount?: number;
   tipActionName?: string | null;
-  createdAt: Date;
+  createdAt: Date | string;
 }
 
 export interface PresencePayload {
   creatorId: string;
   viewerCount: number;
+}
+
+export interface InteractionTriggeredPayload {
+  interactionId: string;
+  title: string;
+  actionType: string;
+  senderName: string;
+  senderId: string;
+  creditCost: number;
 }
