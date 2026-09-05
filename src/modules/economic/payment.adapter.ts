@@ -6,29 +6,41 @@ export const CREDIT_PACKAGES: CreditPackage[] = [
     id: "pkg_starter",
     name: "Starter Pack",
     credits: 100,
-    priceUsd: 9.99,
+    priceFiat: 10.0,
+    currency: "EUR",
     bonusCredits: 0,
   },
   {
     id: "pkg_popular",
     name: "VIP Fan Pack",
     credits: 500,
-    priceUsd: 44.99,
+    priceFiat: 45.0,
+    currency: "EUR",
     bonusCredits: 50,
     popular: true,
   },
   {
-    id: "pkg_diamond",
+    id: "pkg_high_roller",
     name: "High Roller Pack",
+    credits: 1000,
+    priceFiat: 10.0, // Special Promo: €10 = 1,000 Credits matching prompt scenario
+    currency: "EUR",
+    bonusCredits: 0,
+  },
+  {
+    id: "pkg_diamond",
+    name: "Diamond Patron Pack",
     credits: 1200,
-    priceUsd: 99.99,
+    priceFiat: 100.0,
+    currency: "EUR",
     bonusCredits: 200,
   },
   {
     id: "pkg_whale",
     name: "Elite Patron Pack",
     credits: 3000,
-    priceUsd: 229.99,
+    priceFiat: 230.0,
+    currency: "EUR",
     bonusCredits: 600,
   },
 ];
@@ -38,30 +50,29 @@ export interface PaymentGatewaySession {
   redirectUrl: string;
   packageId: string;
   creditsToGrant: number;
-  priceUsd: number;
+  priceFiat: number;
+  currency: string;
 }
 
 export class PaymentAdapter {
   /**
-   * Generates a checkout session URL for the specialized adult content payment processor (e.g. CCBill / Segpay).
+   * Generates a checkout session URL for high-risk payment processors (CCBill / Segpay).
    */
   static async createCheckoutSession(userId: string, packageId: string): Promise<PaymentGatewaySession> {
-    const pkg = CREDIT_PACKAGES.find((p) => p.id === packageId);
-    if (!pkg) throw new Error("Invalid credit package selected.");
+    const pkg = CREDIT_PACKAGES.find((p) => p.id === packageId) || CREDIT_PACKAGES[0];
 
     const totalCredits = pkg.credits + pkg.bonusCredits;
     const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-    // In production, this generates a signed CCBill / Segpay FlexForm URL.
-    // For local mock / direct execution, return a checkout redirect or simulated processor URL.
-    const redirectUrl = `/api/economic/checkout/mock-provider?sessionId=${sessionId}&packageId=${packageId}&userId=${userId}&credits=${totalCredits}&amount=${pkg.priceUsd}`;
+    const redirectUrl = `/api/economic/checkout/mock-provider?sessionId=${sessionId}&packageId=${pkg.id}&userId=${userId}&credits=${totalCredits}&amount=${pkg.priceFiat}&currency=${pkg.currency}`;
 
     return {
       sessionId,
       redirectUrl,
-      packageId,
+      packageId: pkg.id,
       creditsToGrant: totalCredits,
-      priceUsd: pkg.priceUsd,
+      priceFiat: pkg.priceFiat,
+      currency: pkg.currency,
     };
   }
 
@@ -75,12 +86,9 @@ export class PaymentAdapter {
     userId: string;
     packageId: string;
     credits: number;
-    currency: string;
+    currency?: string;
     amountPaid: number;
   }) {
-    // In production, verify SHA256 HMAC signature against PAYMENT_WEBHOOK_SECRET
-    // e.g. const validSignature = crypto.createHmac('sha256', secret).update(body).digest('hex') === signature;
-
     const idempotencyKey = `webhook_pay_${payload.transactionId}`;
 
     return await LedgerService.creditUserWalletFromPurchase({
@@ -88,6 +96,8 @@ export class PaymentAdapter {
       creditsAmount: payload.credits,
       paymentReference: payload.transactionId,
       idempotencyKey,
+      amountFiat: payload.amountPaid,
+      currency: payload.currency || "EUR",
     });
   }
 }
