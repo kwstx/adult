@@ -136,6 +136,7 @@ enum MessageType {
   TIP_ATTACHED
   PPV_LOCKED_MEDIA
   SYSTEM_NOTICE
+  PAID_MESSAGE
 }
 
 enum CreditType {
@@ -176,6 +177,7 @@ enum WalletTransactionType {
   PROMOTIONAL_GRANT
   BONUS_GRANT
   CREDIT_EXPIRATION
+  PAID_MESSAGE
 }
 
 enum TransactionDirection {
@@ -230,6 +232,7 @@ enum EarningSourceType {
   GOAL_REWARD
   GAME_REWARD
   PLATFORM_BONUS
+  PAID_MESSAGE
 }
 
 enum EarningClearanceStatus {
@@ -311,6 +314,7 @@ enum RelationshipXPType {
   SUBSCRIPTION_RENEWAL
   GOAL_CONTRIBUTION
   GAME_PARTICIPATION
+  PAID_MESSAGE
 }
 
 enum PlatformXPType {
@@ -565,6 +569,11 @@ model CreatorProfile {
   subscriptionTier2Price     Int                          @default(500) @map("subscription_tier2_price")
   subscriptionTier3Price     Int                          @default(1500) @map("subscription_tier3_price")
   customRules                String?                      @map("custom_rules")
+  paidMessagesEnabled        Boolean                      @default(false) @map("paid_messages_enabled")
+  messagePriceCredits        Int                          @default(50) @map("message_price_credits")
+  allowFreeSubscribers       Boolean                      @default(false) @map("allow_free_subscribers")
+  allowFreeVip               Boolean                      @default(false) @map("allow_free_vip")
+  customWelcomeMessage       String?                      @map("custom_welcome_message")
   createdAt                  DateTime                     @default(now()) @map("created_at")
   updatedAt                  DateTime                     @updatedAt @map("updated_at")
 
@@ -998,30 +1007,38 @@ model Conversation {
 }
 
 model Message {
-  id                   String           @id @default(uuid())
-  conversationId       String           @map("conversation_id")
-  conversation         Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderId             String           @map("sender_id")
-  sender               User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  recipientId          String?          @map("recipient_id")
-  recipient            User?            @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: SetNull)
-  messageType          MessageType      @default(TEXT) @map("message_type")
-  body                 String?
-  mediaUrl             String?          @map("media_url")
-  isPpvLocked          Boolean          @default(false) @map("is_ppv_locked")
-  ppvPriceCredits      Int?             @default(0) @map("ppv_price_credits")
-  isPpvUnlocked        Boolean          @default(false) @map("is_ppv_unlocked")
-  tipCredits           Int?             @default(0) @map("tip_credits")
-  isRead               Boolean          @default(false) @map("is_read")
-  readAt               DateTime?        @map("read_at")
-  isDeleted            Boolean          @default(false) @map("is_deleted")
-  createdAt            DateTime         @default(now()) @map("created_at")
-  updatedAt            DateTime         @updatedAt @map("updated_at")
-  reports              Report[]
+  id                     String            @id @default(uuid())
+  conversationId         String            @map("conversation_id")
+  conversation           Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId               String            @map("sender_id")
+  sender                 User              @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId            String?           @map("recipient_id")
+  recipient              User?             @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: SetNull)
+  messageType            MessageType       @default(TEXT) @map("message_type")
+  body                   String?
+  mediaUrl               String?           @map("media_url")
+  isPpvLocked            Boolean           @default(false) @map("is_ppv_locked")
+  ppvPriceCredits        Int?              @default(0) @map("ppv_price_credits")
+  isPpvUnlocked          Boolean           @default(false) @map("is_ppv_unlocked")
+  tipCredits             Int?              @default(0) @map("tip_credits")
+  isPaidMessage          Boolean           @default(false) @map("is_paid_message")
+  paidPriceCredits       Int?              @default(0) @map("paid_price_credits")
+  isPriority             Boolean           @default(false) @map("is_priority")
+  relationshipTierAtSend RelationshipTier? @map("relationship_tier_at_send")
+  fanLevelAtSend         Int?              @map("fan_level_at_send")
+  transactionId          String?           @map("transaction_id")
+  isRead                 Boolean           @default(false) @map("is_read")
+  readAt                 DateTime?         @map("read_at")
+  isDeleted              Boolean           @default(false) @map("is_deleted")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  reports                Report[]
 
   @@index([conversationId, createdAt])
   @@index([senderId])
   @@index([recipientId, isRead])
+  @@index([isPaidMessage])
+  @@index([isPriority])
   @@map("messages")
 }
 

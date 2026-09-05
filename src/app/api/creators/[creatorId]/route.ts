@@ -23,17 +23,17 @@ export async function GET(
             kycStatus: true,
           },
         },
-        interactionItems: {
-          where: { isEnabled: true },
+        interactionDefinitions: {
+          where: { isActive: true },
           orderBy: { sortOrder: "asc" },
         },
-        ppvContents: {
+        contents: {
           orderBy: { createdAt: "desc" },
         },
-        compliance2257: {
+        verifications: {
           select: {
             verificationStatus: true,
-            approvedAt: true,
+            verifiedAt: true,
           },
         },
       },
