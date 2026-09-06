@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { Trophy, Crown, Flame, Sparkles, X, ChevronRight } from "lucide-react";
+import React, { useState } from "react";
+import { Trophy, Crown, Sparkles, X, ChevronRight, Zap } from "lucide-react";
 import type { LeaderboardEntry } from "@/modules/realtime/types";
 
 interface LiveRoomLeaderboardProps {
@@ -10,6 +10,7 @@ interface LiveRoomLeaderboardProps {
   leaderboard: LeaderboardEntry[];
   currentUserId?: string;
   creatorName: string;
+  onSendGift?: (amount: number) => void;
 }
 
 export function LiveRoomLeaderboard({
@@ -18,23 +19,36 @@ export function LiveRoomLeaderboard({
   leaderboard,
   currentUserId,
   creatorName,
+  onSendGift,
 }: LiveRoomLeaderboardProps) {
+  const [timeframe, setTimeframe] = useState<"stream" | "weekly" | "all_time">("stream");
+
   if (!isOpen) return null;
 
+  const currentUserEntry = leaderboard.find((e) => e.userId === currentUserId);
+  const firstPlace = leaderboard[0];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md p-0 sm:p-4">
       <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-zinc-950 border border-zinc-800 p-6 text-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
         {/* Glow Header */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-pink-500 to-purple-600" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-rose-500 to-purple-600" />
 
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-850">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-zinc-800/80">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-inner">
               <Trophy className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white">Live Leaderboard</h3>
-              <p className="text-[11px] text-zinc-400">Top contributors for {creatorName}</p>
+              <h3 className="text-base font-black text-white flex items-center gap-1.5">
+                TOP SUPPORTERS
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+              </h3>
+              <p className="text-[11px] text-zinc-400">Live rankings for {creatorName}</p>
             </div>
           </div>
           <button
@@ -45,11 +59,46 @@ export function LiveRoomLeaderboard({
           </button>
         </div>
 
-        {/* Standings List */}
-        <div className="mt-4 flex flex-col gap-2 max-h-80 overflow-y-auto pr-1">
+        {/* Timeframe Selector */}
+        <div className="mt-3.5 flex items-center p-1 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs">
+          <button
+            onClick={() => setTimeframe("stream")}
+            className={`flex-1 py-1.5 rounded-lg font-bold transition-all ${
+              timeframe === "stream"
+                ? "bg-amber-500 text-black shadow-md"
+                : "text-zinc-400 hover:text-white"
+            }`}
+          >
+            This Live
+          </button>
+          <button
+            onClick={() => setTimeframe("weekly")}
+            className={`flex-1 py-1.5 rounded-lg font-bold transition-all ${
+              timeframe === "weekly"
+                ? "bg-amber-500 text-black shadow-md"
+                : "text-zinc-400 hover:text-white"
+            }`}
+          >
+            Weekly
+          </button>
+          <button
+            onClick={() => setTimeframe("all_time")}
+            className={`flex-1 py-1.5 rounded-lg font-bold transition-all ${
+              timeframe === "all_time"
+                ? "bg-amber-500 text-black shadow-md"
+                : "text-zinc-400 hover:text-white"
+            }`}
+          >
+            All Time
+          </button>
+        </div>
+
+        {/* Standings List (Alex — 12,500 format) */}
+        <div className="mt-3.5 flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
           {leaderboard.length === 0 ? (
-            <div className="py-8 text-center text-zinc-500 text-xs">
-              No gifts sent yet. Be the first to take #1 on the leaderboard! ✨
+            <div className="py-10 text-center text-zinc-500 text-xs">
+              <Sparkles className="h-5 w-5 mx-auto mb-2 text-zinc-600" />
+              No gifts sent yet. Be the first to claim #1! 👑
             </div>
           ) : (
             leaderboard.map((entry) => {
@@ -96,14 +145,15 @@ export function LiveRoomLeaderboard({
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-zinc-400 font-medium">
+                      <span className="text-[10px] text-zinc-400 font-medium font-mono">
                         @{entry.username}
                       </span>
                     </div>
                   </div>
 
+                  {/* Score */}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-xs font-black text-amber-300">
+                    <span className="text-xs font-mono font-black text-amber-300">
                       {entry.totalCredits.toLocaleString()}
                     </span>
                     <span className="text-[10px] font-bold text-zinc-400">tokens</span>
@@ -114,10 +164,31 @@ export function LiveRoomLeaderboard({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="mt-4 pt-3 border-t border-zinc-850 flex items-center justify-between text-[11px] text-zinc-400">
-          <span>Updates live upon every gift event</span>
-          <span className="font-bold text-pink-400">Real-Time Sync ⚡</span>
+        {/* Current User Status & Rank-Up Action */}
+        <div className="mt-3.5 pt-3 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+          <div>
+            {currentUserEntry ? (
+              <span className="text-zinc-300 text-[11px]">
+                Your Rank: <strong className="text-pink-400">#{currentUserEntry.rank}</strong> (
+                {currentUserEntry.totalCredits.toLocaleString()} tokens)
+              </span>
+            ) : (
+              <span className="text-zinc-400 text-[11px]">You haven't contributed yet</span>
+            )}
+          </div>
+
+          {onSendGift && (
+            <button
+              onClick={() => {
+                onClose();
+                onSendGift(250);
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-md transition-transform active:scale-95"
+            >
+              <Zap className="h-3.5 w-3.5 fill-black" />
+              <span>Send Tokens</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

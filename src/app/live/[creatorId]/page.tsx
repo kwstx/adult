@@ -12,6 +12,8 @@ import { InteractionMarketplaceDrawer } from "@/components/live-room/Interaction
 import { LiveTipToast } from "@/components/live-room/LiveTipToast";
 import { GiftCelebrationCanvas } from "@/components/live-room/GiftCelebrationCanvas";
 import { LiveRoomLeaderboard } from "@/components/live-room/LiveRoomLeaderboard";
+import { TopSupportersSideWidget } from "@/components/live-room/TopSupportersSideWidget";
+import { TopSupportersBottomBanner } from "@/components/live-room/TopSupportersBottomBanner";
 import { CreatorLiveEarningsHUD } from "@/components/live-room/CreatorLiveEarningsHUD";
 import { LiveInteractionAlertBanner } from "@/components/live-room/LiveInteractionAlertBanner";
 import { LiveRoomFanStatusHUD } from "@/components/live-room/LiveRoomFanStatusHUD";
@@ -270,6 +272,34 @@ export default function LiveRoomPage() {
             )}
           </button>
         </div>
+      </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 3.5. TOP SUPPORTERS SIDE WIDGET (DOCKABLE LEFT OVERLAY)       */}
+      {/* ------------------------------------------------------------- */}
+      <div className="hidden lg:block absolute top-32 left-4 z-30 pointer-events-auto">
+        <TopSupportersSideWidget
+          leaderboard={leaderboard}
+          currentUserId={currentUser.id}
+          creatorName={roomConfig.displayName}
+          onOpenFullLeaderboard={() => setIsLeaderboardOpen(true)}
+          onSendGift={(amount) => {
+            setMarketplaceTab("gifts");
+            setIsMarketplaceOpen(true);
+          }}
+          onSelectUser={(userId) => setInspectedFanId(userId)}
+        />
+      </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 4. BOTTOM OVERLAY: TRANSLUCENT CHAT PANEL & TOP SUPPORTERS    */}
+      {/* ------------------------------------------------------------- */}
+      <div className="absolute bottom-20 left-4 z-20 pointer-events-auto hidden sm:block lg:hidden">
+        <TopSupportersBottomBanner
+          leaderboard={leaderboard}
+          currentUserId={currentUser.id}
+          onOpenFullLeaderboard={() => setIsLeaderboardOpen(true)}
+        />
       </div>
 
       {/* ------------------------------------------------------------- */}
