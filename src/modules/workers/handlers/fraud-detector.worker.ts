@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { redis } from "@/lib/redis";
+import { CaseService } from "@/modules/trust-safety/case.service";
+import { AuditService } from "@/modules/trust-safety/audit.service";
 import {
   Job,
   FraudDetectPayload,
@@ -73,33 +75,40 @@ export const fraudDetectorWorker: WorkerHandler<
         },
       });
 
-      // B. Create Critical Moderation Case
-      const modCase = await prisma.moderationCase.create({
-        data: {
-          caseNumber: `FRAUD-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-          targetUserId: userId,
+      // B. Create Critical Moderation Case via CaseService
+      const modCase = await CaseService.createCase(
+        {
+          reportedObjectType: "ACCOUNT",
+          reportedObjectId: userId,
+          reasonCategory: triggerEvent === "UNDERAGE_CHAT_RISK" ? "UNDERAGE_SUSPICION" : "FINANCIAL_FRAUD",
+          reason: `Automated Fraud & Safety Worker: ${flags.join(", ")}. Risk Score: ${riskScore.toFixed(2)}`,
           priority: triggerEvent === "UNDERAGE_CHAT_RISK" ? "CRITICAL_URGENT_UNDERAGE" : "HIGH",
-          status: "OPEN",
-          internalNotes: `Automated Fraud & Safety Worker: ${flags.join(", ")}. Risk Score: ${riskScore.toFixed(2)}`,
+          reporterType: "SYSTEM_AUTOMATION",
         },
-      });
+        {
+          actorType: "SYSTEM_AUTOMATION",
+        }
+      );
       moderationCaseId = modCase.id;
 
-      // C. Record Immutable Audit Event
-      const auditEvent = await prisma.auditEvent.create({
-        data: {
+      // C. Record Immutable Audit Event via AuditService
+      const auditEvent = await AuditService.logEvent(
+        {
           action: "ACCOUNT_SECURITY_RESTRICTION_APPLIED",
-          actorId: userId,
+          targetEntityType: "User",
           targetEntityId: userId,
-          targetEntityType: "USER",
-          metadataJson: JSON.stringify({
+          reason: `Automated Fraud & Safety Worker: ${flags.join(", ")}`,
+          metadata: {
             triggerEvent,
             flags,
             riskScore,
             metadata,
-          }),
+          },
         },
-      });
+        {
+          actorType: "SYSTEM_AUTOMATION",
+        }
+      );
       auditEventId = auditEvent.id;
     } catch (err: any) {
       console.warn("[FraudDetectorWorker] DB security action warning:", err.message);

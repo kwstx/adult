@@ -59,7 +59,7 @@ export class AgeVerificationService {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        ageRecords: {
+        ageAssuranceRecords: {
           where: {
             status: "APPROVED",
             expiresAt: { gte: new Date() },
@@ -69,6 +69,6 @@ export class AgeVerificationService {
       },
     });
 
-    return !!(user && (user.kycStatus === "AGE_VERIFIED" || user.kycStatus === "COMPLIANCE_2257_APPROVED" || user.ageRecords.length > 0));
+    return !!(user && (user.kycStatus === "AGE_VERIFIED" || user.kycStatus === "COMPLIANCE_2257_APPROVED" || (user.ageAssuranceRecords && user.ageAssuranceRecords.length > 0)));
   }
 }

@@ -378,6 +378,48 @@ enum BookingStatus {
   NO_SHOW
 }
 
+enum ContentModerationState {
+  PENDING
+  APPROVED
+  RESTRICTED
+  REMOVED
+  APPEALED
+  REJECTED
+}
+
+enum AccountModerationState {
+  ACTIVE
+  RESTRICTED
+  SUSPENDED
+  BANNED
+  UNDER_REVIEW
+}
+
+enum CreatorModerationState {
+  APPLICATION
+  VERIFICATION_PENDING
+  VERIFIED
+  MONETIZATION_ENABLED
+  RESTRICTED
+  SUSPENDED
+}
+
+enum AppealStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportedObjectType {
+  CONTENT
+  ACCOUNT
+  CREATOR
+  LIVESTREAM
+  MESSAGE
+  COMMENT
+}
+
 enum ReportCategory {
   UNDERAGE_SUSPICION
   NON_CONSENSUAL_CONTENT
@@ -503,6 +545,7 @@ model User {
   bio                   String?
   role                  UserRole               @default(FAN)
   kycStatus             KYCStatus              @default(UNVERIFIED) @map("kyc_status")
+  moderationState       AccountModerationState @default(ACTIVE) @map("moderation_state")
   isActive              Boolean                @default(true) @map("is_active")
   isBanned              Boolean                @default(false) @map("is_banned")
   banReason             String?                @map("ban_reason")
@@ -553,6 +596,7 @@ model User {
   reportsSubmitted      Report[]               @relation("ReportedBy")
   reportsReceived       Report[]               @relation("ReportedUser")
   moderationCasesTarget ModerationCase[]       @relation("TargetUserCases")
+  moderationCasesReported ModerationCase[]     @relation("ReporterUserCases")
   moderatorCasesAssigned ModerationCase[]      @relation("ModeratorAssignedCases")
   reviewedVerifications CreatorVerification[]  @relation("AdminVerifier")
   reviewedPayouts       Payout[]               @relation("AdminPayoutReviewer")
@@ -563,6 +607,7 @@ model User {
 
   @@index([role])
   @@index([kycStatus])
+  @@index([moderationState])
   @@index([isBanned])
   @@index([createdAt])
   @@map("users")
@@ -586,6 +631,7 @@ model CreatorProfile {
   playbackHlsUrl             String?                      @map("playback_hls_url")
   playbackWhepUrl            String?                      @map("playback_whep_url")
   isLive                     Boolean                      @default(false) @map("is_live")
+  moderationState            CreatorModerationState       @default(APPLICATION) @map("moderation_state")
   totalFollowers             Int                          @default(0) @map("total_followers")
   totalViews                 Int                          @default(0) @map("total_views")
   totalEarnedCredits         BigInt                       @default(0) @map("total_earned_credits")
@@ -624,9 +670,11 @@ model CreatorProfile {
   leaderboardRecords         LeaderboardRecord[]
   conversations              Conversation[]
   reportsReceived            Report[]                     @relation("ReportedCreator")
+  moderationCases            ModerationCase[]             @relation("ReportedCreatorCases")
   recommendationEvents       RecommendationEvent[]
 
   @@index([isLive])
+  @@index([moderationState])
   @@index([category])
   @@index([totalFollowers])
   @@map("creator_profiles")
@@ -953,33 +1001,38 @@ model Product {
 }
 
 model Content {
-  id                   String             @id @default(uuid())
-  creatorProfileId     String             @map("creator_profile_id")
-  creatorProfile       CreatorProfile     @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  id                   String                 @id @default(uuid())
+  creatorProfileId     String                 @map("creator_profile_id")
+  creatorProfile       CreatorProfile         @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
   title                String
   description          String?
-  contentType          ContentType        @default(VIDEO) @map("content_type")
-  accessLevel          ContentAccessLevel @default(PPV_PURCHASE) @map("access_level")
-  priceCredits         Int                @default(0) @map("price_credits")
-  previewUrl           String?            @map("preview_url")
-  mediaUrl             String             @map("media_url")
-  mediaDurationSeconds Int?               @map("media_duration_seconds")
-  fileSizeBytes        BigInt?            @map("file_size_bytes")
-  isPublished          Boolean            @default(true) @map("is_published")
-  isArchived           Boolean            @default(false) @map("is_archived")
-  viewCount            Int                @default(0) @map("view_count")
-  likeCount            Int                @default(0) @map("like_count")
-  purchaseCount        Int                @default(0) @map("purchase_count")
-  publishedAt          DateTime           @default(now()) @map("published_at")
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @updatedAt @map("updated_at")
+  contentType          ContentType            @default(VIDEO) @map("content_type")
+  accessLevel          ContentAccessLevel     @default(PPV_PURCHASE) @map("access_level")
+  moderationState      ContentModerationState @default(PENDING) @map("moderation_state")
+  moderationReason     String?                @map("moderation_reason")
+  moderatedAt          DateTime?              @map("moderated_at")
+  priceCredits         Int                    @default(0) @map("price_credits")
+  previewUrl           String?                @map("preview_url")
+  mediaUrl             String                 @map("media_url")
+  mediaDurationSeconds Int?                   @map("media_duration_seconds")
+  fileSizeBytes        BigInt?                @map("file_size_bytes")
+  isPublished          Boolean                @default(true) @map("is_published")
+  isArchived           Boolean                @default(false) @map("is_archived")
+  viewCount            Int                    @default(0) @map("view_count")
+  likeCount            Int                    @default(0) @map("like_count")
+  purchaseCount        Int                    @default(0) @map("purchase_count")
+  publishedAt          DateTime               @default(now()) @map("published_at")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
 
   purchases            ContentPurchase[]
   reports              Report[]
+  moderationCases      ModerationCase[]       @relation("ReportedContentCases")
   recommendationEvents RecommendationEvent[]
 
   @@index([creatorProfileId, isPublished])
   @@index([accessLevel, publishedAt])
+  @@index([moderationState])
   @@map("contents")
 }
 
@@ -1593,14 +1646,49 @@ model ModerationCase {
   caseNumber            String               @unique @map("case_number")
   sourceReportId        String?              @map("source_report_id")
   sourceReport          Report?              @relation(fields: [sourceReportId], references: [id], onDelete: SetNull)
-  targetUserId          String               @map("target_user_id")
-  targetUser            User                 @relation("TargetUserCases", fields: [targetUserId], references: [id], onDelete: Cascade)
-  assignedModeratorId   String?              @map("assigned_moderator_id")
-  assignedModerator     User?                @relation("ModeratorAssignedCases", fields: [assignedModeratorId], references: [id], onDelete: SetNull)
+
+  // Reported Object (Polymorphic target object tracking)
+  reportedObjectType    ReportedObjectType   @default(ACCOUNT) @map("reported_object_type")
+  reportedObjectId      String               @map("reported_object_id")
+  reportedContentId     String?              @map("reported_content_id")
+  reportedContent       Content?             @relation("ReportedContentCases", fields: [reportedContentId], references: [id], onDelete: SetNull)
+  reportedUserId        String?              @map("reported_user_id")
+  reportedUser          User?                @relation("TargetUserCases", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  reportedCreatorProfileId String?           @map("reported_creator_profile_id")
+  reportedCreatorProfile CreatorProfile?     @relation("ReportedCreatorCases", fields: [reportedCreatorProfileId], references: [id], onDelete: SetNull)
+
+  // Reporter
+  reporterId            String?              @map("reporter_id")
+  reporter              User?                @relation("ReporterUserCases", fields: [reporterId], references: [id], onDelete: SetNull)
+  reporterType          String               @default("USER") @map("reporter_type") // USER, SYSTEM, EXTERNAL, ANONYMOUS
+
+  // Reason & Evidence
+  reasonCategory        ReportCategory       @default(OTHER) @map("reason_category")
+  reason                String
+  evidence              String?              @map("evidence_json") // JSON structured evidence attachments
+
+  // Automated Signals
+  automatedSignals      String?              @map("automated_signals_json") // JSON signals: AI scores, spam risk, hashes, etc.
+
+  // Reviewer & Decision
+  reviewerId            String?              @map("reviewer_id")
+  reviewer              User?                @relation("ModeratorAssignedCases", fields: [reviewerId], references: [id], onDelete: SetNull)
   priority              ModerationPriority   @default(MEDIUM)
   status                ModerationCaseStatus @default(OPEN)
   actionTaken           ModerationActionType @default(NONE) @map("action_taken")
+  decision              String?              @map("decision")
+  decisionNotes         String?              @map("decision_notes")
+  decisionTime          DateTime?            @map("decision_time")
   actionDurationHours   Int?                 @map("action_duration_hours")
+
+  // Appeal Status & Lifecycle
+  appealStatus          AppealStatus         @default(NONE) @map("appeal_status")
+  appealReason          String?              @map("appeal_reason")
+  appealEvidence        String?              @map("appeal_evidence_json")
+  appealReviewerId      String?              @map("appeal_reviewer_id")
+  appealDecisionTime    DateTime?            @map("appeal_decision_time")
+  appealDecisionNotes   String?              @map("appeal_decision_notes")
+
   summaryFindings       String?              @map("summary_findings")
   internalNotes         String?              @map("internal_notes")
   resolvedAt            DateTime?            @map("resolved_at")
@@ -1608,7 +1696,11 @@ model ModerationCase {
   updatedAt             DateTime             @updatedAt @map("updated_at")
 
   @@index([status, priority])
-  @@index([targetUserId])
+  @@index([reportedObjectType, reportedObjectId])
+  @@index([reportedUserId])
+  @@index([reportedContentId])
+  @@index([reportedCreatorProfileId])
+  @@index([appealStatus])
   @@map("moderation_cases")
 }
 
@@ -1616,14 +1708,19 @@ model AuditEvent {
   id                    String      @id @default(uuid())
   actorId               String?     @map("actor_id")
   actor                 User?       @relation("ActorAuditEvents", fields: [actorId], references: [id], onDelete: SetNull)
-  action                String      // e.g. "USER_BANNED", "WALLET_CREDIT_MINT", "2257_APPROVED"
-  targetEntityType      String      @map("target_entity_type") // e.g. "User", "Wallet", "Livestream"
+  actorType             String      @default("USER") @map("actor_type") // USER, MODERATOR, ADMIN, SYSTEM_AUTOMATION, EXTERNAL_WEBHOOK
+  action                String      // e.g. "CONTENT_STATUS_TRANSITION", "ACCOUNT_MODERATION_ACTION", "CASE_CREATED", "DECISION_RENDERED", "APPEAL_RESOLVED"
+  targetEntityType      String      @map("target_entity_type") // e.g. "Content", "User", "CreatorProfile", "ModerationCase"
   targetEntityId        String      @map("target_entity_id")
-  ipAddress             String?     @map("ip_address")
-  userAgent             String?     @map("user_agent")
+  oldState              String?     @map("old_state")
+  newState              String?     @map("new_state")
   oldValues             String?     @map("old_values") // JSON serialized
   newValues             String?     @map("new_values") // JSON serialized
+  reason                String?
+  ipAddress             String?     @map("ip_address")
+  userAgent             String?     @map("user_agent")
   metadataJson          String?     @map("metadata_json")
+  hashChecksum          String?     @map("hash_checksum") // SHA256 chain seal
   createdAt             DateTime    @default(now()) @map("created_at")
 
   @@index([targetEntityType, targetEntityId])

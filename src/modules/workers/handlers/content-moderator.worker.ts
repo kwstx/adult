@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { CaseService } from "@/modules/trust-safety/case.service";
 import {
   Job,
   ContentModeratePayload,
@@ -94,32 +95,24 @@ export const contentModeratorWorker: WorkerHandler<
       });
 
       if (targetUser) {
-        const modCase = await prisma.moderationCase.create({
-          data: {
-            caseNumber: `CASE-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-            targetUserId: targetUser.userId,
+        const modCase = await CaseService.createCase(
+          {
+            reportedObjectType: contentId ? "CONTENT" : "CREATOR",
+            reportedObjectId: contentId || creatorId,
+            reasonCategory: flags.includes("MISSING_2257_COMPLIANCE_CLEARANCE")
+              ? "UNDERAGE_SUSPICION"
+              : "OTHER",
+            reason: `Automated Background Moderation Flag: ${flags.join(", ")}. Risk score: ${riskScore.toFixed(2)}`,
             priority: flags.includes("MISSING_2257_COMPLIANCE_CLEARANCE")
               ? "CRITICAL_URGENT_UNDERAGE"
               : "HIGH",
-            status: "OPEN",
-            internalNotes: `Automated Background Moderation Flag: ${flags.join(", ")}. Risk score: ${riskScore.toFixed(2)}`,
+            reporterType: "SYSTEM_AUTOMATION",
           },
-        });
+          {
+            actorType: "SYSTEM_AUTOMATION",
+          }
+        );
         moderationCaseId = modCase.id;
-
-        await prisma.report.create({
-          data: {
-            reporterId: targetUser.userId,
-            reportedUserId: targetUser.userId,
-            reportedCreatorProfileId: creatorId,
-            reportedLivestreamId: livestreamId || null,
-            category: flags.includes("MISSING_2257_COMPLIANCE_CLEARANCE")
-              ? "UNDERAGE_SUSPICION"
-              : "OTHER",
-            description: `Automated worker quarantine. Flagged items: ${flags.join(", ")}`,
-            status: "UNDER_REVIEW",
-          },
-        });
 
         await jobDispatcher.dispatchEmail({
           to: "trust-and-safety@platform.local",
