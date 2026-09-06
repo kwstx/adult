@@ -27,13 +27,13 @@ export class ModerationService {
    * File a user or content safety report.
    */
   static async submitReport(input: ModerationReportInput) {
-    const report = await prisma.moderationReport.create({
+    const report = await prisma.report.create({
       data: {
         reporterId: input.reporterId,
-        targetUserId: input.targetUserId,
-        targetStreamId: input.targetStreamId,
-        category: input.category,
-        notes: input.notes,
+        reportedUserId: input.targetUserId,
+        reportedLivestreamId: input.targetStreamId,
+        category: (input.category as any) || "OTHER",
+        description: input.notes || "Report filed by user",
         status: "OPEN",
       },
     });

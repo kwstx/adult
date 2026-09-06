@@ -17,34 +17,37 @@ export class Compliance2257Service {
     }
 
     const encryptedId = `enc_${Buffer.from(idNumber).toString("base64")}`;
+    const nameParts = (legalFullName || "Creator Name").split(" ");
+    const legalFirstName = nameParts[0] || "Creator";
+    const legalLastName = nameParts.slice(1).join(" ") || "Verified";
 
-    const record = await prisma.compliance2257Record.upsert({
-      where: { creatorId },
-      update: {
-        legalFullName,
-        dateOfBirth,
-        governmentIdType,
+    const creator = await prisma.creatorProfile.findUnique({
+      where: { id: creatorId },
+    });
+
+    if (!creator) {
+      throw new Error(`Creator profile ${creatorId} not found.`);
+    }
+
+    const record = await prisma.creatorVerification.create({
+      data: {
+        creatorProfileId: creator.id,
+        userId: creator.userId,
+        legalFirstName,
+        legalLastName,
+        dateOfBirth: birthDate,
+        idType: (governmentIdType as any) || "PASSPORT",
         idNumberEncrypted: encryptedId,
-        documentVaultUrl,
+        idDocumentFrontUrl: documentVaultUrl || "vault://doc_front",
+        selfieWithIdUrl: documentVaultUrl || "vault://selfie",
         verificationStatus: "APPROVED",
-        approvedAt: new Date(),
+        verifiedAt: new Date(),
       },
-      create: {
-        creatorId,
-        legalFullName,
-        dateOfBirth,
-        governmentIdType,
-        idNumberEncrypted: encryptedId,
-        documentVaultUrl,
-        verificationStatus: "APPROVED",
-        approvedAt: new Date(),
-      },
-      include: { creator: true },
     });
 
     // Elevate creator User kyc status
     await prisma.user.update({
-      where: { id: record.creator.userId },
+      where: { id: creator.userId },
       data: { kycStatus: "COMPLIANCE_2257_APPROVED" },
     });
 
@@ -55,9 +58,12 @@ export class Compliance2257Service {
    * Verify whether a creator has completed § 2257 compliance before they can broadcast or sell PPV.
    */
   static async isCreator2257Compliant(creatorId: string): Promise<boolean> {
-    const record = await prisma.compliance2257Record.findUnique({
-      where: { creatorId },
+    const record = await prisma.creatorVerification.findFirst({
+      where: {
+        OR: [{ creatorProfileId: creatorId }, { userId: creatorId }],
+        verificationStatus: "APPROVED",
+      },
     });
-    return record?.verificationStatus === "APPROVED";
+    return Boolean(record);
   }
 }

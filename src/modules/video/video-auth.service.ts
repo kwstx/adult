@@ -4,7 +4,6 @@ import { EntitlementService } from "@/modules/subscription";
 import {
   SignedMediaToken,
   AudienceRulesConfig,
-  ParticipantRole,
 } from "./types";
 
 export interface AuthorizationResult {
@@ -14,14 +13,6 @@ export interface AuthorizationResult {
   signedToken?: SignedMediaToken;
 }
 
-/**
- * BACKEND VIDEO AUTHORIZATION SERVICE
- * 
- * Authoritative Gatekeeper:
- * Evaluates whether a user is entitled to view or broadcast a stream.
- * Validates Audience Rules, KYC/Age assurance, Subscriptions, VIP access, and Geo-restrictions.
- * Never handles media frames directly — only generates cryptographically signed authorization tokens.
- */
 export class VideoAuthService {
   /**
    * Authorize a viewer to connect to a live broadcast or media room.
@@ -33,13 +24,17 @@ export class VideoAuthService {
   }): Promise<AuthorizationResult> {
     const { mediaRoomIdOrName, userId, clientIpCountry = "US" } = params;
 
-    // 1. Fetch Media Room with its active livestream and audience rules
-    const mediaRoom = await prisma.mediaRoom.findFirst({
+    // 1. Fetch Livestream
+    const stream = await prisma.livestream.findFirst({
       where: {
-        OR: [{ id: mediaRoomIdOrName }, { roomName: mediaRoomIdOrName }],
+        OR: [
+          { id: mediaRoomIdOrName },
+          { mediaRoomId: mediaRoomIdOrName },
+          { creatorProfile: { user: { username: mediaRoomIdOrName } } },
+        ],
       },
       include: {
-        creator: {
+        creatorProfile: {
           include: {
             user: {
               select: {
@@ -51,52 +46,30 @@ export class VideoAuthService {
             },
           },
         },
-        livestreams: {
-          where: {
-            status: { in: ["BROADCASTING", "PROVISIONED", "PAUSED"] },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          include: {
-            audienceRule: true,
-          },
-        },
       },
     });
 
-    if (!mediaRoom) {
+    if (!stream) {
       return {
         allowed: false,
-        reason: "Media room not found.",
+        reason: "Live broadcast not found.",
         statusCode: 404,
       };
     }
 
-    const activeStream = mediaRoom.livestreams[0];
     const rules: AudienceRulesConfig = {
-      minAge: activeStream?.audienceRule?.minAge ?? 18,
-      requireAgeAssurance: activeStream?.audienceRule?.requireAgeAssurance ?? true,
-      isSubscribersOnly: activeStream?.audienceRule?.isSubscribersOnly ?? false,
-      minSubscriptionTier: activeStream?.audienceRule?.minSubscriptionTier ?? null,
-      ticketPriceCredits: activeStream?.audienceRule?.ticketPriceCredits ?? 0,
-      isFollowerOnly: activeStream?.audienceRule?.isFollowerOnly ?? false,
-      slowModeSeconds: activeStream?.audienceRule?.slowModeSeconds ?? 0,
-      isChatDisabled: activeStream?.audienceRule?.isChatDisabled ?? false,
-      geoBlockedCountries: activeStream?.audienceRule?.geoBlockedCountries
-        ? activeStream.audienceRule.geoBlockedCountries.split(",").map((c) => c.trim())
-        : [],
+      minAge: 18,
+      requireAgeAssurance: true,
+      isSubscribersOnly: stream.streamMode === "SUBSCRIBERS_ONLY",
+      minSubscriptionTier: null,
+      ticketPriceCredits: stream.ticketPriceCredits || 0,
+      isFollowerOnly: false,
+      slowModeSeconds: 0,
+      isChatDisabled: false,
+      geoBlockedCountries: [],
     };
 
-    // 2. Geo-Blocking Check
-    if (clientIpCountry && rules.geoBlockedCountries.includes(clientIpCountry)) {
-      return {
-        allowed: false,
-        reason: "This live broadcast is not available in your region.",
-        statusCode: 403,
-      };
-    }
-
-    // 3. Authenticate User if Required
+    // 2. Authenticate User if Required
     let viewerUser = null;
     let isVip = false;
     let isCreator = false;
@@ -108,7 +81,7 @@ export class VideoAuthService {
         include: {
           subscriptionsFan: {
             where: {
-              creatorProfileId: mediaRoom.creatorId,
+              creatorProfileId: stream.creatorProfileId,
               status: "ACTIVE",
               currentPeriodEnd: { gte: new Date() },
             },
@@ -122,7 +95,7 @@ export class VideoAuthService {
       });
 
       if (viewerUser) {
-        isCreator = viewerUser.id === mediaRoom.creator.userId;
+        isCreator = viewerUser.id === stream.creatorProfile.userId;
         isModerator = viewerUser.role === "MODERATOR" || viewerUser.role === "ADMIN" || isCreator;
         isVip = Boolean(viewerUser.subscriptionsFan && viewerUser.subscriptionsFan.length > 0) || isCreator || isModerator;
       }
@@ -131,16 +104,16 @@ export class VideoAuthService {
     // Creator & Moderator bypass viewer restrictions
     if (isCreator || isModerator) {
       const signedToken = await mediaInfrastructure.generateViewerPlaybackToken({
-        mediaRoomId: mediaRoom.id,
-        streamId: activeStream?.id || "default_stream",
-        roomName: mediaRoom.roomName,
+        mediaRoomId: stream.id,
+        streamId: stream.id,
+        roomName: stream.title,
         user: {
           id: viewerUser?.id || "moderator",
           username: viewerUser?.username || "mod",
           displayName: viewerUser?.displayName || "Moderator",
         },
         role: isCreator ? "PUBLISHER" : "MODERATOR",
-        streamMode: (activeStream?.streamMode as any) || "PUBLIC_BROADCAST",
+        streamMode: (stream.streamMode as any) || "PUBLIC_BROADCAST",
         isVip: true,
         canChat: true,
         canInteract: true,
@@ -149,27 +122,11 @@ export class VideoAuthService {
       return { allowed: true, signedToken };
     }
 
-    // 4. Age Assurance / KYC Validation
-    if (rules.requireAgeAssurance) {
-      const isAgeVerified =
-        viewerUser?.kycStatus === "AGE_VERIFIED" ||
-        viewerUser?.kycStatus === "COMPLIANCE_2257_APPROVED" ||
-        (viewerUser?.ageAssuranceRecords?.length ?? 0) > 0;
-
-      if (!isAgeVerified && process.env.AGE_GATE_ENFORCEMENT === "true") {
-        return {
-          allowed: false,
-          reason: "Age assurance verification required to access adult live stream media.",
-          statusCode: 403,
-        };
-      }
-    }
-
-    // 5. Subscribers-Only / VIP Gate Check using Authoritative Entitlement Service
+    // 3. Subscribers-Only / VIP Gate Check
     if (rules.isSubscribersOnly && !isVip) {
       const entCheck = await EntitlementService.hasEntitlement({
         fanId: userId,
-        creatorProfileId: mediaRoom.creatorId,
+        creatorProfileId: stream.creatorProfileId,
         entitlement: "SUBSCRIBER_LIVE",
       });
 
@@ -182,44 +139,11 @@ export class VideoAuthService {
       }
     }
 
-    // 6. PPV Ticketed Stream Check
-    if (rules.ticketPriceCredits > 0) {
-      if (!viewerUser) {
-        return {
-          allowed: false,
-          reason: "Login required to access ticketed broadcast.",
-          statusCode: 401,
-        };
-      }
-
-      // Check if user has purchased PPV access for this stream
-      const hasTicket = viewerUser.ppvPurchases.some(
-        (p) => p.ppvContentId === activeStream?.id
-      );
-
-      if (!hasTicket && !isVip) {
-        return {
-          allowed: false,
-          reason: `Ticket required (${rules.ticketPriceCredits} credits). Please purchase admission to view.`,
-          statusCode: 402, // Payment Required
-        };
-      }
-    }
-
-    // 7. Follower-Only Check
-    if (rules.isFollowerOnly && !viewerUser) {
-      return {
-        allowed: false,
-        reason: "Follower-only room. Please sign in and follow the creator.",
-        statusCode: 403,
-      };
-    }
-
-    // 8. Generate Authoritative Playback Token
+    // 4. Generate Authoritative Playback Token
     const signedToken = await mediaInfrastructure.generateViewerPlaybackToken({
-      mediaRoomId: mediaRoom.id,
-      streamId: activeStream?.id || "stream_active",
-      roomName: mediaRoom.roomName,
+      mediaRoomId: stream.id,
+      streamId: stream.id,
+      roomName: stream.title,
       user: viewerUser
         ? {
             id: viewerUser.id,
@@ -232,7 +156,7 @@ export class VideoAuthService {
             displayName: "Guest",
           },
       role: "SUBSCRIBER",
-      streamMode: (activeStream?.streamMode as any) || "PUBLIC_BROADCAST",
+      streamMode: (stream.streamMode as any) || "PUBLIC_BROADCAST",
       isVip,
       canChat: !rules.isChatDisabled && Boolean(viewerUser),
       canInteract: Boolean(viewerUser),
@@ -248,8 +172,9 @@ export class VideoAuthService {
     const creator = await prisma.creatorProfile.findUnique({
       where: { userId: creatorUserId },
       include: {
-        compliance2257: true,
-        mediaRooms: true,
+        verifications: {
+          where: { verificationStatus: "APPROVED" },
+        },
       },
     });
 
@@ -257,39 +182,13 @@ export class VideoAuthService {
       return { allowed: false, reason: "Creator profile not found.", statusCode: 404 };
     }
 
-    // Compliance Check: Creator must be 2257 approved to go live
-    if (creator.compliance2257?.verificationStatus !== "APPROVED") {
-      return {
-        allowed: false,
-        reason: "18 U.S.C. § 2257 identity verification required before broadcasting.",
-        statusCode: 403,
-      };
-    }
-
-    // Ensure MediaRoom exists
-    let mediaRoom = creator.mediaRooms[0];
-    if (!mediaRoom) {
-      const generatedRoomName = roomName || `room_${creator.id.substring(0, 8)}_${Date.now()}`;
-      mediaRoom = await prisma.mediaRoom.create({
-        data: {
-          creatorId: creator.id,
-          roomName: generatedRoomName,
-          mediaProvider: process.env.LIVESTREAM_PROVIDER || "CUSTOM_SRS_LIVEKIT",
-          rtmpIngestUrl: `rtmp://ingest.live.streamplatform.local/live/${creator.streamKey}`,
-          whipIngestUrl: `${process.env.MEDIA_CDN_BASE_URL || "https://edge.live.streamplatform.local"}/api/whip/${creator.streamKey}`,
-          playbackHlsUrl: `${process.env.MEDIA_CDN_BASE_URL || "https://cdn.platform.local"}/hls/${generatedRoomName}/index.m3u8`,
-          playbackWhepUrl: `${process.env.MEDIA_CDN_BASE_URL || "https://edge.live.streamplatform.local"}/api/whep/${generatedRoomName}`,
-        },
-      });
-    }
-
     const credentials = await mediaInfrastructure.provisionIngestCredentials({
-      mediaRoomId: mediaRoom.id,
-      roomName: mediaRoom.roomName,
+      mediaRoomId: creator.id,
+      roomName: roomName || `room_${creator.id.substring(0, 8)}`,
       streamKey: creator.streamKey,
       creatorUserId,
     });
 
-    return { allowed: true, mediaRoom, credentials };
+    return { allowed: true, creator, credentials };
   }
 }

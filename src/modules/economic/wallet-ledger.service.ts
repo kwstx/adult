@@ -1113,6 +1113,206 @@ export class WalletLedgerService {
   }
 
   // ============================================================================
+  // 4b. PRODUCT & EXPERIENCE PURCHASE (e.g. Merch, Shoutouts, Passes, Custom Commissions)
+  // ============================================================================
+
+  /**
+   * Processes a product or bespoke creator experience purchase with FEFO typed lot drawdown.
+   */
+  static async processProductPurchase(input: ProcessProductPurchaseInput & { customNotes?: string }): Promise<LedgerOperationResult> {
+    const {
+      fanUserId,
+      productId,
+      quantity = 1,
+      customNotes,
+      idempotencyKey = `prod_${fanUserId}_${productId}_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+    } = input;
+
+    if (quantity <= 0) {
+      throw new Error("Purchase quantity must be at least 1.");
+    }
+
+    return await prisma.$transaction(async (tx: any) => {
+      // 1. Idempotency check
+      const existingTx = await tx.walletTransaction.findUnique({ where: { idempotencyKey } });
+      if (existingTx) {
+        const fanWallet = await tx.wallet.findUnique({ where: { userId: fanUserId } });
+        return {
+          success: true,
+          transactionId: existingTx.id,
+          idempotencyKey: existingTx.idempotencyKey,
+          transactionType: existingTx.transactionType,
+          amountCredits: existingTx.amountCredits,
+          platformFeeCredits: existingTx.platformFeeCredits,
+          creatorNetCredits: existingTx.creatorNetCredits,
+          fanRemainingBalance: fanWallet?.balance || 0,
+          timestamp: existingTx.createdAt,
+          metadata: { duplicate: true },
+        };
+      }
+
+      // 2. Fetch Product & Creator
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        include: { creatorProfile: { include: { user: true } } },
+      });
+
+      if (!product) {
+        throw new Error(`Product ${productId} not found.`);
+      }
+
+      if (!product.isActive) {
+        throw new Error(`Product "${product.title}" is currently unavailable for purchase.`);
+      }
+
+      if (product.inventoryCount !== null && product.inventoryCount < quantity) {
+        throw new Error(`Insufficient inventory: Only ${product.inventoryCount} items remaining.`);
+      }
+
+      const totalCredits = product.priceCredits * quantity;
+      if (totalCredits <= 0) {
+        throw new Error("Product price must be greater than zero.");
+      }
+
+      // 3. Validate Fan Wallet
+      const fanWallet = await tx.wallet.findUnique({ where: { userId: fanUserId } });
+      WalletLedgerService.validateWalletUsability(fanWallet, totalCredits);
+
+      // 4. Validate Creator Wallet
+      const creatorProfile = product.creatorProfile;
+      if (!creatorProfile) {
+        throw new Error("Product is not linked to an active creator profile.");
+      }
+
+      const creatorWallet = await WalletLedgerService.getOrCreateWallet(creatorProfile.userId, tx);
+      WalletLedgerService.validateWalletUsability(creatorWallet, 0);
+
+      // 5. Calculate Rake & Net
+      const platformFee = Math.floor(totalCredits * (DEFAULT_PLATFORM_RAKE_PERCENT / 100));
+      const creatorNet = totalCredits - platformFee;
+
+      const fanBalanceBefore = fanWallet.balance;
+      const fanBalanceAfter = fanBalanceBefore - totalCredits;
+      const creatorBalanceBefore = creatorWallet.balance;
+      const creatorBalanceAfter = creatorBalanceBefore + creatorNet;
+
+      // 6. Debit Fan & Credit Creator Wallets
+      await tx.wallet.update({
+        where: { id: fanWallet.id },
+        data: {
+          balance: { decrement: totalCredits },
+          lifetimeSpentCredits: { increment: BigInt(totalCredits) },
+          version: { increment: 1 },
+        },
+      });
+
+      const updatedCreatorWallet = await tx.wallet.update({
+        where: { id: creatorWallet.id },
+        data: {
+          balance: { increment: creatorNet },
+          lifetimeEarnedCredits: { increment: BigInt(creatorNet) },
+          version: { increment: 1 },
+        },
+      });
+
+      // Decrement inventory if tracked
+      if (product.inventoryCount !== null) {
+        await tx.product.update({
+          where: { id: product.id },
+          data: { inventoryCount: { decrement: quantity } },
+        });
+      }
+
+      // 7. Write Ledger Entry
+      const ledgerEntry = await tx.walletTransaction.create({
+        data: {
+          sourceWalletId: fanWallet.id,
+          destinationWalletId: creatorWallet.id,
+          transactionType: "PRODUCT_PURCHASE",
+          direction: "TRANSFER",
+          amountCredits: totalCredits,
+          platformFeeCredits: platformFee,
+          creatorNetCredits: creatorNet,
+          sourceBalanceBefore: fanBalanceBefore,
+          sourceBalanceAfter: fanBalanceAfter,
+          destBalanceBefore: creatorBalanceBefore,
+          destBalanceAfter: creatorBalanceAfter,
+          idempotencyKey,
+          referenceType: "PRODUCT",
+          referenceId: product.id,
+          status: "COMPLETED",
+          note: `Experience/Product Purchase: "${product.title}" (Qty: ${quantity})`,
+          metadataJson: JSON.stringify({
+            productId: product.id,
+            productTitle: product.title,
+            productType: product.productType,
+            quantity,
+            customNotes,
+            creatorProfileId: creatorProfile.id,
+          }),
+        },
+      });
+
+      // 8. Drawdown Typed Credit Lots (FEFO)
+      const drawdownSummary = await CreditLotService.drawdownCredits(
+        fanWallet.id,
+        totalCredits,
+        ledgerEntry.id,
+        tx
+      );
+
+      // 9. Write Creator Earning Record
+      await tx.creatorEarning.create({
+        data: {
+          creatorProfileId: creatorProfile.id,
+          walletTransactionId: ledgerEntry.id,
+          earningSource: "PRODUCT_SALE",
+          sourceReferenceId: product.id,
+          grossCredits: totalCredits,
+          platformRakePercentage: DEFAULT_PLATFORM_RAKE_PERCENT / 100,
+          platformFeeCredits: platformFee,
+          netCreatorCredits: creatorNet,
+          fiatValueEstimatedCents: Math.round(creatorNet * 0.08 * 100),
+          clearanceStatus: "CLEARED",
+        },
+      });
+
+      const refreshedFanWallet = await tx.wallet.findUnique({ where: { id: fanWallet.id } });
+
+      return {
+        success: true,
+        transactionId: ledgerEntry.id,
+        idempotencyKey: ledgerEntry.idempotencyKey,
+        transactionType: "PRODUCT_PURCHASE",
+        sourceWalletId: fanWallet.id,
+        destinationWalletId: creatorWallet.id,
+        amountCredits: totalCredits,
+        drawdownSummary,
+        platformFeeCredits: platformFee,
+        creatorNetCredits: creatorNet,
+        sourceBalanceBefore: fanBalanceBefore,
+        sourceBalanceAfter: fanBalanceAfter,
+        destBalanceBefore: creatorBalanceBefore,
+        destBalanceAfter: creatorBalanceAfter,
+        fanRemainingBalance: refreshedFanWallet.balance,
+        fanPurchasedBalance: refreshedFanWallet.purchasedBalance,
+        fanPromotionalBalance: refreshedFanWallet.promotionalBalance,
+        fanBonusBalance: refreshedFanWallet.bonusBalance,
+        creatorRemainingBalance: updatedCreatorWallet.balance,
+        timestamp: ledgerEntry.createdAt,
+        metadata: {
+          productId: product.id,
+          productTitle: product.title,
+          productType: product.productType,
+          quantity,
+          customNotes,
+          drawdownSummary,
+        },
+      };
+    });
+  }
+
+  // ============================================================================
   // 5. REFUND OPERATION (e.g. Reversing a Paid Question or PPV)
   // ============================================================================
 

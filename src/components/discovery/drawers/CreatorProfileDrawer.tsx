@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   X,
   ShieldCheck,
@@ -11,6 +12,7 @@ import {
   Lock,
   ExternalLink,
   MessageCircle,
+  ShoppingBag,
 } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 
@@ -166,6 +168,16 @@ export function CreatorProfileDrawer({
               <span>PPV Media Vault</span>
             </button>
           </div>
+
+          {/* Unified Creator Storefront Primary CTA */}
+          <Link
+            href={`/creator/${username}`}
+            onClick={onClose}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-900/60 via-zinc-900 to-zinc-900 border border-purple-500/40 py-3 text-xs font-black text-purple-300 hover:text-white hover:border-purple-500 hover:bg-purple-950/60 shadow-xl transition-all"
+          >
+            <ShoppingBag className="h-4 w-4 text-purple-400" />
+            <span>Open Full Creator Storefront 🛍️</span>
+          </Link>
         </div>
       </div>
     </div>
