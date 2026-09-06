@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "worker": "tsx src/workers/runner.ts"
   },
   "dependencies": {
     "@prisma/client": "6.4.1",
