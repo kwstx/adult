@@ -255,7 +255,7 @@ export function CenterStudioCanvas({
 
         {/* Pending Queue Cards */}
         <div className="space-y-2">
-          {pendingQueueItems.map((item) => (
+          {pendingQueueItems.map((item, idx) => (
             <div
               key={item.id}
               className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/70 border border-zinc-800 hover:border-pink-500/30 transition-all"
@@ -264,17 +264,19 @@ export function CenterStudioCanvas({
                 <img
                   src={item.fanAvatar}
                   alt=""
-                  className="h-9 w-9 rounded-xl object-cover shrink-0"
+                  className="h-9 w-9 rounded-xl object-cover shrink-0 ring-1 ring-zinc-700"
                 />
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white truncate">{item.actionTitle}</span>
-                    <span className="rounded bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
-                      {item.credits} 🪙
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black text-white truncate">
+                      {item.fanName.split(" ")[0] || "Alex"} — {item.actionTitle} — {item.credits} credits
+                    </span>
+                    <span className="rounded-full bg-amber-500/20 px-2 py-0.2 text-[9px] font-black text-amber-400 border border-amber-500/30">
+                      Position #{idx + 1}
                     </span>
                   </div>
                   <span className="text-[11px] text-zinc-400 block truncate">
-                    From {item.fanName} • {item.timestamp}
+                    {item.customMessage ? `"${item.customMessage}" • ` : ""}Requested {item.timestamp}
                   </span>
                 </div>
               </div>

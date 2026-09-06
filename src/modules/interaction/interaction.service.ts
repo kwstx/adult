@@ -16,6 +16,24 @@ const inMemoryInteractions: Map<string, InteractionConfig[]> = new Map();
 // Seed initial interaction items for test creators
 const DEFAULT_INITIAL_INTERACTIONS: InteractionConfig[] = [
   {
+    id: "int_seed_ama",
+    creatorProfileId: "creator_maya",
+    type: "QUESTION",
+    name: "ASK ME ANYTHING",
+    description: "Ask anything live on stream with prioritized on-camera answer",
+    price: 100,
+    duration: 30,
+    quantity: 10,
+    remainingQuantity: 6,
+    whoCanPurchase: "ALL",
+    requiresAcceptance: true,
+    entersQueue: true,
+    isActive: true,
+    icon: "💬",
+    createdAt: new Date(Date.now() - 4000000).toISOString(),
+    updatedAt: new Date(Date.now() - 4000000).toISOString(),
+  },
+  {
     id: "int_seed_1",
     creatorProfileId: "creator_maya",
     type: "ACTIVITY",
@@ -437,5 +455,62 @@ export class InteractionService {
       item.updatedAt = new Date().toISOString();
     }
     return item;
+  }
+
+  /**
+   * Fetch an interaction by ID for a creator (with database and in-memory lookup).
+   */
+  public static async getInteractionById(
+    creatorProfileId: string,
+    interactionId: string
+  ): Promise<InteractionConfig | null> {
+    // 1. Check in-memory store
+    const list = inMemoryInteractions.get(creatorProfileId) || [];
+    const inMem = list.find((i) => i.id === interactionId);
+    if (inMem) return inMem;
+
+    // Also check creator aliases (e.g. mayavelvet / creator_maya)
+    for (const [, items] of inMemoryInteractions.entries()) {
+      const found = items.find((i) => i.id === interactionId);
+      if (found) return found;
+    }
+
+    // 2. Check Database if available
+    if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("localhost:5432")) {
+      try {
+        const dbItem = await prisma.interactionDefinition.findUnique({
+          where: { id: interactionId },
+        }).catch(() => null);
+
+        if (dbItem) {
+          return {
+            id: dbItem.id,
+            creatorProfileId: dbItem.creatorProfileId,
+            type: "QUESTION",
+            name: dbItem.title,
+            description: dbItem.description || "",
+            price: dbItem.priceCredits,
+            duration: dbItem.durationSeconds,
+            quantity: null,
+            remainingQuantity: null,
+            whoCanPurchase: "ALL",
+            requiresAcceptance: true,
+            entersQueue: true,
+            isActive: dbItem.isEnabled,
+            icon: dbItem.iconUrl || "💬",
+            createdAt: dbItem.createdAt.toISOString(),
+            updatedAt: dbItem.updatedAt.toISOString(),
+          };
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    // 3. Fallback search in default seed
+    const defaultSeed = DEFAULT_INITIAL_INTERACTIONS.find((i) => i.id === interactionId);
+    if (defaultSeed) return defaultSeed;
+
+    return null;
   }
 }

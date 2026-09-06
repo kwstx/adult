@@ -21,6 +21,8 @@ import type {
   PPVVaultItem,
   ViewerRelationship,
 } from "@/modules/livestream/room-session.service";
+import { useUser } from "@/lib/user-context";
+import { InteractionConfirmationSheet } from "./InteractionConfirmationSheet";
 
 interface InteractionMarketplaceDrawerProps {
   isOpen: boolean;
@@ -66,11 +68,16 @@ export function InteractionMarketplaceDrawer({
   onUnlockPPV,
   onOpenWalletModal,
 }: InteractionMarketplaceDrawerProps) {
+  const { currentUser, updateBalance } = useUser();
   const [activeTab, setActiveTab] = useState<"gifts" | "interactions" | "goal" | "ppv" | "vip">(initialTab);
   const [selectedChipAmount, setSelectedChipAmount] = useState<number>(50);
   const [customGiftMsg, setCustomGiftMsg] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Interaction Confirmation Sheet State
+  const [selectedInteraction, setSelectedInteraction] = useState<InteractionCatalogueItem | null>(null);
+  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
 
   if (!isOpen) return null;
 
@@ -104,20 +111,9 @@ export function InteractionMarketplaceDrawer({
     }
   };
 
-  const handleInteractionClick = async (item: InteractionCatalogueItem) => {
-    if (walletBalance < item.creditCost) {
-      showFeedback(`You need ${item.creditCost} tokens. Please top up your wallet.`, "error");
-      onOpenWalletModal();
-      return;
-    }
-
-    setIsProcessing(true);
-    const success = await onTriggerInteraction(item);
-    setIsProcessing(false);
-
-    if (success) {
-      showFeedback(`Triggered "${item.title}"! 🎉`, "success");
-    }
+  const handleInteractionClick = (item: InteractionCatalogueItem) => {
+    setSelectedInteraction(item);
+    setIsConfirmationOpen(true);
   };
 
   const handleChipIn = async () => {
@@ -634,6 +630,31 @@ export function InteractionMarketplaceDrawer({
           </button>
         </div>
       </div>
+
+      {/* Confirmation Sheet for Interaction Purchasing */}
+      <InteractionConfirmationSheet
+        isOpen={isConfirmationOpen}
+        onClose={() => setIsConfirmationOpen(false)}
+        item={selectedInteraction}
+        creatorId={creatorId}
+        creatorName={creatorName}
+        fanUserId={currentUser.id}
+        fanDisplayName={currentUser.displayName}
+        fanAvatarUrl={currentUser.avatarUrl}
+        walletBalance={walletBalance}
+        onSuccess={(receipt) => {
+          updateBalance(receipt.fanRemainingBalance);
+          showFeedback(
+            `Purchased "${receipt.title}" (${receipt.priceCredits} credits) — Position #${receipt.queuePosition}! ✨`,
+            "success"
+          );
+        }}
+        onOpenWalletModal={() => {
+          setIsConfirmationOpen(false);
+          onClose();
+          onOpenWalletModal();
+        }}
+      />
     </div>
   );
 }

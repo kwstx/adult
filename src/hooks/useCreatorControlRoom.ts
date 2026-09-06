@@ -608,7 +608,58 @@ export function useCreatorControlRoom() {
       try {
         const event = JSON.parse(e.data);
 
-        if (event.type === "TIP_EVENT" || event.type === "GIFT_SENT") {
+        if (event.type === "INTERACTION_PURCHASED") {
+          const payload = event.payload;
+          const senderName = payload.senderName || "Alex Patron 💎";
+          const title = payload.actionItem?.title || payload.title || "ASK ME ANYTHING";
+          const credits = payload.actionItem?.creditCost || payload.creditCost || 100;
+          const customMessage = payload.customMessage;
+
+          playWebAudioAlert("queue");
+
+          // 1. Update Telemetry
+          setTelemetry((prev) => ({
+            ...prev,
+            grossTokens: prev.grossTokens + credits,
+            netUsd: (prev.grossTokens + credits) * 0.08,
+            tokensPerMin: prev.tokensPerMin + Math.round(credits / 10),
+          }));
+
+          // 2. Add to Creator Queue: Alex — Ask me anything — 100 credits
+          setInteractionQueue((prev) => [
+            ...prev,
+            {
+              id: payload.queueId || `q_${Date.now()}`,
+              fanId: payload.senderId || "fan_alex",
+              fanName: senderName,
+              fanAvatar: payload.senderAvatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+              credits,
+              actionTitle: title,
+              actionType: payload.actionItem?.actionType || "QUESTION",
+              customMessage,
+              durationSeconds: payload.durationSeconds || 30,
+              timeRemainingSeconds: payload.durationSeconds || 30,
+              status: "QUEUED",
+              timestamp: "Just now",
+            },
+          ]);
+
+          // 3. Add to Ledger
+          setPurchaseLedger((prev) => [
+            {
+              id: `tx_${Date.now()}`,
+              buyerId: payload.senderId || "fan_alex",
+              buyerName: senderName,
+              buyerAvatar: payload.senderAvatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+              itemType: "INTERACTION",
+              itemTitle: title,
+              tokensPaid: credits,
+              netUsd: credits * 0.08,
+              timestamp: "Just now",
+            },
+            ...prev.slice(0, 19),
+          ]);
+        } else if (event.type === "TIP_EVENT" || event.type === "GIFT_SENT") {
           const payload = event.payload;
           const credits = payload.credits || payload.gift?.creditAmount || 0;
           const senderName = payload.senderName || payload.sender?.displayName || "Fan";

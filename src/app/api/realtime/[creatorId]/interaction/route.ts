@@ -54,29 +54,33 @@ export async function POST(
         menuItemId,
         title,
         creditCost,
-        actionType,
         customMessage,
+        idempotencyKey,
       } = body;
 
-      if (!senderId || !menuItemId || !creditCost) {
+      if (!senderId || !menuItemId || creditCost === undefined) {
         return NextResponse.json(
           { error: "Missing required fields for interaction purchase." },
           { status: 400 }
         );
       }
 
-      const item = await InteractionQueueService.enqueueInteraction({
+      // Delegate to authoritative verification & purchasing service
+      const receipt = await InteractionPurchaseService.purchaseInteraction({
         creatorId,
-        senderId,
-        senderName: senderName || "Fan",
-        menuItemId,
-        title: title || "Custom Interaction",
-        creditCost: Number(creditCost),
-        actionType: actionType || "CUSTOM",
+        interactionId: menuItemId,
+        expectedPrice: Number(creditCost),
+        fanUserId: senderId,
+        fanDisplayName: senderName || "Alex Patron 💎",
         customMessage,
+        idempotencyKey,
       });
 
-      return NextResponse.json({ success: true, item });
+      return NextResponse.json({
+        success: true,
+        queuePosition: receipt.queuePosition,
+        receipt,
+      });
     }
 
     return NextResponse.json({ error: "Invalid action." }, { status: 400 });

@@ -494,13 +494,40 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
     item: InteractionCatalogueItem,
     customMessage?: string
   ): Promise<boolean> => {
-    return await sendGift({
-      credits: item.creditCost,
-      giftId: item.id,
-      giftName: item.title,
-      giftIcon: "✨",
-      customMessage: customMessage || `Triggered ${item.title}!`,
-    });
+    const creatorId = roomConfig?.creatorId;
+    if (!creatorId || item.creditCost <= 0) return false;
+
+    if (walletBalance < item.creditCost) {
+      return false;
+    }
+
+    try {
+      const res = await fetch(`/api/creators/${creatorId}/interactions/purchase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          interactionId: item.id,
+          expectedPrice: item.creditCost,
+          fanUserId: currentUser.id,
+          fanDisplayName: currentUser.displayName,
+          fanAvatarUrl: currentUser.avatarUrl,
+          customMessage: customMessage || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to trigger interaction.");
+
+      if (data.receipt?.fanRemainingBalance !== undefined) {
+        setWalletBalance(data.receipt.fanRemainingBalance);
+        updateBalance(data.receipt.fanRemainingBalance);
+      }
+      return true;
+    } catch (err: any) {
+      console.error("Trigger interaction failed:", err);
+      alert(err.message || "Failed to trigger interaction.");
+      return false;
+    }
   };
 
   // =============================================================
