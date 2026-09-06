@@ -31,6 +31,7 @@ interface NavItem {
 
 const PRIMARY_NAV_ITEMS: NavItem[] = [
   { name: "Home", href: "/", icon: Home },
+  { name: "Match", href: "/matchmaking", icon: Sparkles, badge: "AI" },
   { name: "Live", href: "/live", icon: Radio, badge: "LIVE" },
   { name: "Following", href: "/following", icon: Users },
   { name: "Discover", href: "/discover", icon: Compass },

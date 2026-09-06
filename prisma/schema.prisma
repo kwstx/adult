@@ -465,6 +465,24 @@ enum GameRewardType {
   XP_BOOST
 }
 
+enum RecommendationEventType {
+  IMPRESSION
+  SWIPE
+  WATCH
+  EXIT
+  FOLLOW
+  UNFOLLOW
+  LIKE
+  CHAT
+  GIFT
+  INTERACTION
+  SUBSCRIPTION
+  CONTENT_PURCHASE
+  PRIVATE_SESSION
+  SEARCH
+  CREATOR_PROFILE_VIEW
+}
+
 // ============================================================================
 // 1. IDENTITY & USER ACCOUNTS
 // ============================================================================
@@ -535,6 +553,7 @@ model User {
   auditEventsActor      AuditEvent[]           @relation("ActorAuditEvents")
   notifications         Notification[]         @relation("UserNotifications")
   notificationsSent     Notification[]         @relation("NotificationSender")
+  recommendationEvents  RecommendationEvent[]
 
   @@index([role])
   @@index([kycStatus])
@@ -599,6 +618,7 @@ model CreatorProfile {
   leaderboardRecords         LeaderboardRecord[]
   conversations              Conversation[]
   reportsReceived            Report[]                     @relation("ReportedCreator")
+  recommendationEvents       RecommendationEvent[]
 
   @@index([isLive])
   @@index([category])
@@ -716,6 +736,7 @@ model Livestream {
   leaderboardRecords   LeaderboardRecord[]
   gameSessions         GameSession[]
   reports              Report[]
+  recommendationEvents RecommendationEvent[]
 
   @@index([creatorProfileId, status])
   @@index([status, startedAt])
@@ -949,6 +970,7 @@ model Content {
 
   purchases            ContentPurchase[]
   reports              Report[]
+  recommendationEvents RecommendationEvent[]
 
   @@index([creatorProfileId, isPublished])
   @@index([accessLevel, publishedAt])
@@ -1673,4 +1695,40 @@ model GameReward {
   @@index([gameSessionId])
   @@index([userId, isClaimed])
   @@map("game_rewards")
+}
+
+// ============================================================================
+// 16. RECOMMENDATION ENGINE & TELEMETRY COLLECTION
+// ============================================================================
+
+model RecommendationEvent {
+  id                   String                  @id @default(uuid())
+  sessionId            String                  @map("session_id")
+  userId               String?                 @map("user_id")
+  user                 User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  creatorProfileId     String?                 @map("creator_profile_id")
+  creatorProfile       CreatorProfile?         @relation(fields: [creatorProfileId], references: [id], onDelete: SetNull)
+  livestreamId         String?                 @map("livestream_id")
+  livestream           Livestream?             @relation(fields: [livestreamId], references: [id], onDelete: SetNull)
+  contentId            String?                 @map("content_id")
+  content              Content?                @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  eventType            RecommendationEventType @map("event_type")
+  dwellTimeMs          Int                     @default(0) @map("dwell_time_ms")
+  watchDurationSeconds Int                     @default(0) @map("watch_duration_seconds")
+  searchQuery          String?                 @map("search_query")
+  category             String?
+  tags                 String?
+  amountCredits        Int?                    @map("amount_credits")
+  positionIndex        Int?                    @map("position_index")
+  deviceType           String?                 @map("device_type")
+  metadataJson         String?                 @map("metadata_json")
+  createdAt            DateTime                @default(now()) @map("created_at")
+
+  @@index([userId, eventType, createdAt])
+  @@index([creatorProfileId, eventType, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([category, createdAt])
+  @@index([createdAt])
+  @@map("recommendation_events")
 }

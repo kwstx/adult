@@ -9,6 +9,7 @@ import {
   CapacityExceededError,
   FanBlockedError,
 } from "@/modules/interaction/interaction-purchase.service";
+import { recordRecommendationEvent } from "@/lib/recommendations/event-collector";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,15 @@ export async function POST(
       customMessage,
       idempotencyKey,
     });
+
+    // Record recommendation telemetry event asynchronously
+    recordRecommendationEvent({
+      userId: fanUserId,
+      creatorProfileId: creatorId,
+      eventType: "INTERACTION",
+      amountCredits: Number(expectedPrice),
+      metadata: { interactionId, customMessage },
+    }).catch(() => {});
 
     return NextResponse.json(
       {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LedgerService } from "@/modules/economic/ledger.service";
+import { recordRecommendationEvent } from "@/lib/recommendations/event-collector";
 
 /**
  * POST /api/economic/tip
@@ -29,6 +30,15 @@ export async function POST(req: NextRequest) {
       customMessage,
       idempotencyKey,
     });
+
+    // Record recommendation telemetry event asynchronously
+    recordRecommendationEvent({
+      userId: fanUserId,
+      creatorProfileId: creatorId,
+      eventType: "GIFT",
+      amountCredits: Number(credits),
+      metadata: { menuItemId, customMessage },
+    }).catch(() => {});
 
     return NextResponse.json(result);
   } catch (error: any) {

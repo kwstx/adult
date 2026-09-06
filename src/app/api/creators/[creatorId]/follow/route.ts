@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { recordRecommendationEvent } from "@/lib/recommendations/event-collector";
 
 export async function POST(
   req: NextRequest,
@@ -69,6 +70,14 @@ export async function POST(
       });
       isFollowing = true;
     }
+
+    // Record recommendation telemetry event asynchronously
+    recordRecommendationEvent({
+      userId: fanUserId,
+      creatorProfileId: creator.id,
+      eventType: isFollowing ? "FOLLOW" : "UNFOLLOW",
+      category: creator.category || undefined,
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   Radio,
+  Sparkles,
   Compass,
   MessageSquare,
   User,
@@ -24,6 +25,7 @@ interface MobileNavItem {
 
 const MOBILE_NAV_ITEMS: MobileNavItem[] = [
   { name: "Home", href: "/", icon: Home },
+  { name: "Match", href: "/matchmaking", icon: Sparkles, badge: "AI" },
   { name: "Live", href: "/live", icon: Radio, badge: "LIVE" },
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Messages", href: "/messages", icon: MessageSquare, badge: 2 },

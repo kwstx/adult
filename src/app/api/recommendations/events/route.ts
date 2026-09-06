@@ -11,24 +11,23 @@ export async function POST(req: NextRequest) {
       : [body];
 
     if (!events || events.length === 0) {
-      return NextResponse.json({ error: "No events provided." }, { status: 400 });
+      return NextResponse.json(
+        { error: "No recommendation events provided." },
+        { status: 400 }
+      );
     }
 
     const result = await ingestRecommendationEvents({
-      sessionId: body.sessionId || "anonymous_session",
+      sessionId: body.sessionId || "client_session",
       userId: body.userId || null,
       events,
     });
 
-    return NextResponse.json({
-      success: result.success,
-      ingestedCount: result.ingestedCount,
-      serverTime: result.serverTimestamp,
-    });
+    return NextResponse.json(result);
   } catch (error: any) {
-    console.error("[Feed Telemetry Ingestion Error]:", error);
+    console.error("[Recommendation Events API Error]:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to ingest telemetry events." },
+      { error: error.message || "Failed to ingest recommendation events." },
       { status: 500 }
     );
   }

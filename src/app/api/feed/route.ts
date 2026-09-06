@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { getUserAffinityProfile, getUserCreatorEngagementHistory, getCreatorPopularityMetrics } from "@/lib/recommendations/affinity-engine";
+import { calculateCandidateScore, CandidateRawInput } from "@/lib/recommendations/scoring-engine";
 
 export interface PopularitySignals {
   trendingScore: number;
@@ -58,6 +60,7 @@ export interface CandidateFeedItem {
     ppvCount: number;
   };
   recommendationScore: number;
+  recommendationExplanation?: string;
 }
 
 export async function GET(req: NextRequest) {
@@ -66,7 +69,7 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get("userId") || undefined;
     const tag = searchParams.get("tag") || undefined;
     const cursor = searchParams.get("cursor") || undefined;
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "15", 10), 5), 20);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "15", 10), 5), 30);
 
     // 1. Build base filters for live candidates
     const where: any = {
@@ -90,103 +93,44 @@ export async function GET(req: NextRequest) {
             kycStatus: true,
           },
         },
-        interactionItems: {
+        interactionDefinitions: {
           where: { isEnabled: true },
           orderBy: { sortOrder: "asc" },
         },
-        ppvContents: {
+        contents: {
           select: { id: true },
         },
-        compliance2257: {
-          select: { verificationStatus: true },
+        verifications: {
+          where: { verificationStatus: "APPROVED" },
+          select: { id: true },
         },
-        subscriberFans: userId
-          ? {
-              where: { fanId: userId, status: "ACTIVE" },
-              select: { tier: true },
-            }
-          : false,
+        collectiveGoals: {
+          where: { status: "ACTIVE" },
+          take: 1,
+        },
+        livestreams: {
+          where: { status: "LIVE" },
+          take: 1,
+        },
       },
       take: 50, // Candidate pool for scoring
     });
 
-    // 3. User personalized history (affinity & penalty signals)
-    let userAffinityTags: Set<string> = new Set();
-    let userBouncedCreators: Set<string> = new Set();
+    // 3. User personalized history (affinity profile & engagement history)
+    const userAffinity = await getUserAffinityProfile(userId);
 
-    if (userId) {
-      // Find past positive engagements (watched >= 20s or followed)
-      const positiveEvents = await prisma.discoveryEvent.findMany({
-        where: {
-          userId,
-          eventType: { in: ["WATCH_20S", "WATCH_90S", "FOLLOW", "TIP", "INTERACTION_MENU_OPEN"] },
-        },
-        select: { category: true, creatorId: true },
-        take: 30,
-        orderBy: { createdAt: "desc" },
-      });
+    // 4. Score and enrich each candidate using the recommendation engine
+    const scoredCandidates: CandidateFeedItem[] = await Promise.all(
+      rawCandidates.map(async (cp) => {
+        const tagsList = (cp.tags || "interactive,live")
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const primaryCategory = cp.category || tagsList[0] || "Entertainment";
+        const activeLivestream = cp.livestreams[0];
+        const viewerCount = activeLivestream?.currentViewerCount || cp.totalViews || 0;
 
-      for (const ev of positiveEvents) {
-        if (ev.category) {
-          ev.category.split(",").forEach((t) => userAffinityTags.add(t.trim().toLowerCase()));
-        }
-      }
-
-      // Find creators the user recently bounced from (< 3s)
-      const bouncedEvents = await prisma.discoveryEvent.findMany({
-        where: {
-          userId,
-          eventType: "IMMEDIATE_BOUNCE",
-        },
-        select: { creatorId: true },
-        take: 20,
-        orderBy: { createdAt: "desc" },
-      });
-
-      bouncedEvents.forEach((ev) => userBouncedCreators.add(ev.creatorId));
-    }
-
-    // 4. Score and enrich each candidate
-    const scoredCandidates: CandidateFeedItem[] = rawCandidates.map((cp, index) => {
-      const tagsList = cp.tags.split(",").map((t) => t.trim());
-      const primaryCategory = tagsList[0] || "General";
-
-      const hasSub = Boolean(cp.subscriberFans && cp.subscriberFans.length > 0);
-      const subTier = hasSub ? cp.subscriberFans[0].tier : null;
-      const isFollowing = hasSub; // Active subscription implies following
-
-      // Popularity signal heuristics
-      const goalPercentage = Math.min(
-        100,
-        Math.round((cp.currentGoalProgress / (cp.currentGoalTarget || 1)) * 100)
-      );
-      const baseTrending = Math.round(cp.viewerCount * 1.8 + goalPercentage * 3.5 + 120);
-      const hypeScore = Math.min(99, Math.round(50 + (goalPercentage / 100) * 40 + (cp.viewerCount / 500) * 9));
-      const chatVelocity = Math.max(12, Math.round(cp.viewerCount * 0.15 + (cp.interactionItems.length * 4)));
-      const recentTipsCount = Math.round(goalPercentage * 0.25 + (cp.viewerCount * 0.08));
-      const heatIndex = Math.min(99.9, +(85 + (hypeScore / 100) * 14.5).toFixed(1));
-
-      // Recommendation Scoring Logic
-      let recScore = baseTrending;
-
-      // Personalization boosts
-      if (hasSub) recScore += 800;
-      if (isFollowing) recScore += 500;
-
-      // Category affinity boost
-      const hasMatchingCategory = tagsList.some((t) => userAffinityTags.has(t.toLowerCase()));
-      if (hasMatchingCategory) recScore += 350;
-
-      // Bounce penalty
-      if (userBouncedCreators.has(cp.id)) recScore -= 400;
-
-      // Exploration jitter to diversify candidates
-      recScore += (index % 5) * 20;
-
-      return {
-        id: cp.id,
-        userId: cp.userId,
-        creator: {
+        const candidateInput: CandidateRawInput = {
           id: cp.id,
           userId: cp.userId,
           username: cp.user.username,
@@ -195,51 +139,110 @@ export async function GET(req: NextRequest) {
           bannerUrl: cp.bannerUrl,
           bio: cp.bio,
           kycStatus: cp.user.kycStatus,
-          isVerified2257: cp.compliance2257?.verificationStatus === "APPROVED",
-        },
-        stream: {
-          streamTitle: cp.streamTitle,
-          isLive: cp.isLive,
-          isPrivateShow: cp.isPrivateShow,
-          minTipForPrivate: cp.minTipForPrivate,
+          isVerified2257: cp.verifications.length > 0,
+          category: primaryCategory,
+          tags: cp.tags,
+          streamTitle: activeLivestream?.title || `${cp.user.displayName} Live Broadcast`,
+          isLive: cp.isLive || Boolean(activeLivestream),
+          viewerCount,
+          minTipForPrivate: cp.defaultMinTip,
+          streamUrl: cp.playbackHlsUrl || cp.playbackWhepUrl || cp.ingestUrl,
           posterUrl: cp.user.avatarUrl || cp.bannerUrl,
-          streamUrl: cp.ingestUrl,
-          tags: tagsList,
-          primaryCategory,
-        },
-        viewerCount: cp.viewerCount,
-        popularitySignals: {
-          trendingScore: baseTrending,
-          hypeScore,
-          chatVelocity,
-          recentTipsCount,
-          heatIndex,
-          rankBadge: hypeScore > 85 ? "🔥 Trending Top 1%" : hypeScore > 70 ? "⚡ Rising Fast" : undefined,
-        },
-        userRelationship: {
-          isFollowing,
-          hasSubscription: hasSub,
-          subscriptionTier: subTier,
-        },
-        presentation: {
-          currentGoal: {
-            title: cp.currentGoalTitle,
-            target: cp.currentGoalTarget,
-            progress: cp.currentGoalProgress,
-            percentage: goalPercentage,
+        };
+
+        const [engagement, popularity] = await Promise.all([
+          userId
+            ? getUserCreatorEngagementHistory(userId, cp.id)
+            : {
+                isFollowing: false,
+                isSubscribed: false,
+                subscriptionTier: null,
+                totalWatchSeconds: 0,
+                watchCount: 0,
+                distinctReturnDays: 0,
+                lastWatchedAt: null,
+                giftsCount: 0,
+                totalGiftsCredits: 0,
+                interactionsCount: 0,
+                contentPurchasesCount: 0,
+                privateSessionsCount: 0,
+                bouncesCount: 0,
+                unfollowedRecently: false,
+              },
+          getCreatorPopularityMetrics(cp.id, viewerCount, true),
+        ]);
+
+        const scoreBreakdown = calculateCandidateScore(
+          candidateInput,
+          userAffinity,
+          engagement,
+          popularity
+        );
+
+        const activeGoal = cp.collectiveGoals[0];
+        const goalTarget = activeGoal?.targetCredits || 1000;
+        const goalProgress = activeGoal?.currentCredits || 0;
+        const goalPercentage = Math.min(100, Math.round((goalProgress / Math.max(1, goalTarget)) * 100));
+
+        return {
+          id: cp.id,
+          userId: cp.userId,
+          creator: {
+            id: cp.id,
+            userId: cp.userId,
+            username: cp.user.username,
+            displayName: cp.user.displayName,
+            avatarUrl: cp.user.avatarUrl,
+            bannerUrl: cp.bannerUrl,
+            bio: cp.bio,
+            kycStatus: cp.user.kycStatus,
+            isVerified2257: cp.verifications.length > 0,
           },
-          interactionItems: cp.interactionItems.map((item) => ({
-            id: item.id,
-            title: item.title,
-            description: item.description,
-            creditCost: item.creditCost,
-            actionType: item.actionType,
-          })),
-          ppvCount: cp.ppvContents.length,
-        },
-        recommendationScore: recScore,
-      };
-    });
+          stream: {
+            streamTitle: candidateInput.streamTitle!,
+            isLive: true,
+            isPrivateShow: false,
+            minTipForPrivate: cp.defaultMinTip,
+            posterUrl: cp.user.avatarUrl || cp.bannerUrl,
+            streamUrl: candidateInput.streamUrl!,
+            tags: tagsList,
+            primaryCategory,
+          },
+          viewerCount,
+          popularitySignals: {
+            trendingScore: popularity.heatScore * 10,
+            hypeScore: Math.min(99, Math.round(50 + (goalPercentage / 100) * 40 + (viewerCount / 500) * 9)),
+            chatVelocity: popularity.chatVelocityPerMin,
+            recentTipsCount: popularity.recentGiftsCount1h,
+            heatIndex: popularity.heatScore,
+            rankBadge: popularity.heatScore > 80 ? "🔥 Trending Top 1%" : popularity.heatScore > 60 ? "⚡ Rising Fast" : undefined,
+          },
+          userRelationship: {
+            isFollowing: engagement.isFollowing,
+            hasSubscription: engagement.isSubscribed,
+            subscriptionTier: engagement.subscriptionTier || null,
+          },
+          presentation: {
+            currentGoal: {
+              title: activeGoal?.title || "Community Goal",
+              target: goalTarget,
+              progress: goalProgress,
+              percentage: goalPercentage,
+            },
+            interactionItems: (cp.interactionDefinitions || []).map((item) => ({
+              id: item.id,
+              title: item.title,
+              description: item.description,
+              creditCost: item.priceCredits,
+              actionType: item.actionType,
+            })),
+            ppvCount: cp.contents?.length || 0,
+          },
+          recommendationScore: scoreBreakdown.totalScore,
+          recommendationExplanation: scoreBreakdown.humanReadableExplanation,
+        };
+      })
+    );
 
     // 5. Sort candidates by recommendation score descending
     scoredCandidates.sort((a, b) => b.recommendationScore - a.recommendationScore);
@@ -268,6 +271,7 @@ export async function GET(req: NextRequest) {
         candidateCount: paginatedCandidates.length,
         totalPoolSize: scoredCandidates.length,
         userPersonalized: Boolean(userId),
+        topCategories: userAffinity?.topCategories || [],
       },
     });
   } catch (error: any) {
