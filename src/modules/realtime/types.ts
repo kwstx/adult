@@ -10,6 +10,8 @@ export type RealtimeEventType =
   | "VIEWER_JOINED"
   | "VIEWER_LEFT"
   | "GOAL_UPDATED"
+  | "GOAL_COMPLETED"
+  | "GOAL_CONTRIBUTION_RECEIVED"
   | "INTERACTION_PURCHASED"
   | "INTERACTION_ACCEPTED"
   | "INTERACTION_STARTED"
@@ -127,6 +129,7 @@ export interface ViewerPresenceEventPayload {
 // 4. GOAL_UPDATED EVENT
 // ----------------------------------------------------------------------------
 export interface GoalUpdatedPayload {
+  goalId?: string;
   creatorId: string;
   title: string;
   target: number;
@@ -134,7 +137,60 @@ export interface GoalUpdatedPayload {
   percentage: number;
   remaining: number;
   isCompleted: boolean;
+  contributorCount?: number;
+  recentContribution?: {
+    fanId: string;
+    fanName: string;
+    amount: number;
+    message?: string | null;
+  };
   milestoneTriggered?: string;
+}
+
+export interface GoalContributionReceivedPayload {
+  goalId: string;
+  creatorId: string;
+  contributor: {
+    fanId: string;
+    displayName: string;
+    username: string;
+    avatarUrl?: string | null;
+    fanLevel: number;
+  };
+  amount: number;
+  message?: string | null;
+  newProgress: number;
+  target: number;
+  percentage: number;
+  isCompleted: boolean;
+  timestamp: string;
+}
+
+export interface GoalCompletedPayload {
+  goalId: string;
+  creatorId: string;
+  title: string;
+  target: number;
+  finalProgress: number;
+  contributorCount: number;
+  completedAt: string;
+  unlock: {
+    type: "SPECIAL_EXPERIENCE" | "PPV_UNLOCKED" | "VIP_MODE" | "BONUS_INTERACTION" | "CUSTOM_REWARD";
+    title: string;
+    description: string;
+    mediaUrl?: string | null;
+    actionLabel?: string;
+    actionPayload?: Record<string, unknown>;
+  };
+  topContributors: Array<{
+    fanId: string;
+    displayName: string;
+    username: string;
+    avatarUrl?: string | null;
+    amountContributed: number;
+    rank: number;
+  }>;
+  celebrationTheme?: "MIDNIGHT_NEON" | "GOLDEN_CHAMPION" | "CYBER_FIRE";
 }
 
 // ----------------------------------------------------------------------------
