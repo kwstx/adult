@@ -18,6 +18,7 @@ import {
   Clock,
   Sparkles,
   Award,
+  Star,
 } from "lucide-react";
 import type {
   ControlRoomChatMessage,
@@ -25,6 +26,7 @@ import type {
   TopSupporter,
 } from "@/types/control-room";
 import { FanStatusBadge } from "@/components/live-room/FanStatusBadge";
+import { SeatBadge } from "@/components/seats/SeatBadge";
 
 interface AudienceChatPanelProps {
   chatMessages: ControlRoomChatMessage[];
@@ -38,6 +40,7 @@ interface AudienceChatPanelProps {
   onBanUser: (userId: string, username: string) => void;
   onBroadcastShoutout: (supporter: TopSupporter) => void;
   onSelectAudienceMember: (member: AudienceMember) => void;
+  onInviteGuest?: (userId: string, displayName: string) => void;
 }
 
 export function AudienceChatPanel({
@@ -52,6 +55,7 @@ export function AudienceChatPanel({
   onBanUser,
   onBroadcastShoutout,
   onSelectAudienceMember,
+  onInviteGuest,
 }: AudienceChatPanelProps) {
   const [activeTab, setActiveTab] = useState<"chat" | "audience" | "supporters" | "relationships">("chat");
   const [inputText, setInputText] = useState("");
@@ -315,11 +319,26 @@ export function AudienceChatPanel({
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <span className="text-xs font-black text-amber-400 block">
-                      {member.tokensSpentSession} 🪙
-                    </span>
-                    <span className="text-[10px] text-zinc-500">tonight</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right">
+                      <span className="text-xs font-black text-amber-400 block">
+                        {member.tokensSpentSession} 🪙
+                      </span>
+                      <span className="text-[10px] text-zinc-500">tonight</span>
+                    </div>
+
+                    {onInviteGuest && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onInviteGuest(member.id, member.displayName);
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-all"
+                        title="Appoint as Spotlight Guest"
+                      >
+                        <Star className="h-3.5 w-3.5 fill-amber-300" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

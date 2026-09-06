@@ -5,6 +5,9 @@ import { Send, Coins, Sparkles, Smile, ShieldAlert } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import type { ChatMessagePayload } from "@/modules/realtime/types";
 import { FanStatusBadge } from "./FanStatusBadge";
+import { SeatBadge } from "@/components/seats/SeatBadge";
+import { SocialSeatTier } from "@/types/seat";
+import { SEAT_TIER_CONFIGS } from "@/modules/seats/seat-entitlement.service";
 import { normalizeRelationshipTier } from "@/modules/relationship/tier-definitions";
 import { FAN_STATUS_STYLES } from "@/modules/relationship/fan-status.service";
 
@@ -54,17 +57,18 @@ export function TranslucentChatPanel({
     setInputText((prev) => `${prev} ${emoji}`.trim());
   };
 
-  // Helper to resolve relationship tier from message payload
-  const resolveMessageTier = (msg: ChatMessagePayload) => {
+  // Helper to resolve seat tier / relationship tier from message payload
+  const resolveMessageSeatTier = (msg: ChatMessagePayload): SocialSeatTier | null => {
     if (msg.senderRole === "CREATOR") return null;
+    if (msg.senderSeatTier) return msg.senderSeatTier as SocialSeatTier;
+
     const name = msg.senderName.toLowerCase();
     const badge = msg.senderBadge?.toUpperCase() || "";
 
+    if (badge.includes("GUEST") || badge.includes("SPOTLIGHT")) return "CREATOR_SELECTED_GUEST";
     if (badge.includes("INNER_CIRCLE") || name.includes("chris")) return "INNER_CIRCLE";
     if (badge.includes("VIP") || name.includes("maria")) return "VIP";
-    if (badge.includes("SUPPORTER") || name.includes("alex")) return "SUPPORTER";
-    if (badge.includes("REGULAR") || name.includes("sophia")) return "REGULAR";
-    if (badge.includes("ELITE") || badge.includes("PATRON")) return "ELITE";
+    if (badge.includes("FRONT") || badge.includes("SUPPORTER") || name.includes("alex")) return "FRONT_ROW";
     return null;
   };
 
@@ -112,21 +116,21 @@ export function TranslucentChatPanel({
                 );
               }
 
-              const fanTier = resolveMessageTier(msg);
-              const tierStyle = fanTier ? FAN_STATUS_STYLES[fanTier] : null;
+              const seatTier = resolveMessageSeatTier(msg);
+              const seatConfig = seatTier ? SEAT_TIER_CONFIGS[seatTier] : null;
 
               return (
                 <div
                   key={msg.id || index}
-                  className={`group flex items-start gap-1.5 rounded-2xl bg-black/45 backdrop-blur-md px-3 py-1.5 border max-w-[92%] shadow-lg transition-all hover:bg-black/60 ${
-                    tierStyle
-                      ? `${tierStyle.borderClass} ${tierStyle.glowClass}`
-                      : "border-white/5"
+                  className={`group flex items-start gap-1.5 rounded-2xl backdrop-blur-md px-3 py-1.5 border max-w-[92%] shadow-lg transition-all hover:bg-black/60 ${
+                    seatConfig
+                      ? seatConfig.chatBubbleClass
+                      : "bg-black/45 border-white/5"
                   }`}
                 >
                   {/* Creator Badge */}
                   {msg.senderRole === "CREATOR" && (
-                    <span className="rounded bg-pink-600 px-1.5 py-0.2 text-[9px] font-black text-white uppercase shrink-0">
+                    <span className="rounded bg-pink-600 px-1.5 py-0.2 text-[9px] font-black text-white uppercase shrink-0 shadow-md">
                       Creator
                     </span>
                   )}
@@ -138,26 +142,32 @@ export function TranslucentChatPanel({
                     </span>
                   )}
 
-                  {/* Elegant Fan Status Badge (Supporter 🔥, VIP 💎, Inner Circle 👑) */}
-                  {fanTier && (
-                    <FanStatusBadge
-                      tier={fanTier}
-                      variant="pill"
+                  {/* Authoritative Social Seat Badge (Guest ⭐, Inner Circle 👑, VIP 💎, Front Row 🔥) */}
+                  {seatTier && (
+                    <SeatBadge
+                      tier={seatTier}
+                      variant="chat-prefix"
                       interactive
                       onClick={() => onInspectFan?.(msg.senderId, msg.senderName)}
                     />
                   )}
 
-                  {/* Sender Name */}
+                  {/* Sender Name with distinct Tier styling */}
                   <button
                     onClick={() => onInspectFan?.(msg.senderId, msg.senderName)}
-                    className="font-bold text-zinc-300 hover:text-white transition-colors shrink-0 text-left hover:underline"
+                    className={`font-bold transition-colors shrink-0 text-left hover:underline ${
+                      seatConfig ? seatConfig.textColor : "text-zinc-300 hover:text-white"
+                    }`}
                   >
                     {msg.senderName}:
                   </button>
 
                   {/* Message Body */}
-                  <span className="text-white/95 break-words font-medium">
+                  <span className={`break-words font-medium ${
+                    seatTier === "CREATOR_SELECTED_GUEST" || seatTier === "INNER_CIRCLE"
+                      ? "text-white font-semibold"
+                      : "text-white/95"
+                  }`}>
                     {msg.text}
                   </span>
                 </div>

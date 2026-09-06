@@ -32,6 +32,11 @@ export type RealtimeEventType =
   | "INTERACTION_TRIGGERED"
   | "NEW_INTERACTION_AVAILABLE"
   | "1ON1_REQUEST"
+  | "SEAT_OCCUPIED"
+  | "SEAT_VACATED"
+  | "SEAT_CLAIMED"
+  | "GUEST_INVITED"
+  | "ROOM_SEATS_UPDATED"
   | "CONNECTED"
   | "HEARTBEAT";
 
@@ -104,6 +109,8 @@ export interface ChatMessagePayload {
   senderName: string;
   senderRole: string; // FAN, CREATOR, MOD, VIP
   senderBadge?: string | null;
+  senderSeatTier?: "STANDARD_VIEWER" | "FRONT_ROW" | "VIP" | "INNER_CIRCLE" | "CREATOR_SELECTED_GUEST" | null;
+  senderDistanceToCreator?: number;
   text: string;
   isTipNotice?: boolean;
   tipAmount?: number;
@@ -283,3 +290,51 @@ export interface NewInteractionAvailablePayload {
   creatorId: string;
   publishedAt: string;
 }
+
+// ----------------------------------------------------------------------------
+// 8. VIRTUAL ROOM SEATS & SOCIAL POSITIONS EVENTS
+// ----------------------------------------------------------------------------
+export interface SeatOccupiedPayload {
+  creatorId: string;
+  seatIndex: number;
+  seatTier: "STANDARD_VIEWER" | "FRONT_ROW" | "VIP" | "INNER_CIRCLE" | "CREATOR_SELECTED_GUEST";
+  occupant: {
+    userId: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    fanLevel: number;
+    badge?: string | null;
+    entitlementReason: string;
+    isCreatorGuest?: boolean;
+    occupiedAt: string;
+  };
+  totalSeatedCount: number;
+  timestamp: string;
+}
+
+export interface SeatVacatedPayload {
+  creatorId: string;
+  seatIndex: number;
+  vacatedUserId: string;
+  totalSeatedCount: number;
+  timestamp: string;
+}
+
+export interface GuestInvitedPayload {
+  creatorId: string;
+  creatorDisplayName: string;
+  guestUserId: string;
+  guestDisplayName: string;
+  seatIndex: number;
+  invitationNote?: string;
+  timestamp: string;
+}
+
+export interface RoomSeatsUpdatedPayload {
+  creatorId: string;
+  totalAudienceCount: number;
+  totalSeatedCount: number;
+  updatedAt: string;
+}
+

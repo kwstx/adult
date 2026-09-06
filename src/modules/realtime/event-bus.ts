@@ -71,6 +71,7 @@ const globalEventBus = globalThis as unknown as {
 };
 
 export const eventBus = globalEventBus.__platformEventBus ?? new PlatformEventBus();
+export const realtimeEventBus = eventBus;
 
 if (process.env.NODE_ENV !== "production") {
   globalEventBus.__platformEventBus = eventBus;

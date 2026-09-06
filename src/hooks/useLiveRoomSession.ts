@@ -20,8 +20,18 @@ import type {
   GoalUpdatedPayload,
   ViewerPresenceEventPayload,
   NewInteractionAvailablePayload,
+  SeatOccupiedPayload,
+  SeatVacatedPayload,
+  GuestInvitedPayload,
+  RoomSeatsUpdatedPayload,
 } from "@/modules/realtime/types";
 import type { InteractionConfig } from "@/types/interaction";
+import type {
+  VirtualRoomLayout,
+  SocialSeatTier,
+  VirtualSeatSlot,
+  SeatOccupant,
+} from "@/types/seat";
 
 export type ConnectionState = "INITIALIZING" | "CONNECTING" | "CONNECTED" | "RECONNECTING" | "DISCONNECTED" | "ERROR";
 export type MediaPlaybackState = "IDLE" | "PREWARMING" | "PLAYING" | "PAUSED" | "RESTRICTED" | "OFFLINE";
@@ -127,10 +137,30 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
     topContributorRank: null,
   });
 
+  // -------------------------------------------------------------
+  // 11. VIRTUAL ROOM AUDIENCE SEATS & SOCIAL POSITIONS
+  // -------------------------------------------------------------
+  const [roomLayout, setRoomLayout] = useState<VirtualRoomLayout | null>(null);
+
   const [walletBalance, setWalletBalance] = useState<number>(currentUser.walletBalance);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const activeCreatorIdRef = useRef<string | null>(null);
+
+  const loadRoomSeats = useCallback(async (targetCreatorId?: string) => {
+    const creatorId = targetCreatorId || roomConfig?.creatorId || creatorIdOrUsername;
+    if (!creatorId) return;
+
+    try {
+      const res = await fetch(`/api/live/${creatorId}/seats?userId=${currentUser.id}`);
+      if (res.ok) {
+        const layout: VirtualRoomLayout = await res.json();
+        setRoomLayout(layout);
+      }
+    } catch (err) {
+      console.error("Failed to load room seats:", err);
+    }
+  }, [roomConfig?.creatorId, creatorIdOrUsername, currentUser.id]);
 
   // Synchronize internal balance when UserContext balance changes
   useEffect(() => {
@@ -217,7 +247,9 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
         }
       })
       .catch((err) => console.error("Leaderboard hydration error:", err));
-  }, [roomConfig?.creatorId]);
+
+    loadRoomSeats(creatorId);
+  }, [roomConfig?.creatorId, loadRoomSeats]);
 
   // =============================================================
   // REAL-TIME PERSISTENT SSE STREAM & AUTHORITATIVE EVENT ROUTER
@@ -469,6 +501,93 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
             }
             break;
 
+          // ---------------------------------------------------------
+          // 8. VIRTUAL ROOM AUDIENCE SEATS
+          // ---------------------------------------------------------
+          case "SEAT_OCCUPIED": {
+            const seatEv = event.payload as SeatOccupiedPayload;
+            setRoomLayout((prev) => {
+              if (!prev) return prev;
+              const updateSlots = (slots: VirtualSeatSlot[]) =>
+                slots.map((s) =>
+                  s.seatIndex === seatEv.seatIndex
+                    ? {
+                        ...s,
+                        isOccupied: true,
+                        occupant: {
+                          userId: seatEv.occupant.userId,
+                          username: seatEv.occupant.username,
+                          displayName: seatEv.occupant.displayName,
+                          avatarUrl: seatEv.occupant.avatarUrl || null,
+                          seatTier: seatEv.seatTier,
+                          seatIndex: seatEv.seatIndex,
+                          fanLevel: seatEv.occupant.fanLevel,
+                          badge: seatEv.occupant.badge,
+                          occupiedAt: seatEv.occupant.occupiedAt,
+                          entitlementReason: seatEv.occupant.entitlementReason,
+                          isCreatorGuest: seatEv.occupant.isCreatorGuest,
+                        },
+                      }
+                    : s
+                );
+
+              const guestSpotlightSeats = updateSlots(prev.guestSpotlightSeats);
+              const innerCircleSeats = updateSlots(prev.innerCircleSeats);
+              const vipSeats = updateSlots(prev.vipSeats);
+              const frontRowSeats = updateSlots(prev.frontRowSeats);
+              const all = [...guestSpotlightSeats, ...innerCircleSeats, ...vipSeats, ...frontRowSeats];
+              const callerSeat = all.find((s) => s.occupant?.userId === currentUser.id) || null;
+
+              return {
+                ...prev,
+                guestSpotlightSeats,
+                innerCircleSeats,
+                vipSeats,
+                frontRowSeats,
+                totalSeatedCount: seatEv.totalSeatedCount || prev.totalSeatedCount,
+                callerSeat,
+              };
+            });
+            break;
+          }
+
+          case "SEAT_VACATED": {
+            const seatEv = event.payload as SeatVacatedPayload;
+            setRoomLayout((prev) => {
+              if (!prev) return prev;
+              const updateSlots = (slots: VirtualSeatSlot[]) =>
+                slots.map((s) =>
+                  s.seatIndex === seatEv.seatIndex
+                    ? { ...s, isOccupied: false, occupant: null }
+                    : s
+                );
+
+              const guestSpotlightSeats = updateSlots(prev.guestSpotlightSeats);
+              const innerCircleSeats = updateSlots(prev.innerCircleSeats);
+              const vipSeats = updateSlots(prev.vipSeats);
+              const frontRowSeats = updateSlots(prev.frontRowSeats);
+              const all = [...guestSpotlightSeats, ...innerCircleSeats, ...vipSeats, ...frontRowSeats];
+              const callerSeat = all.find((s) => s.occupant?.userId === currentUser.id) || null;
+
+              return {
+                ...prev,
+                guestSpotlightSeats,
+                innerCircleSeats,
+                vipSeats,
+                frontRowSeats,
+                totalSeatedCount: seatEv.totalSeatedCount || prev.totalSeatedCount,
+                callerSeat,
+              };
+            });
+            break;
+          }
+
+          case "GUEST_INVITED":
+          case "ROOM_SEATS_UPDATED": {
+            loadRoomSeats(creatorId);
+            break;
+          }
+
           default:
             break;
         }
@@ -703,6 +822,100 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
     }
   };
 
+  // =============================================================
+  // ACTION: Claim Social Position / Seat
+  // =============================================================
+  const claimSeat = async (tier: SocialSeatTier, seatIndex?: number): Promise<boolean> => {
+    const creatorId = roomConfig?.creatorId;
+    if (!creatorId) return false;
+
+    try {
+      const res = await fetch(`/api/live/${creatorId}/seats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fanUserId: currentUser.id,
+          seatTier: tier,
+          seatIndex,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to claim seat.");
+        return false;
+      }
+
+      await loadRoomSeats(creatorId);
+      return true;
+    } catch (err: any) {
+      console.error("Claim seat failed:", err);
+      alert(err.message || "Failed to claim seat.");
+      return false;
+    }
+  };
+
+  // =============================================================
+  // ACTION: Broadcaster Appoints Spotlight Guest
+  // =============================================================
+  const inviteCreatorGuest = async (guestUserId: string, note?: string): Promise<boolean> => {
+    const creatorId = roomConfig?.creatorId;
+    if (!creatorId) return false;
+
+    try {
+      const res = await fetch(`/api/live/${creatorId}/seats/invite-guest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requesterUserId: currentUser.id,
+          guestUserId,
+          invitationNote: note,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to appoint guest.");
+        return false;
+      }
+
+      await loadRoomSeats(creatorId);
+      return true;
+    } catch (err: any) {
+      console.error("Invite guest failed:", err);
+      alert(err.message || "Failed to invite guest.");
+      return false;
+    }
+  };
+
+  // =============================================================
+  // ACTION: Vacate Seat
+  // =============================================================
+  const vacateSeat = async (seatIndex?: number): Promise<boolean> => {
+    const creatorId = roomConfig?.creatorId;
+    if (!creatorId) return false;
+
+    try {
+      const res = await fetch(`/api/live/${creatorId}/seats/vacate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fanUserId: currentUser.id,
+          seatIndex,
+        }),
+      });
+
+      if (res.ok) {
+        await loadRoomSeats(creatorId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("Vacate seat failed:", err);
+      return false;
+    }
+  };
+
   return {
     // 1. Media
     mediaState,
@@ -760,5 +973,13 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
     relationship,
     toggleFollow,
     walletBalance,
+
+    // 11. Virtual Room Audience Seats & Social Positions
+    roomLayout,
+    refreshSeats: loadRoomSeats,
+    claimSeat,
+    inviteCreatorGuest,
+    vacateSeat,
   };
 }
+

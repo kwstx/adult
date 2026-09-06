@@ -23,6 +23,10 @@ import { useXpProgressionListener } from "@/hooks/useXpProgressionListener";
 import { LevelUpCelebrationModal } from "@/components/xp/LevelUpCelebrationModal";
 import { XpFloatingToastContainer } from "@/components/xp/XpFloatingToast";
 import { FanPublicStatus } from "@/types/fan-status";
+import { VirtualRoomStageOverlay } from "@/components/seats/VirtualRoomStageOverlay";
+import { SeatClaimSheet } from "@/components/seats/SeatClaimSheet";
+import { SeatBadge } from "@/components/seats/SeatBadge";
+import { SocialSeatTier, SeatOccupant } from "@/types/seat";
 
 export default function LiveRoomPage() {
   const params = useParams();
@@ -90,6 +94,12 @@ export default function LiveRoomPage() {
     relationship,
     toggleFollow,
     walletBalance,
+
+    // 11. Virtual Room Audience Seats
+    roomLayout,
+    claimSeat,
+    inviteCreatorGuest,
+    vacateSeat,
   } = useLiveRoomSession(creatorId);
 
   // -------------------------------------------------------------
@@ -115,6 +125,10 @@ export default function LiveRoomPage() {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  // Virtual Room Spatial Seats State
+  const [isVirtualRoomOpen, setIsVirtualRoomOpen] = useState(false);
+  const [isClaimSheetOpen, setIsClaimSheetOpen] = useState(false);
 
   // Fan Status Inspection Modal State
   const [inspectedFanId, setInspectedFanId] = useState<string | null>(null);
@@ -234,13 +248,27 @@ export default function LiveRoomPage() {
           }}
         />
 
-        {/* High-Value Relationship Presence HUD */}
-        <div className="pointer-events-auto flex items-center justify-between">
+        {/* High-Value Relationship Presence HUD & Virtual Room Seats */}
+        <div className="pointer-events-auto flex items-center justify-between gap-2 overflow-x-auto scrollbar-none">
           <LiveRoomFanStatusHUD
             creatorId={roomConfig.creatorId}
             isCreator={isCreator}
             onSelectFan={(fan: FanPublicStatus) => setInspectedFanId(fan.userId)}
           />
+
+          {/* Virtual Room Seats Trigger Pill */}
+          <button
+            onClick={() => setIsVirtualRoomOpen(true)}
+            className="flex items-center gap-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white border border-purple-500/30 shadow-lg hover:border-purple-400/60 transition-all shrink-0"
+          >
+            <span className="flex h-2 w-2 rounded-full bg-purple-400 animate-ping" />
+            <span>Virtual Room</span>
+            {roomLayout && (
+              <span className="rounded-full bg-purple-500/30 px-1.5 py-0.2 text-[10px] text-purple-200 font-extrabold">
+                {roomLayout.totalSeatedCount} seated
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -357,6 +385,46 @@ export default function LiveRoomPage() {
       <XpFloatingToastContainer
         toasts={xpToasts}
         onDismiss={dismissToast}
+      />
+
+      {/* ------------------------------------------------------------- */}
+      {/* 10. VIRTUAL ROOM AUDIENCE STAGE & SOCIAL SEATING MODAL        */}
+      {/* ------------------------------------------------------------- */}
+      <VirtualRoomStageOverlay
+        isOpen={isVirtualRoomOpen}
+        onClose={() => setIsVirtualRoomOpen(false)}
+        layout={roomLayout}
+        isCreator={isCreator}
+        currentUserId={currentUser.id}
+        onSelectOccupant={(occ) => {
+          setInspectedFanId(occ.userId);
+        }}
+        onRequestClaimSeat={(tier, seatIndex) => {
+          setIsVirtualRoomOpen(false);
+          setIsClaimSheetOpen(true);
+        }}
+        onInviteGuest={async (guestUserId, note) => {
+          return await inviteCreatorGuest(guestUserId, note);
+        }}
+      />
+
+      {/* ------------------------------------------------------------- */}
+      {/* 11. SOCIAL SEAT CLAIM & UPGRADE ACTION SHEET                  */}
+      {/* ------------------------------------------------------------- */}
+      <SeatClaimSheet
+        isOpen={isClaimSheetOpen}
+        onClose={() => setIsClaimSheetOpen(false)}
+        layout={roomLayout}
+        onClaimSeat={claimSeat}
+        onOpenWalletModal={() => {
+          setIsClaimSheetOpen(false);
+          setIsWalletModalOpen(true);
+        }}
+        onOpenSubscriptionModal={() => {
+          setIsClaimSheetOpen(false);
+          setMarketplaceTab("vip");
+          setIsMarketplaceOpen(true);
+        }}
       />
     </main>
   );
