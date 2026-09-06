@@ -16,6 +16,10 @@ import { CreatorLiveEarningsHUD } from "@/components/live-room/CreatorLiveEarnin
 import { LiveInteractionAlertBanner } from "@/components/live-room/LiveInteractionAlertBanner";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { ReportModal } from "@/components/trust/ReportModal";
+import { useLiveWatchTracker } from "@/hooks/useLiveWatchTracker";
+import { useXpProgressionListener } from "@/hooks/useXpProgressionListener";
+import { LevelUpCelebrationModal } from "@/components/xp/LevelUpCelebrationModal";
+import { XpFloatingToastContainer } from "@/components/xp/XpFloatingToast";
 
 export default function LiveRoomPage() {
   const params = useParams();
@@ -84,6 +88,23 @@ export default function LiveRoomPage() {
     toggleFollow,
     walletBalance,
   } = useLiveRoomSession(creatorId);
+
+  // -------------------------------------------------------------
+  // 11. AUTHORITATIVE BACKEND-DRIVEN XP & WATCH TELEMETRY TRACKER
+  // The client passively transmits playback facts; backend calculates XP & level-ups
+  // -------------------------------------------------------------
+  useLiveWatchTracker({
+    fanId: currentUser?.id,
+    creatorProfileId: roomConfig?.creatorId || creatorId,
+    livestreamId: roomConfig?.activeSessionId || "live_stream_default",
+    isPlaying: mediaState === "PLAYING" || Boolean(roomConfig?.isLive),
+    heartbeatIntervalMs: 30000,
+  });
+
+  const { activeLevelUp, dismissLevelUp, xpToasts, dismissToast } = useXpProgressionListener({
+    creatorProfileId: roomConfig?.creatorId || creatorId,
+    fanId: currentUser?.id,
+  });
 
   // UI Drawer & Modal State
   const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
@@ -288,6 +309,19 @@ export default function LiveRoomPage() {
         onClose={() => setIsReportModalOpen(false)}
         creatorId={roomConfig.creatorId}
         creatorName={roomConfig.displayName}
+      />
+
+      {/* ------------------------------------------------------------- */}
+      {/* 8. AUTHORITATIVE XP LEVEL-UP CELEBRATION MODAL & TOASTS       */}
+      {/* Strictly driven by backend LEVEL_UP / XP_AWARDED events       */}
+      {/* ------------------------------------------------------------- */}
+      <LevelUpCelebrationModal
+        payload={activeLevelUp}
+        onClose={dismissLevelUp}
+      />
+      <XpFloatingToastContainer
+        toasts={xpToasts}
+        onDismiss={dismissToast}
       />
     </main>
   );
