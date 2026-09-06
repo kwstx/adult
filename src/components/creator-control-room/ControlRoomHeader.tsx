@@ -149,8 +149,16 @@ export function ControlRoomHeader({
           </button>
         </div>
 
-        {/* 3. Simulator & Instant Test Suite */}
+        {/* 3. Simulator & Private Sessions Suite */}
         <div className="flex items-center gap-2 shrink-0">
+          <a
+            href="/creator/private-sessions"
+            className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-pink-600/20 to-purple-600/20 hover:from-pink-600/30 hover:to-purple-600/30 border border-pink-500/40 px-3 py-1.5 text-[11px] font-bold text-pink-300 shadow-sm transition-all"
+          >
+            <Clock className="h-3.5 w-3.5 text-pink-400" />
+            <span>Private Sessions</span>
+          </a>
+
           <button
             onClick={() => onSimulateTip(250)}
             className="flex items-center gap-1.5 rounded-2xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-3 py-1.5 text-[11px] font-bold text-pink-300 hover:text-pink-200 shadow-sm transition-all"

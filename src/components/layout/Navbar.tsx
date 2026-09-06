@@ -39,6 +39,14 @@ export function Navbar() {
           </Link>
 
           <Link
+            href="/creator/private-sessions"
+            className="flex items-center gap-1.5 rounded-xl bg-zinc-900/80 px-2.5 py-1.5 text-xs font-bold text-pink-400 border border-pink-500/20 hover:bg-pink-500/20 transition-colors"
+          >
+            <Video className="h-3.5 w-3.5" />
+            <span>Private Shows</span>
+          </Link>
+
+          <Link
             href="/trust/mod-queue"
             className="flex items-center gap-1.5 rounded-xl bg-zinc-900/80 px-2.5 py-1.5 text-xs font-bold text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
           >
@@ -151,6 +159,17 @@ export function Navbar() {
               >
                 <Radio className="h-4 w-4 text-rose-400" />
                 Creator OS
+              </Link>
+              <Link
+                href="/creator/private-sessions"
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors ${
+                  pathname === "/creator/private-sessions"
+                    ? "bg-zinc-800 text-white"
+                    : "text-zinc-400 hover:bg-zinc-800/50 hover:text-white"
+                }`}
+              >
+                <Video className="h-4 w-4 text-pink-400" />
+                Private Sessions
               </Link>
               <Link
                 href="/wallet"
