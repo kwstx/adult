@@ -14,12 +14,15 @@ import { GiftCelebrationCanvas } from "@/components/live-room/GiftCelebrationCan
 import { LiveRoomLeaderboard } from "@/components/live-room/LiveRoomLeaderboard";
 import { CreatorLiveEarningsHUD } from "@/components/live-room/CreatorLiveEarningsHUD";
 import { LiveInteractionAlertBanner } from "@/components/live-room/LiveInteractionAlertBanner";
+import { LiveRoomFanStatusHUD } from "@/components/live-room/LiveRoomFanStatusHUD";
+import { FanStatusProfileModal } from "@/components/live-room/FanStatusProfileModal";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { ReportModal } from "@/components/trust/ReportModal";
 import { useLiveWatchTracker } from "@/hooks/useLiveWatchTracker";
 import { useXpProgressionListener } from "@/hooks/useXpProgressionListener";
 import { LevelUpCelebrationModal } from "@/components/xp/LevelUpCelebrationModal";
 import { XpFloatingToastContainer } from "@/components/xp/XpFloatingToast";
+import { FanPublicStatus } from "@/types/fan-status";
 
 export default function LiveRoomPage() {
   const params = useParams();
@@ -112,6 +115,9 @@ export default function LiveRoomPage() {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  // Fan Status Inspection Modal State
+  const [inspectedFanId, setInspectedFanId] = useState<string | null>(null);
 
   // Loading State
   if (isLoadingSession && !roomConfig) {
@@ -215,17 +221,28 @@ export default function LiveRoomPage() {
       {/* ------------------------------------------------------------- */}
       {/* 3. TOP OVERLAY: CREATOR IDENTITY & LIVE STREAM GOAL          */}
       {/* ------------------------------------------------------------- */}
-      <CreatorIdentityOverlay
-        roomConfig={roomConfig}
-        relationship={relationship}
-        goal={goal}
-        viewerCount={viewerCount}
-        onToggleFollow={toggleFollow}
-        onOpenGoalDrawer={() => {
-          setMarketplaceTab("goal");
-          setIsMarketplaceOpen(true);
-        }}
-      />
+      <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none p-3 sm:p-4 space-y-2">
+        <CreatorIdentityOverlay
+          roomConfig={roomConfig}
+          relationship={relationship}
+          goal={goal}
+          viewerCount={viewerCount}
+          onToggleFollow={toggleFollow}
+          onOpenGoalDrawer={() => {
+            setMarketplaceTab("goal");
+            setIsMarketplaceOpen(true);
+          }}
+        />
+
+        {/* High-Value Relationship Presence HUD */}
+        <div className="pointer-events-auto flex items-center justify-between">
+          <LiveRoomFanStatusHUD
+            creatorId={roomConfig.creatorId}
+            isCreator={isCreator}
+            onSelectFan={(fan: FanPublicStatus) => setInspectedFanId(fan.userId)}
+          />
+        </div>
+      </div>
 
       {/* ------------------------------------------------------------- */}
       {/* 4. BOTTOM OVERLAY: TRANSLUCENT CHAT PANEL                    */}
@@ -239,6 +256,7 @@ export default function LiveRoomPage() {
           setMarketplaceTab("gifts");
           setIsMarketplaceOpen(true);
         }}
+        onInspectFan={(fanId, fanName) => setInspectedFanId(fanId)}
       />
 
       {/* ------------------------------------------------------------- */}
@@ -298,6 +316,24 @@ export default function LiveRoomPage() {
         creatorName={roomConfig.displayName}
       />
 
+      {/* ------------------------------------------------------------- */}
+      {/* 8. FAN STATUS PROFILE MODAL (Role-Aware Inspection)           */}
+      {/* ------------------------------------------------------------- */}
+      <FanStatusProfileModal
+        isOpen={Boolean(inspectedFanId)}
+        onClose={() => setInspectedFanId(null)}
+        fanId={inspectedFanId}
+        creatorId={roomConfig.creatorId}
+        isCreator={isCreator}
+        currentUserId={currentUser.id}
+        onSendShoutout={(fan) => {
+          sendChatMessage(`✨ Special shoutout to our ${fan.fullBadge} ${fan.displayName}! Thank you for your support! 👑`);
+        }}
+        onMuteUser={(fanId, fanName) => {
+          sendChatMessage(`🛡️ User ${fanName} was muted by the broadcaster.`);
+        }}
+      />
+
       {/* Modals */}
       <WalletModal
         isOpen={isWalletModalOpen}
@@ -312,8 +348,7 @@ export default function LiveRoomPage() {
       />
 
       {/* ------------------------------------------------------------- */}
-      {/* 8. AUTHORITATIVE XP LEVEL-UP CELEBRATION MODAL & TOASTS       */}
-      {/* Strictly driven by backend LEVEL_UP / XP_AWARDED events       */}
+      {/* 9. AUTHORITATIVE XP LEVEL-UP CELEBRATION MODAL & TOASTS       */}
       {/* ------------------------------------------------------------- */}
       <LevelUpCelebrationModal
         payload={activeLevelUp}

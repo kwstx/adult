@@ -17,6 +17,7 @@ import {
   Save,
 } from "lucide-react";
 import type { AudienceMember, TopSupporter } from "@/types/control-room";
+import { FanStatusBadge } from "@/components/live-room/FanStatusBadge";
 
 interface FanProfileCRMDrawerProps {
   isOpen: boolean;
@@ -43,21 +44,6 @@ export function FanProfileCRMDrawer({
   const handleSaveNote = () => {
     setHasSavedNote(true);
     setTimeout(() => setHasSavedNote(false), 2000);
-  };
-
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case "ROYAL_PATRON":
-        return "from-amber-500 to-yellow-300 text-amber-950";
-      case "SOULMATE":
-        return "from-pink-500 to-rose-400 text-white";
-      case "VIP_DEVOTEE":
-        return "from-purple-500 to-indigo-400 text-white";
-      case "SUPERFAN":
-        return "from-blue-500 to-cyan-400 text-white";
-      default:
-        return "from-zinc-600 to-zinc-400 text-white";
-    }
   };
 
   return (
@@ -96,23 +82,14 @@ export function FanProfileCRMDrawer({
               </span>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-base font-black text-white">{member.displayName}</h4>
-                {member.isVip && (
-                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-black text-amber-300 border border-amber-500/40">
-                    VIP
-                  </span>
-                )}
-              </div>
+              <h4 className="text-base font-black text-white">{member.displayName}</h4>
               <p className="text-xs text-zinc-400">@{member.username}</p>
               <div className="mt-1.5 flex items-center gap-1.5">
-                <span
-                  className={`rounded-full bg-gradient-to-r px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${getTierColor(
-                    member.relationshipTier
-                  )}`}
-                >
-                  {member.relationshipTier.replace("_", " ")}
-                </span>
+                <FanStatusBadge
+                  tier={member.relationshipTier}
+                  variant="pill"
+                  level={member.fanLevel}
+                />
               </div>
             </div>
           </div>

@@ -4,6 +4,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Coins, Sparkles, Smile, ShieldAlert } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import type { ChatMessagePayload } from "@/modules/realtime/types";
+import { FanStatusBadge } from "./FanStatusBadge";
+import { normalizeRelationshipTier } from "@/modules/relationship/tier-definitions";
+import { FAN_STATUS_STYLES } from "@/modules/relationship/fan-status.service";
 
 interface TranslucentChatPanelProps {
   messages: ChatMessagePayload[];
@@ -11,6 +14,7 @@ interface TranslucentChatPanelProps {
   canChat: boolean;
   onSendMessage: (text: string) => Promise<boolean>;
   onOpenMarketplace: () => void;
+  onInspectFan?: (fanId: string, fanName: string) => void;
 }
 
 const QUICK_REACTIONS = ["🔥", "❤️", "👑", "💎", "🚀", "🎉", "💋", "👏"];
@@ -21,6 +25,7 @@ export function TranslucentChatPanel({
   canChat,
   onSendMessage,
   onOpenMarketplace,
+  onInspectFan,
 }: TranslucentChatPanelProps) {
   const { currentUser } = useUser();
   const [inputText, setInputText] = useState("");
@@ -49,6 +54,20 @@ export function TranslucentChatPanel({
     setInputText((prev) => `${prev} ${emoji}`.trim());
   };
 
+  // Helper to resolve relationship tier from message payload
+  const resolveMessageTier = (msg: ChatMessagePayload) => {
+    if (msg.senderRole === "CREATOR") return null;
+    const name = msg.senderName.toLowerCase();
+    const badge = msg.senderBadge?.toUpperCase() || "";
+
+    if (badge.includes("INNER_CIRCLE") || name.includes("chris")) return "INNER_CIRCLE";
+    if (badge.includes("VIP") || name.includes("maria")) return "VIP";
+    if (badge.includes("SUPPORTER") || name.includes("alex")) return "SUPPORTER";
+    if (badge.includes("REGULAR") || name.includes("sophia")) return "REGULAR";
+    if (badge.includes("ELITE") || badge.includes("PATRON")) return "ELITE";
+    return null;
+  };
+
   return (
     <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end p-4 sm:p-6 pb-20 sm:pb-6 pointer-events-none max-w-xl">
       {/* 1. Translucent Gradient Message Feed */}
@@ -63,25 +82,29 @@ export function TranslucentChatPanel({
             </div>
           ) : (
             messages.map((msg, index) => {
+              // High-tier Tip Alerts (Rendered elegantly)
               if (msg.isTipNotice) {
                 return (
                   <div
                     key={msg.id || index}
-                    className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-950/80 via-rose-900/60 to-amber-950/70 p-2.5 border border-pink-500/40 shadow-xl backdrop-blur-md animate-fade-in"
+                    className="flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-pink-950/80 via-rose-950/60 to-zinc-950/80 p-2.5 border border-pink-500/30 shadow-lg backdrop-blur-md animate-fade-in"
                   >
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-500 to-rose-500 text-white shadow-md">
                       <Sparkles className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="font-black text-amber-300 truncate">
+                        <button
+                          onClick={() => onInspectFan?.(msg.senderId, msg.senderName)}
+                          className="font-bold text-amber-300 hover:underline truncate text-left"
+                        >
                           {msg.senderName}
-                        </span>
-                        <span className="rounded-full bg-pink-500/30 px-2 py-0.5 text-[10px] font-black text-pink-200 shrink-0">
+                        </button>
+                        <span className="rounded-full bg-pink-500/20 px-2 py-0.5 text-[10px] font-bold text-pink-200 border border-pink-500/30 shrink-0">
                           +{msg.tipAmount} TOKENS
                         </span>
                       </div>
-                      <p className="text-[11px] font-semibold text-pink-100 truncate">
+                      <p className="text-[11px] font-medium text-pink-100 truncate">
                         {msg.text}
                       </p>
                     </div>
@@ -89,37 +112,52 @@ export function TranslucentChatPanel({
                 );
               }
 
+              const fanTier = resolveMessageTier(msg);
+              const tierStyle = fanTier ? FAN_STATUS_STYLES[fanTier] : null;
+
               return (
                 <div
                   key={msg.id || index}
-                  className="flex items-start gap-1.5 rounded-2xl bg-black/45 backdrop-blur-md px-3 py-1.5 border border-white/5 max-w-[90%] shadow-lg transition-all hover:bg-black/60"
+                  className={`group flex items-start gap-1.5 rounded-2xl bg-black/45 backdrop-blur-md px-3 py-1.5 border max-w-[92%] shadow-lg transition-all hover:bg-black/60 ${
+                    tierStyle
+                      ? `${tierStyle.borderClass} ${tierStyle.glowClass}`
+                      : "border-white/5"
+                  }`}
                 >
-                  {/* Sender Badges */}
+                  {/* Creator Badge */}
                   {msg.senderRole === "CREATOR" && (
                     <span className="rounded bg-pink-600 px-1.5 py-0.2 text-[9px] font-black text-white uppercase shrink-0">
                       Creator
                     </span>
                   )}
-                  {msg.senderBadge?.includes("VIP") && (
-                    <span className="rounded bg-amber-500/25 border border-amber-500/40 px-1.5 py-0.2 text-[9px] font-black text-amber-300 shrink-0">
-                      {msg.senderBadge}
-                    </span>
-                  )}
-                  {msg.senderBadge?.includes("TOP_TIPPER") && (
-                    <span className="rounded bg-purple-500/25 border border-purple-500/40 px-1.5 py-0.2 text-[9px] font-black text-purple-300 shrink-0">
-                      👑 Top Patron
-                    </span>
-                  )}
+
+                  {/* Mod Badge */}
                   {msg.senderBadge === "MOD" && (
-                    <span className="rounded bg-emerald-500/25 border border-emerald-500/40 px-1.5 py-0.2 text-[9px] font-black text-emerald-300 shrink-0">
+                    <span className="rounded bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.2 text-[9px] font-bold text-emerald-300 shrink-0">
                       Mod
                     </span>
                   )}
 
-                  <span className="font-bold text-zinc-300 shrink-0">
+                  {/* Elegant Fan Status Badge (Supporter 🔥, VIP 💎, Inner Circle 👑) */}
+                  {fanTier && (
+                    <FanStatusBadge
+                      tier={fanTier}
+                      variant="pill"
+                      interactive
+                      onClick={() => onInspectFan?.(msg.senderId, msg.senderName)}
+                    />
+                  )}
+
+                  {/* Sender Name */}
+                  <button
+                    onClick={() => onInspectFan?.(msg.senderId, msg.senderName)}
+                    className="font-bold text-zinc-300 hover:text-white transition-colors shrink-0 text-left hover:underline"
+                  >
                     {msg.senderName}:
-                  </span>
-                  <span className="text-white break-words font-medium">
+                  </button>
+
+                  {/* Message Body */}
+                  <span className="text-white/95 break-words font-medium">
                     {msg.text}
                   </span>
                 </div>

@@ -24,6 +24,7 @@ import type {
   AudienceMember,
   TopSupporter,
 } from "@/types/control-room";
+import { FanStatusBadge } from "@/components/live-room/FanStatusBadge";
 
 interface AudienceChatPanelProps {
   chatMessages: ControlRoomChatMessage[];
@@ -184,21 +185,20 @@ export function AudienceChatPanel({
                         <span className="font-bold text-white text-xs">{msg.senderName}</span>
 
                         {/* Badges */}
-                        {msg.fanLevel > 0 && (
-                          <span className="rounded bg-zinc-800 px-1 py-0.2 text-[9px] font-mono font-bold text-zinc-300">
-                            Lv.{msg.fanLevel}
-                          </span>
+                        {msg.relationshipTier && (
+                          <FanStatusBadge
+                            tier={msg.relationshipTier}
+                            variant="pill"
+                            level={msg.fanLevel}
+                          />
                         )}
-                        {msg.isVip && (
-                          <span className="rounded bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-bold text-amber-300 border border-amber-500/30">
-                            VIP
-                          </span>
-                        )}
+
                         {msg.isModerator && (
                           <span className="rounded bg-purple-500/20 px-1.5 py-0.2 text-[9px] font-bold text-purple-300 border border-purple-500/30">
                             MOD
                           </span>
                         )}
+
                         {msg.tipCredits && (
                           <span className="rounded-full bg-amber-400 text-black px-1.5 py-0.2 text-[9px] font-black">
                             +{msg.tipCredits} 🪙
@@ -304,14 +304,13 @@ export function AudienceChatPanel({
                         <span className="font-bold text-white text-xs truncate">
                           {member.displayName}
                         </span>
-                        {member.isVip && (
-                          <span className="rounded bg-amber-500/20 px-1.5 py-0.2 text-[8px] font-black text-amber-300">
-                            VIP
-                          </span>
-                        )}
+                        <FanStatusBadge
+                          tier={member.relationshipTier}
+                          variant="pill"
+                        />
                       </div>
                       <span className="text-[10px] text-zinc-400 block truncate">
-                        {member.relationshipTier.replace("_", " ")} • {member.watchMinutesSession}m in room
+                        {member.watchMinutesSession}m in room • {member.streakDays}d streak
                       </span>
                     </div>
                   </div>
@@ -367,11 +366,17 @@ export function AudienceChatPanel({
                           className="h-9 w-9 rounded-xl object-cover ring-1 ring-zinc-700"
                         />
                         <div>
-                          <span className="text-xs font-black text-white block">
-                            {supporter.displayName}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white block">
+                              {supporter.displayName}
+                            </span>
+                            <FanStatusBadge
+                              tier={supporter.relationshipTier}
+                              variant="pill"
+                            />
+                          </div>
                           <span className="text-[10px] text-zinc-400">
-                            {supporter.streakDays}-day streak • {supporter.relationshipTier.replace("_", " ")}
+                            {supporter.streakDays}-day streak
                           </span>
                         </div>
                       </div>
@@ -419,9 +424,10 @@ export function AudienceChatPanel({
                       <img src={fan.avatarUrl} alt="" className="h-7 w-7 rounded-xl object-cover" />
                       <span className="text-xs font-bold text-white">{fan.displayName}</span>
                     </div>
-                    <span className="rounded-full bg-purple-500/20 text-purple-300 px-2 py-0.5 text-[9px] font-bold border border-purple-500/30">
-                      {fan.relationshipTier.replace("_", " ")}
-                    </span>
+                    <FanStatusBadge
+                      tier={fan.relationshipTier}
+                      variant="pill"
+                    />
                   </div>
 
                   {/* Progress Bar */}

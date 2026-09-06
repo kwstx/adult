@@ -3,9 +3,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, Sparkles, Coins, Flame, ShieldAlert, Star } from "lucide-react";
 import { useUser } from "@/lib/user-context";
+import { FanStatusBadge } from "@/components/live-room/FanStatusBadge";
+import { FanStatusProfileModal } from "@/components/live-room/FanStatusProfileModal";
+import { FAN_STATUS_STYLES } from "@/modules/relationship/fan-status.service";
 
 export interface ChatMessageItem {
   id: string;
+  senderId?: string;
   senderName: string;
   senderRole: string;
   senderBadge?: string | null;
@@ -19,18 +23,19 @@ export interface ChatMessageItem {
 interface LiveChatProps {
   creatorId: string;
   onOpenTipMenu: () => void;
+  isCreator?: boolean;
 }
 
-export function LiveChat({ creatorId, onOpenTipMenu }: LiveChatProps) {
+export function LiveChat({ creatorId, onOpenTipMenu, isCreator = false }: LiveChatProps) {
   const { currentUser } = useUser();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [selectedFanId, setSelectedFanId] = useState<string | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // 1. Load initial chat history & Connect to Real-time SSE stream
   useEffect(() => {
-    // Fetch initial chat
     fetch(`/api/realtime/${creatorId}/chat`)
       .then((res) => res.json())
       .then((data) => {
@@ -48,8 +53,6 @@ export function LiveChat({ creatorId, onOpenTipMenu }: LiveChatProps) {
         const event = JSON.parse(e.data);
         if (event.type === "CHAT_MESSAGE") {
           setMessages((prev) => [...prev, event.payload]);
-        } else if (event.type === "TIP_EVENT") {
-          // Tip notification handled both in chat & tip alert overlay
         }
       } catch {
         // SSE parsing error
@@ -93,6 +96,19 @@ export function LiveChat({ creatorId, onOpenTipMenu }: LiveChatProps) {
     }
   };
 
+  const resolveFanTier = (msg: ChatMessageItem) => {
+    if (msg.senderRole === "CREATOR") return null;
+    const name = msg.senderName.toLowerCase();
+    const badge = msg.senderBadge?.toUpperCase() || "";
+
+    if (badge.includes("INNER_CIRCLE") || name.includes("chris")) return "INNER_CIRCLE";
+    if (badge.includes("VIP") || name.includes("maria")) return "VIP";
+    if (badge.includes("SUPPORTER") || name.includes("alex")) return "SUPPORTER";
+    if (badge.includes("REGULAR") || name.includes("sophia")) return "REGULAR";
+    if (badge.includes("ELITE") || badge.includes("PATRON")) return "ELITE";
+    return null;
+  };
+
   return (
     <div className="flex h-full flex-col rounded-3xl bg-zinc-950 border border-zinc-800/80 shadow-2xl overflow-hidden">
       {/* Chat Room Header */}
@@ -129,7 +145,12 @@ export function LiveChat({ creatorId, onOpenTipMenu }: LiveChatProps) {
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
                       <Coins className="h-3 w-3" />
                     </span>
-                    <span className="font-extrabold text-amber-300">{msg.senderName}</span>
+                    <button
+                      onClick={() => setSelectedFanId(msg.senderId || msg.senderName)}
+                      className="font-extrabold text-amber-300 hover:underline"
+                    >
+                      {msg.senderName}
+                    </button>
                   </div>
                   <span className="rounded-full bg-pink-500/30 px-2 py-0.5 text-[10px] font-black text-pink-300">
                     +{msg.tipAmount} TOKENS
@@ -140,31 +161,40 @@ export function LiveChat({ creatorId, onOpenTipMenu }: LiveChatProps) {
             );
           }
 
+          const fanTier = resolveFanTier(msg);
+
           return (
-            <div key={msg.id || index} className="flex items-start gap-2 leading-relaxed">
-              {/* Badges */}
+            <div key={msg.id || index} className="flex items-start gap-1.5 leading-relaxed">
+              {/* Creator Tag */}
               {msg.senderRole === "CREATOR" && (
-                <span className="rounded bg-pink-600 px-1.5 py-0.5 text-[9px] font-bold text-white uppercase">
+                <span className="rounded bg-pink-600 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase shrink-0">
                   Creator
                 </span>
               )}
-              {msg.senderBadge === "VIP" && (
-                <span className="rounded bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">
-                  VIP
-                </span>
-              )}
-              {msg.senderBadge === "TOP_TIPPER" && (
-                <span className="rounded bg-purple-500/20 border border-purple-500/40 px-1.5 py-0.5 text-[9px] font-bold text-purple-300">
-                  ⭐ Top Tipper
-                </span>
-              )}
+
+              {/* Mod Tag */}
               {msg.senderBadge === "MOD" && (
-                <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.5 text-[9px] font-bold text-emerald-300">
+                <span className="rounded bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.2 text-[9px] font-bold text-emerald-300 shrink-0">
                   Mod
                 </span>
               )}
 
-              <span className="font-semibold text-zinc-400">{msg.senderName}:</span>
+              {/* Elegant Fan Status Badge */}
+              {fanTier && (
+                <FanStatusBadge
+                  tier={fanTier}
+                  variant="pill"
+                  interactive
+                  onClick={() => setSelectedFanId(msg.senderId || msg.senderName)}
+                />
+              )}
+
+              <button
+                onClick={() => setSelectedFanId(msg.senderId || msg.senderName)}
+                className="font-semibold text-zinc-400 hover:text-white transition-colors shrink-0 text-left hover:underline"
+              >
+                {msg.senderName}:
+              </button>
               <span className="text-zinc-200 break-words flex-1">{msg.text}</span>
             </div>
           );
@@ -191,6 +221,16 @@ export function LiveChat({ creatorId, onOpenTipMenu }: LiveChatProps) {
           <Send className="h-4 w-4" />
         </button>
       </form>
+
+      {/* Fan Status Profile Modal */}
+      <FanStatusProfileModal
+        isOpen={Boolean(selectedFanId)}
+        onClose={() => setSelectedFanId(null)}
+        fanId={selectedFanId}
+        creatorId={creatorId}
+        isCreator={isCreator}
+        currentUserId={currentUser.id}
+      />
     </div>
   );
 }

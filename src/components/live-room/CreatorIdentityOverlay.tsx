@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { RoomConfig, ViewerRelationship, StreamGoalData } from "@/modules/livestream/room-session.service";
+import { FanStatusBadge } from "./FanStatusBadge";
 
 interface CreatorIdentityOverlayProps {
   roomConfig: RoomConfig;
@@ -32,7 +33,7 @@ export function CreatorIdentityOverlay({
   onOpenGoalDrawer,
 }: CreatorIdentityOverlayProps) {
   return (
-    <div className="absolute top-0 left-0 right-0 z-30 flex flex-col gap-3 p-4 sm:p-6 pointer-events-none">
+    <div className="flex flex-col gap-3">
       {/* Main Top Header Bar */}
       <div className="flex items-center justify-between gap-3">
         {/* Left Side: Creator Identity Pill */}
@@ -81,10 +82,12 @@ export function CreatorIdentityOverlay({
 
             {/* Viewer's Relationship Level Badge */}
             <div className="flex items-center gap-1.5 text-[10px]">
-              {relationship.fanBadge ? (
-                <span className="rounded-full bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-500/40 px-2 py-0.2 font-black text-amber-300">
-                  {relationship.fanBadge}
-                </span>
+              {relationship.isSubscribed || (relationship.fanLevel && relationship.fanLevel > 1) ? (
+                <FanStatusBadge
+                  tier={relationship.isSubscribed ? "VIP" : "SUPPORTER"}
+                  variant="pill"
+                  level={relationship.fanLevel}
+                />
               ) : (
                 <span className="text-zinc-400 font-medium">@{roomConfig.username}</span>
               )}
