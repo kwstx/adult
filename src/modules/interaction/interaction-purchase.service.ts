@@ -1,7 +1,8 @@
 import prisma from "@/lib/db";
 import { InteractionService } from "./interaction.service";
 import { WalletLedgerService } from "@/modules/economic/wallet-ledger.service";
-import { InteractionQueueService, QueueItem } from "@/modules/realtime/interaction-queue.service";
+import { InteractionQueueService } from "@/modules/realtime/interaction-queue.service";
+import { QueueItemData } from "@/modules/queue/interaction-queue.model";
 import { eventBus } from "@/modules/realtime/event-bus";
 import { InteractionConfig } from "@/types/interaction";
 
@@ -372,7 +373,7 @@ export class InteractionPurchaseService {
     }
 
     // 4. Enqueue into live Interaction Queue & compute Queue Position (e.g. #3)
-    const queueItem: QueueItem = await InteractionQueueService.enqueueInteraction({
+    const queueItem = await InteractionQueueService.enqueueInteraction({
       creatorId,
       senderId: fanUserId,
       senderName: fanDisplayName,
@@ -389,7 +390,7 @@ export class InteractionPurchaseService {
       success: true,
       purchaseId,
       queueId: queueItem.id,
-      queuePosition: queueItem.queuePosition, // Position #3
+      queuePosition: queueItem.position, // Position #3
       interactionId: interaction.id,
       title: interaction.name,
       actionType: interaction.type,

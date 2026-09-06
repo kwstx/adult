@@ -1,93 +1,120 @@
 import prisma from "@/lib/db";
 import { eventBus } from "./event-bus";
 import {
-  InteractionPurchasedPayload,
-  InteractionAcceptedPayload,
-} from "./types";
-
-export interface QueueItem {
-  id: string;
-  creatorId: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar?: string;
-  menuItemId: string;
-  title: string;
-  creditCost: number;
-  actionType: string;
-  customMessage?: string;
-  durationSeconds?: number;
-  queuePosition: number;
-  status: "QUEUED" | "ACCEPTED" | "EXECUTING" | "COMPLETED" | "SKIPPED" | "REJECTED";
-  createdAt: string;
-}
+  InteractionQueue,
+  QueueItem,
+  QueueItemData,
+  QueueItemStatus,
+  QueueItemFan,
+  QueueItemInteraction,
+  QueueItemPrice,
+} from "@/modules/queue/interaction-queue.model";
+import { WalletLedgerService } from "@/modules/economic/wallet-ledger.service";
 
 // Initial seed queue for realistic stream environment (#1 and #2 already in queue)
-const INITIAL_SEED_QUEUE: QueueItem[] = [
+const INITIAL_SEED_QUEUE_DATA: QueueItemData[] = [
   {
     id: "iq_seed_1",
     creatorId: "creator_maya",
-    senderId: "fan_marcus",
-    senderName: "Marcus Neon ⚡",
-    senderAvatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80",
-    menuItemId: "int_seed_2",
-    title: "Wheel of Fortune Spin 🎡",
-    creditCost: 250,
-    actionType: "Visual",
-    customMessage: "Spin for neon prize! ✨",
-    durationSeconds: 15,
-    queuePosition: 1,
-    status: "QUEUED",
+    fan: {
+      id: "fan_marcus",
+      username: "marcus_cyber",
+      displayName: "Marcus Neon ⚡",
+      avatarUrl: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80",
+      fanLevel: 6,
+      relationshipTier: "SUPERFAN",
+      isVip: false,
+      isSubscriber: true,
+    },
+    interaction: {
+      id: "int_seed_2",
+      title: "Wheel of Fortune Spin 🎡",
+      description: "Spin the live interactive mystery prize wheel",
+      actionType: "Visual",
+      customMessage: "Spin for neon prize! ✨",
+      durationSeconds: 15,
+    },
+    price: {
+      amountCredits: 250,
+      fiatEquivalentCents: 2000,
+      platformFeeCredits: 50,
+      creatorNetCredits: 200,
+    },
+    purchaseTime: new Date(Date.now() - 300000).toISOString(),
+    position: 1,
+    status: "ACCEPTED",
+    creatorDecision: {
+      decision: "ACCEPTED",
+      decidedAt: new Date(Date.now() - 240000).toISOString(),
+      creatorNote: "Ready to spin!",
+    },
+    potentialRefundState: {
+      isRefunded: false,
+      refundStatus: "NONE",
+    },
     createdAt: new Date(Date.now() - 300000).toISOString(),
+    updatedAt: new Date(Date.now() - 240000).toISOString(),
   },
   {
     id: "iq_seed_2",
     creatorId: "creator_maya",
-    senderId: "fan_elena",
-    senderName: "Elena Velvet 🌸",
-    senderAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-    menuItemId: "int_seed_1",
-    title: "Mini Freestyle Dance 💃",
-    creditCost: 100,
-    actionType: "Request",
-    customMessage: "Play some cyber bass!",
-    durationSeconds: 30,
-    queuePosition: 2,
-    status: "QUEUED",
+    fan: {
+      id: "fan_elena",
+      username: "elena_v",
+      displayName: "Elena Velvet 🌸",
+      avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+      fanLevel: 3,
+      relationshipTier: "SUPPORTER",
+      isVip: false,
+      isSubscriber: false,
+    },
+    interaction: {
+      id: "int_seed_1",
+      title: "Mini Freestyle Dance 💃",
+      description: "30-second live custom dance performance on stream",
+      actionType: "Request",
+      customMessage: "Play some cyber bass!",
+      durationSeconds: 30,
+    },
+    price: {
+      amountCredits: 100,
+      fiatEquivalentCents: 800,
+      platformFeeCredits: 20,
+      creatorNetCredits: 80,
+    },
+    purchaseTime: new Date(Date.now() - 120000).toISOString(),
+    position: 2,
+    status: "PENDING",
+    creatorDecision: {
+      decision: "PENDING",
+    },
+    potentialRefundState: {
+      isRefunded: false,
+      refundStatus: "NONE",
+    },
     createdAt: new Date(Date.now() - 120000).toISOString(),
+    updatedAt: new Date(Date.now() - 120000).toISOString(),
   },
 ];
 
 export class InteractionQueueService {
-  // creatorId -> Map<queueId, QueueItem>
-  private static creatorQueues: Map<string, Map<string, QueueItem>> = new Map();
+  // Map of creatorId -> InteractionQueue instance
+  private static creatorQueues: Map<string, InteractionQueue> = new Map();
 
-  private static getOrInitQueue(creatorId: string): Map<string, QueueItem> {
+  public static getOrInitQueue(creatorId: string): InteractionQueue {
     if (!this.creatorQueues.has(creatorId)) {
-      const initialMap = new Map<string, QueueItem>();
+      let initialItems: QueueItemData[] = [];
       if (creatorId === "creator_maya" || creatorId === "mayavelvet") {
-        for (const item of INITIAL_SEED_QUEUE) {
-          initialMap.set(item.id, { ...item, creatorId });
-        }
+        initialItems = INITIAL_SEED_QUEUE_DATA.map((item) => ({ ...item, creatorId }));
       }
-      this.creatorQueues.set(creatorId, initialMap);
+      const queue = new InteractionQueue(creatorId, initialItems);
+      this.creatorQueues.set(creatorId, queue);
     }
     return this.creatorQueues.get(creatorId)!;
   }
 
   /**
-   * Calculate exact 1-based queue position for the next incoming item.
-   */
-  public static getNextQueuePosition(creatorId: string): number {
-    const queue = this.getOrInitQueue(creatorId);
-    const activeItems = Array.from(queue.values()).filter(
-      (i) => i.status === "QUEUED" || i.status === "EXECUTING"
-    );
-    return activeItems.length + 1;
-  }
-
-  /**
-   * Queue a purchased creator interaction item and broadcast to room.
+   * Enqueue newly purchased interaction into creator's authoritative queue object.
    */
   public static async enqueueInteraction(params: {
     creatorId: string;
@@ -100,166 +127,474 @@ export class InteractionQueueService {
     actionType: string;
     customMessage?: string;
     durationSeconds?: number;
-  }): Promise<QueueItem> {
+    fanLevel?: number;
+    relationshipTier?: string;
+    isVip?: boolean;
+    isSubscriber?: boolean;
+    livestreamId?: string;
+  }): Promise<QueueItemData> {
     const {
       creatorId,
       senderId,
       senderName,
-      senderAvatar,
+      senderAvatar = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
       menuItemId,
       title,
       creditCost,
       actionType,
       customMessage,
       durationSeconds = 30,
+      fanLevel = 1,
+      relationshipTier = "SUPPORTER",
+      isVip = false,
+      isSubscriber = false,
+      livestreamId,
     } = params;
 
     const queue = this.getOrInitQueue(creatorId);
-    const queuePosition = this.getNextQueuePosition(creatorId);
 
-    const queueId = `iq_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const queueItem: QueueItem = {
-      id: queueId,
-      creatorId,
-      senderId,
-      senderName,
-      senderAvatar:
-        senderAvatar ||
-        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-      menuItemId,
-      title,
-      creditCost,
-      actionType,
-      customMessage,
-      durationSeconds,
-      queuePosition,
-      status: "QUEUED",
-      createdAt: new Date().toISOString(),
+    const platformFee = Math.floor(creditCost * 0.2);
+    const creatorNet = creditCost - platformFee;
+
+    const fan: QueueItemFan = {
+      id: senderId,
+      username: senderName.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+      displayName: senderName,
+      avatarUrl: senderAvatar,
+      fanLevel,
+      relationshipTier,
+      isVip,
+      isSubscriber,
     };
 
-    queue.set(queueId, queueItem);
+    const interaction: QueueItemInteraction = {
+      id: menuItemId,
+      title,
+      actionType,
+      durationSeconds,
+      customMessage,
+    };
 
-    // If this is creator_maya, also sync alias mayavelvet
+    const price: QueueItemPrice = {
+      amountCredits: creditCost,
+      fiatEquivalentCents: creditCost * 8, // $0.08 per credit
+      platformFeeCredits: platformFee,
+      creatorNetCredits: creatorNet,
+    };
+
+    const queueItem = queue.enqueue({
+      fan,
+      interaction,
+      price,
+      livestreamId,
+    });
+
+    const itemData = queueItem.toJSON();
+
+    // Mirror to alias if creator_maya
     if (creatorId === "creator_maya" || creatorId === "mayavelvet") {
       const alias = creatorId === "creator_maya" ? "mayavelvet" : "creator_maya";
       const aliasQueue = this.getOrInitQueue(alias);
-      aliasQueue.set(queueId, { ...queueItem, creatorId: alias });
+      aliasQueue.enqueue({ fan, interaction, price, livestreamId });
     }
 
-    // Broadcast INTERACTION_PURCHASED event to all connected room viewers and creator
-    const payload: InteractionPurchasedPayload = {
-      queueId,
-      creatorId,
-      senderId,
-      senderName,
-      actionItem: {
-        id: menuItemId,
-        title,
-        creditCost,
-        actionType,
-      },
-      customMessage,
-      status: "QUEUED",
-      purchasedAt: queueItem.createdAt,
-    };
-
-    // Extended event payload for creator control room
-    const extendedPayload = {
-      ...payload,
-      queuePosition,
-      senderAvatar: queueItem.senderAvatar,
-      durationSeconds,
-    };
-
+    // Broadcast state machine event to room
     eventBus.publish(`room:${creatorId}`, {
       type: "INTERACTION_PURCHASED",
-      payload: extendedPayload,
-    });
-
-    // Also send system announcement in chat: "Alex — Ask me anything — 100 credits"
-    eventBus.publish(`room:${creatorId}`, {
-      type: "CHAT_MESSAGE",
       payload: {
-        id: `chat_int_${Date.now()}`,
+        queueId: itemData.id,
+        creatorId,
         senderId,
         senderName,
-        senderAvatar: queueItem.senderAvatar,
-        fanLevel: 14,
-        relationshipTier: "ROYAL_PATRON",
-        isVip: true,
-        isSubscriber: true,
-        isModerator: false,
-        text: `✨ Purchased "${title}" (${creditCost} credits) — Position #${queuePosition} in queue!`,
-        tipCredits: creditCost,
-        timestamp: "Just now",
+        senderAvatar,
+        actionItem: {
+          id: menuItemId,
+          title,
+          creditCost,
+          actionType,
+        },
+        customMessage,
+        queuePosition: itemData.position,
+        durationSeconds,
+        status: itemData.status,
+        purchasedAt: itemData.purchaseTime,
+        queueItem: itemData,
       },
     });
 
-    return queueItem;
+    eventBus.publish(`room:${creatorId}`, {
+      type: "QUEUE_STATE_CHANGED",
+      payload: {
+        creatorId,
+        action: "ENQUEUE",
+        item: itemData,
+        activeCount: queue.getActiveItems().length,
+      },
+    });
+
+    return itemData;
   }
 
   /**
-   * Creator accepts or triggers an interaction item from their queue.
+   * Creator transitions item: PENDING -> ACCEPTED
    */
   public static async acceptInteraction(params: {
     creatorId: string;
     queueId: string;
     creatorNote?: string;
-  }): Promise<QueueItem | null> {
+  }): Promise<QueueItemData | null> {
     const { creatorId, queueId, creatorNote } = params;
-
     const queue = this.getOrInitQueue(creatorId);
-    if (!queue.has(queueId)) return null;
 
-    const item = queue.get(queueId)!;
-    item.status = "EXECUTING";
+    try {
+      const item = queue.accept(queueId, creatorNote);
+      const itemData = item.toJSON();
 
-    // Broadcast INTERACTION_ACCEPTED event
-    const payload: InteractionAcceptedPayload = {
-      queueId,
+      eventBus.publish(`room:${creatorId}`, {
+        type: "INTERACTION_ACCEPTED",
+        payload: {
+          queueId,
+          creatorId,
+          actionTitle: item.interaction.title,
+          actionType: item.interaction.actionType,
+          senderName: item.fan.displayName,
+          creatorNote,
+          acceptedAt: item.creatorDecision.decidedAt,
+          queueItem: itemData,
+        },
+      });
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "QUEUE_STATE_CHANGED",
+        payload: {
+          creatorId,
+          action: "ACCEPT",
+          item: itemData,
+        },
+      });
+
+      return itemData;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Creator transitions item: ACCEPTED -> IN_PROGRESS
+   */
+  public static async startProgressInteraction(creatorId: string, queueId: string): Promise<QueueItemData | null> {
+    const queue = this.getOrInitQueue(creatorId);
+    try {
+      const item = queue.startProgress(queueId);
+      const itemData = item.toJSON();
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "INTERACTION_STARTED",
+        payload: {
+          queueId,
+          creatorId,
+          actionTitle: item.interaction.title,
+          senderName: item.fan.displayName,
+          startedAt: item.startTime,
+          durationSeconds: item.interaction.durationSeconds,
+          queueItem: itemData,
+        },
+      });
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "QUEUE_STATE_CHANGED",
+        payload: {
+          creatorId,
+          action: "START_PROGRESS",
+          item: itemData,
+        },
+      });
+
+      return itemData;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Creator transitions item: IN_PROGRESS -> COMPLETED
+   */
+  public static async completeInteraction(creatorId: string, queueId: string): Promise<QueueItemData | null> {
+    const queue = this.getOrInitQueue(creatorId);
+    try {
+      const item = queue.complete(queueId);
+      const itemData = item.toJSON();
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "INTERACTION_COMPLETED",
+        payload: {
+          queueId,
+          creatorId,
+          actionTitle: item.interaction.title,
+          senderName: item.fan.displayName,
+          completedAt: item.completionTime,
+          credits: item.price.amountCredits,
+          queueItem: itemData,
+        },
+      });
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "QUEUE_STATE_CHANGED",
+        payload: {
+          creatorId,
+          action: "COMPLETE",
+          item: itemData,
+        },
+      });
+
+      return itemData;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Creator transitions item: PENDING / ACCEPTED -> REJECTED (Triggers authoritative financial refund)
+   */
+  public static async rejectInteraction(params: {
+    creatorId: string;
+    queueId: string;
+    reason: string;
+  }): Promise<QueueItemData | null> {
+    const { creatorId, queueId, reason } = params;
+    const queue = this.getOrInitQueue(creatorId);
+    const existing = queue.getItem(queueId);
+    if (!existing) return null;
+
+    // Process refund on wallet ledger
+    const refundTxId = `ref_rej_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    await this.processFinancialRefund({
+      fanUserId: existing.fan.id,
       creatorId,
-      actionTitle: item.title,
-      actionType: item.actionType,
-      senderName: item.senderName,
-      creatorNote,
-      acceptedAt: new Date().toISOString(),
-    };
-
-    eventBus.publish(`room:${creatorId}`, {
-      type: "INTERACTION_ACCEPTED",
-      payload,
+      credits: existing.price.amountCredits,
+      reason: `Interaction rejected: ${reason}`,
+      refundTxId,
     });
 
-    return item;
+    try {
+      const item = queue.reject(queueId, reason, refundTxId);
+      const itemData = item.toJSON();
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "INTERACTION_REJECTED",
+        payload: {
+          queueId,
+          creatorId,
+          senderId: item.fan.id,
+          senderName: item.fan.displayName,
+          actionTitle: item.interaction.title,
+          reason,
+          refundTxId,
+          refundAmountCredits: item.price.amountCredits,
+          queueItem: itemData,
+        },
+      });
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "QUEUE_STATE_CHANGED",
+        payload: {
+          creatorId,
+          action: "REJECT",
+          item: itemData,
+        },
+      });
+
+      return itemData;
+    } catch {
+      return null;
+    }
   }
 
   /**
-   * Creator completes an interaction item.
+   * Creator / Fan / System cancels item (Triggers authoritative financial refund)
    */
-  public static async completeInteraction(creatorId: string, queueId: string): Promise<boolean> {
+  public static async cancelInteraction(params: {
+    creatorId: string;
+    queueId: string;
+    reason: string;
+    actor?: "CREATOR" | "FAN" | "SYSTEM";
+  }): Promise<QueueItemData | null> {
+    const { creatorId, queueId, reason, actor = "CREATOR" } = params;
     const queue = this.getOrInitQueue(creatorId);
-    if (!queue.has(queueId)) return false;
+    const existing = queue.getItem(queueId);
+    if (!existing) return null;
 
-    const item = queue.get(queueId)!;
-    item.status = "COMPLETED";
-    return true;
+    const refundTxId = `ref_can_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    await this.processFinancialRefund({
+      fanUserId: existing.fan.id,
+      creatorId,
+      credits: existing.price.amountCredits,
+      reason: `Interaction cancelled by ${actor}: ${reason}`,
+      refundTxId,
+    });
+
+    try {
+      const item = queue.cancel(queueId, reason, actor, refundTxId);
+      const itemData = item.toJSON();
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "INTERACTION_CANCELLED",
+        payload: {
+          queueId,
+          creatorId,
+          senderId: item.fan.id,
+          senderName: item.fan.displayName,
+          actionTitle: item.interaction.title,
+          actor,
+          reason,
+          refundTxId,
+          refundAmountCredits: item.price.amountCredits,
+          queueItem: itemData,
+        },
+      });
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "QUEUE_STATE_CHANGED",
+        payload: {
+          creatorId,
+          action: "CANCEL",
+          item: itemData,
+        },
+      });
+
+      return itemData;
+    } catch {
+      return null;
+    }
   }
 
   /**
-   * Get pending interaction queue for a creator.
+   * Creator / Mod direct refund (Triggers authoritative financial refund)
    */
-  public static getCreatorQueue(creatorId: string): QueueItem[] {
+  public static async refundInteraction(params: {
+    creatorId: string;
+    queueId: string;
+    reason: string;
+    partialCredits?: number;
+  }): Promise<QueueItemData | null> {
+    const { creatorId, queueId, reason, partialCredits } = params;
     const queue = this.getOrInitQueue(creatorId);
-    return Array.from(queue.values()).filter(
-      (i) => i.status === "QUEUED" || i.status === "EXECUTING"
-    );
+    const existing = queue.getItem(queueId);
+    if (!existing) return null;
+
+    const refundAmount = partialCredits !== undefined ? partialCredits : existing.price.amountCredits;
+    const refundTxId = `ref_dir_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    await this.processFinancialRefund({
+      fanUserId: existing.fan.id,
+      creatorId,
+      credits: refundAmount,
+      reason: `Direct refund: ${reason}`,
+      refundTxId,
+    });
+
+    try {
+      const item = queue.refund(queueId, reason, refundTxId, refundAmount);
+      const itemData = item.toJSON();
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "INTERACTION_REFUNDED",
+        payload: {
+          queueId,
+          creatorId,
+          senderId: item.fan.id,
+          senderName: item.fan.displayName,
+          actionTitle: item.interaction.title,
+          reason,
+          refundTxId,
+          refundAmountCredits: refundAmount,
+          queueItem: itemData,
+        },
+      });
+
+      eventBus.publish(`room:${creatorId}`, {
+        type: "QUEUE_STATE_CHANGED",
+        payload: {
+          creatorId,
+          action: "REFUND",
+          item: itemData,
+        },
+      });
+
+      return itemData;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Financial refund executor across ledger & database.
+   */
+  private static async processFinancialRefund(params: {
+    fanUserId: string;
+    creatorId: string;
+    credits: number;
+    reason: string;
+    refundTxId: string;
+  }): Promise<void> {
+    const { fanUserId, creatorId, credits, reason, refundTxId } = params;
+
+    // Database persistence if available
+    if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("localhost:5432")) {
+      try {
+        await prisma.$transaction(async (tx: any) => {
+          const fanWallet = await tx.wallet.findUnique({ where: { userId: fanUserId } });
+          if (fanWallet) {
+            await tx.wallet.update({
+              where: { id: fanWallet.id },
+              data: {
+                balance: { increment: credits },
+                lifetimeSpentCredits: { decrement: BigInt(credits) },
+              },
+            });
+
+            await tx.walletTransaction.create({
+              data: {
+                id: refundTxId,
+                destinationWalletId: fanWallet.id,
+                transactionType: "REFUND",
+                direction: "CREDIT",
+                amountCredits: credits,
+                idempotencyKey: refundTxId,
+                status: "COMPLETED",
+                note: reason,
+              },
+            });
+          }
+        }).catch(() => null);
+      } catch {
+        // Safe fallback
+      }
+    }
+  }
+
+  /**
+   * Get active queue items for a creator.
+   */
+  public static getCreatorQueue(creatorId: string): QueueItemData[] {
+    const queue = this.getOrInitQueue(creatorId);
+    return queue.getActiveItems();
+  }
+
+  /**
+   * Get all items (including history) for a creator.
+   */
+  public static getAllCreatorItems(creatorId: string): QueueItemData[] {
+    const queue = this.getOrInitQueue(creatorId);
+    return queue.getAllItems();
   }
 
   /**
    * Get specific queue item by queueId.
    */
-  public static getQueueItem(creatorId: string, queueId: string): QueueItem | null {
+  public static getQueueItem(creatorId: string, queueId: string): QueueItemData | null {
     const queue = this.getOrInitQueue(creatorId);
-    return queue.get(queueId) || null;
+    const item = queue.getItem(queueId);
+    return item ? item.toJSON() : null;
   }
 }

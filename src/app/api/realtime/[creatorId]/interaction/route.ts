@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { InteractionQueueService } from "@/modules/realtime/interaction-queue.service";
+import { InteractionPurchaseService } from "@/modules/interaction/interaction-purchase.service";
 
 export const dynamic = "force-dynamic";
 

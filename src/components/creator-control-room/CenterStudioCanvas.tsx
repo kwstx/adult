@@ -21,6 +21,7 @@ import {
   ShoppingBag,
   ExternalLink,
 } from "lucide-react";
+import { QueueItemCard } from "./queue/QueueItemCard";
 import type {
   LiveQueueItem,
   StreamGoal,
@@ -40,8 +41,12 @@ interface CenterStudioCanvasProps {
   isConfettiActive: boolean;
   onToggleCamera: () => void;
   onToggleMic: () => void;
-  onAcceptQueueItem: (id: string) => void;
+  onAcceptQueueItem: (id: string, note?: string) => void;
+  onStartProgressQueueItem?: (id: string) => void;
   onCompleteQueueItem: (id: string) => void;
+  onRejectQueueItem?: (id: string, reason: string) => void;
+  onCancelQueueItem?: (id: string, reason: string) => void;
+  onRefundQueueItem?: (id: string, reason: string, partialCredits?: number) => void;
   onSkipQueueItem: (id: string) => void;
   onOpenEditGoal: () => void;
   onTriggerGoalCelebration: () => void;
@@ -60,13 +65,41 @@ export function CenterStudioCanvas({
   onToggleCamera,
   onToggleMic,
   onAcceptQueueItem,
+  onStartProgressQueueItem,
   onCompleteQueueItem,
+  onRejectQueueItem,
+  onCancelQueueItem,
+  onRefundQueueItem,
   onSkipQueueItem,
   onOpenEditGoal,
   onTriggerGoalCelebration,
 }: CenterStudioCanvasProps) {
-  const activeExecutingItem = interactionQueue.find((i) => i.status === "EXECUTING");
-  const pendingQueueItems = interactionQueue.filter((i) => i.status !== "EXECUTING");
+  const activeItems = interactionQueue.filter(
+    (i) => i.status === "PENDING" || i.status === "ACCEPTED" || i.status === "IN_PROGRESS" || i.status === "QUEUED" || i.status === "EXECUTING"
+  );
+  const terminalItems = interactionQueue.filter(
+    (i) => i.status === "COMPLETED" || i.status === "REJECTED" || i.status === "CANCELLED" || i.status === "REFUNDED" || i.status === "SKIPPED"
+  );
+
+  const handleStart = (id: string) => {
+    if (onStartProgressQueueItem) onStartProgressQueueItem(id);
+    else onAcceptQueueItem(id);
+  };
+
+  const handleReject = (id: string, reason: string) => {
+    if (onRejectQueueItem) onRejectQueueItem(id, reason);
+    else onSkipQueueItem(id);
+  };
+
+  const handleCancel = (id: string, reason: string) => {
+    if (onCancelQueueItem) onCancelQueueItem(id, reason);
+    else onSkipQueueItem(id);
+  };
+
+  const handleRefund = (id: string, reason: string, partialCredits?: number) => {
+    if (onRefundQueueItem) onRefundQueueItem(id, reason, partialCredits);
+    else onSkipQueueItem(id);
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-black overflow-y-auto p-3 sm:p-4 space-y-4 select-none min-w-0">
@@ -172,134 +205,74 @@ export function CenterStudioCanvas({
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* 2. CURRENT INTERACTION QUEUE                                  */}
+      {/* 2. AUTHORITATIVE INTERACTION QUEUE & STATE MACHINE             */}
       {/* ------------------------------------------------------------- */}
-      <div className="rounded-3xl bg-zinc-950 border border-zinc-800/80 p-4 shadow-xl space-y-3">
+      <div className="rounded-3xl bg-zinc-950 border border-zinc-800/80 p-4 shadow-xl space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <Sparkles className="h-4 w-4" />
             </span>
-            <h3 className="text-xs font-black uppercase tracking-wider text-white">
-              Live Interaction Queue
-            </h3>
-            <span className="rounded-full bg-amber-400 text-black px-2 py-0.2 text-[10px] font-black">
-              {interactionQueue.length} Active
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                The Live Interaction Queue
+              </h3>
+              <p className="text-[10px] text-zinc-400">Authoritative State Machine Visualization</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-amber-400 text-black px-2.5 py-0.5 text-[10px] font-black">
+              {activeItems.length} Active in Queue
             </span>
           </div>
-          <span className="text-[11px] text-zinc-400">Complete actions live on camera</span>
         </div>
 
-        {/* Active In-Progress Action Card */}
-        {activeExecutingItem ? (
-          <div className="relative rounded-2xl bg-gradient-to-r from-amber-500/20 via-zinc-900 to-zinc-900 border-2 border-amber-400 p-4 shadow-xl animate-pulse-glow">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <img
-                  src={activeExecutingItem.fanAvatar}
-                  alt=""
-                  className="h-11 w-11 rounded-2xl object-cover ring-2 ring-amber-400 shrink-0"
-                />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-white">
-                      {activeExecutingItem.actionTitle}
-                    </span>
-                    <span className="rounded-full bg-amber-400 text-black px-2 py-0.2 text-[10px] font-black">
-                      +{activeExecutingItem.credits} 🪙
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-300 font-semibold mt-0.5">
-                    Requested by <span className="text-white font-bold">{activeExecutingItem.fanName}</span>
-                  </p>
-                  {activeExecutingItem.customMessage && (
-                    <p className="text-xs text-amber-300 italic mt-1">
-                      &ldquo;{activeExecutingItem.customMessage}&rdquo;
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Countdown Timer & Actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex items-center gap-1.5 rounded-2xl bg-zinc-950 border border-amber-400 px-3 py-1.5 text-xs font-mono font-black text-amber-400">
-                  <Clock className="h-4 w-4 animate-spin" />
-                  <span>{activeExecutingItem.timeRemainingSeconds}s</span>
-                </div>
-
-                <button
-                  onClick={() => onCompleteQueueItem(activeExecutingItem.id)}
-                  className="flex items-center gap-1 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-xs font-black shadow-lg shadow-emerald-600/30 transition-all"
-                >
-                  <Check className="h-4 w-4" />
-                  Done
-                </button>
-              </div>
-            </div>
-
-            {/* Countdown Progress Bar */}
-            <div className="h-1.5 w-full rounded-full bg-zinc-800 mt-3 overflow-hidden">
-              <div
-                className="h-full bg-amber-400 transition-all duration-1000"
-                style={{
-                  width: `${(activeExecutingItem.timeRemainingSeconds / activeExecutingItem.durationSeconds) * 100}%`,
-                }}
+        {/* Active Queue Cards */}
+        {activeItems.length > 0 ? (
+          <div className="space-y-3">
+            {activeItems.map((item) => (
+              <QueueItemCard
+                key={item.id}
+                item={item}
+                onAccept={(id, note) => onAcceptQueueItem(id, note)}
+                onStartProgress={handleStart}
+                onComplete={onCompleteQueueItem}
+                onReject={handleReject}
+                onCancel={handleCancel}
+                onRefund={handleRefund}
               />
-            </div>
+            ))}
           </div>
         ) : (
-          <div className="p-3 text-center rounded-2xl bg-zinc-900/40 border border-zinc-800/60 text-xs text-zinc-400">
-            No interaction currently executing on camera. Accept from queue below.
+          <div className="p-6 text-center rounded-2xl bg-zinc-900/40 border border-zinc-800/60 text-xs text-zinc-400 space-y-1">
+            <Sparkles className="h-6 w-6 text-amber-400/50 mx-auto mb-2" />
+            <p className="font-bold text-zinc-300">The queue is currently empty</p>
+            <p className="text-[11px] text-zinc-500">Incoming fan purchases will appear here live with position #1, #2, etc.</p>
           </div>
         )}
 
-        {/* Pending Queue Cards */}
-        <div className="space-y-2">
-          {pendingQueueItems.map((item, idx) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/70 border border-zinc-800 hover:border-pink-500/30 transition-all"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <img
-                  src={item.fanAvatar}
-                  alt=""
-                  className="h-9 w-9 rounded-xl object-cover shrink-0 ring-1 ring-zinc-700"
+        {/* Recent Completed / Terminal Items History Dropdown */}
+        {terminalItems.length > 0 && (
+          <div className="pt-2 border-t border-zinc-800/60 space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+              Recent Completed / Refunded History ({terminalItems.length})
+            </span>
+            <div className="space-y-2">
+              {terminalItems.slice(0, 3).map((item) => (
+                <QueueItemCard
+                  key={item.id}
+                  item={item}
+                  onAccept={(id, note) => onAcceptQueueItem(id, note)}
+                  onStartProgress={handleStart}
+                  onComplete={onCompleteQueueItem}
+                  onReject={handleReject}
+                  onCancel={handleCancel}
+                  onRefund={handleRefund}
                 />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-black text-white truncate">
-                      {item.fanName.split(" ")[0] || "Alex"} — {item.actionTitle} — {item.credits} credits
-                    </span>
-                    <span className="rounded-full bg-amber-500/20 px-2 py-0.2 text-[9px] font-black text-amber-400 border border-amber-500/30">
-                      Position #{idx + 1}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-zinc-400 block truncate">
-                    {item.customMessage ? `"${item.customMessage}" • ` : ""}Requested {item.timestamp}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => onAcceptQueueItem(item.id)}
-                  className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 text-white px-3 py-1.5 text-xs font-bold shadow-md hover:from-pink-500 hover:to-rose-500 transition-all"
-                >
-                  <Play className="h-3.5 w-3.5" />
-                  Perform Now
-                </button>
-                <button
-                  onClick={() => onSkipQueueItem(item.id)}
-                  className="rounded-xl p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-zinc-800"
-                  title="Skip / Refund"
-                >
-                  ✕
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ------------------------------------------------------------- */}

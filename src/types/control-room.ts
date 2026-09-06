@@ -9,7 +9,17 @@ export type StreamHealth = "EXCELLENT" | "GOOD" | "DEGRADED" | "OFFLINE";
 
 export type InteractionEligibility = "ALL" | "FOLLOWERS" | "SUBSCRIBERS_ONLY" | "MIN_FAN_LEVEL_5";
 
-export type QueueItemStatus = "QUEUED" | "EXECUTING" | "COMPLETED" | "SKIPPED";
+export type QueueItemStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "REJECTED"
+  | "CANCELLED"
+  | "REFUNDED"
+  | "QUEUED"
+  | "EXECUTING"
+  | "SKIPPED";
 
 export type RelationshipTier =
   | "STRANGER"
@@ -107,13 +117,35 @@ export interface LiveQueueItem {
   fanId: string;
   fanName: string;
   fanAvatar: string;
+  fanLevel?: number;
+  relationshipTier?: string;
+  isVip?: boolean;
+  isSubscriber?: boolean;
   credits: number;
   actionTitle: string;
   actionType: string;
   customMessage?: string;
   durationSeconds: number;
   timeRemainingSeconds: number;
+  position: number;
   status: QueueItemStatus;
+  purchaseTime: string;
+  creatorDecision?: {
+    decision: string;
+    decidedAt?: string;
+    creatorNote?: string;
+    rejectionReason?: string;
+  };
+  startTime?: string;
+  completionTime?: string;
+  potentialRefundState?: {
+    isRefunded: boolean;
+    refundStatus: "NONE" | "REQUESTED" | "PROCESSED" | "FAILED";
+    refundedAmountCredits?: number;
+    refundTransactionId?: string;
+    refundedAt?: string;
+    refundReason?: string;
+  };
   intensity?: number;
   timestamp: string;
 }

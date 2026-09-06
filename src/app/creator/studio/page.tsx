@@ -56,7 +56,11 @@ export default function CreatorStudioPage() {
     purchaseLedger,
     isConfettiActive,
     onAcceptQueueItem,
+    onStartProgressQueueItem,
     onCompleteQueueItem,
+    onRejectQueueItem,
+    onCancelQueueItem,
+    onRefundQueueItem,
     onSkipQueueItem,
     onUpdateGoal,
     onTriggerGoalCelebration,
@@ -138,7 +142,11 @@ export default function CreatorStudioPage() {
             onToggleCamera={onToggleCamera}
             onToggleMic={onToggleMic}
             onAcceptQueueItem={onAcceptQueueItem}
+            onStartProgressQueueItem={onStartProgressQueueItem}
             onCompleteQueueItem={onCompleteQueueItem}
+            onRejectQueueItem={onRejectQueueItem}
+            onCancelQueueItem={onCancelQueueItem}
+            onRefundQueueItem={onRefundQueueItem}
             onSkipQueueItem={onSkipQueueItem}
             onOpenEditGoal={() => setIsEditGoalOpen(true)}
             onTriggerGoalCelebration={onTriggerGoalCelebration}

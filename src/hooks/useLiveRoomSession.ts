@@ -371,15 +371,61 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
             break;
 
           // ---------------------------------------------------------
-          // 6. INTERACTION EVENTS
+          // 6. INTERACTION QUEUE & STATE MACHINE EVENTS
           // ---------------------------------------------------------
           case "INTERACTION_PURCHASED":
             setInteractionQueue((prev) => [...prev, event.payload]);
             break;
 
           case "INTERACTION_ACCEPTED": {
-            const accepted = event.payload as InteractionAcceptedPayload;
-            setInteractionQueue((prev) => prev.filter((i) => i.queueId !== accepted.queueId));
+            const accepted = event.payload as any;
+            setInteractionQueue((prev) =>
+              prev.map((i) => (i.queueId === accepted.queueId ? { ...i, status: "ACCEPTED" } : i))
+            );
+            break;
+          }
+
+          case "INTERACTION_STARTED": {
+            const started = event.payload as any;
+            setInteractionQueue((prev) =>
+              prev.map((i) => (i.queueId === started.queueId ? { ...i, status: "IN_PROGRESS" } : i))
+            );
+            break;
+          }
+
+          case "INTERACTION_COMPLETED": {
+            const completed = event.payload as any;
+            setInteractionQueue((prev) =>
+              prev.filter((i) => i.queueId !== completed.queueId)
+            );
+            break;
+          }
+
+          case "INTERACTION_REJECTED":
+          case "INTERACTION_CANCELLED":
+          case "INTERACTION_REFUNDED": {
+            const refunded = event.payload as any;
+            setInteractionQueue((prev) =>
+              prev.filter((i) => i.queueId !== refunded.queueId)
+            );
+            // If current fan was refunded, refresh balance
+            if (refunded.senderId === currentUser.id) {
+              updateBalance();
+            }
+            break;
+          }
+
+          case "QUEUE_STATE_CHANGED": {
+            const qState = event.payload as any;
+            if (qState.item) {
+              setInteractionQueue((prev) => {
+                const exists = prev.some((i) => (i.queueId || i.id) === qState.item.id);
+                if (exists) {
+                  return prev.map((i) => ((i.queueId || i.id) === qState.item.id ? qState.item : i));
+                }
+                return [...prev, qState.item];
+              });
+            }
             break;
           }
 

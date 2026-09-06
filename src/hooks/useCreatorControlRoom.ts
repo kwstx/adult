@@ -377,32 +377,60 @@ export function useCreatorControlRoom() {
   // -------------------------------------------------------------
   const [interactionQueue, setInteractionQueue] = useState<LiveQueueItem[]>([
     {
-      id: "q_1",
-      fanId: "fan_alex",
-      fanName: "Alex Patron 💎",
-      fanAvatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-      credits: 250,
-      actionTitle: "Wheel of Fortune Spin 🎡",
-      actionType: "Visual",
-      customMessage: "Spin for neon victory! ✨",
-      durationSeconds: 15,
-      timeRemainingSeconds: 12,
-      status: "EXECUTING",
-      timestamp: "Just now",
-    },
-    {
-      id: "q_2",
+      id: "iq_seed_1",
       fanId: "fan_marcus",
       fanName: "Marcus Neon ⚡",
       fanAvatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80",
+      fanLevel: 6,
+      relationshipTier: "SUPERFAN",
+      isVip: false,
+      isSubscriber: true,
+      credits: 250,
+      actionTitle: "Wheel of Fortune Spin 🎡",
+      actionType: "Visual",
+      customMessage: "Spin for neon prize! ✨",
+      durationSeconds: 15,
+      timeRemainingSeconds: 15,
+      position: 1,
+      status: "ACCEPTED",
+      purchaseTime: new Date(Date.now() - 300000).toISOString(),
+      creatorDecision: {
+        decision: "ACCEPTED",
+        decidedAt: new Date(Date.now() - 240000).toISOString(),
+        creatorNote: "Ready to spin!",
+      },
+      potentialRefundState: {
+        isRefunded: false,
+        refundStatus: "NONE",
+      },
+      timestamp: "5 mins ago",
+    },
+    {
+      id: "iq_seed_2",
+      fanId: "fan_elena",
+      fanName: "Elena Velvet 🌸",
+      fanAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+      fanLevel: 3,
+      relationshipTier: "SUPPORTER",
+      isVip: false,
+      isSubscriber: false,
       credits: 100,
       actionTitle: "Mini Freestyle Dance 💃",
       actionType: "Request",
       customMessage: "Play some cyber bass!",
       durationSeconds: 30,
       timeRemainingSeconds: 30,
-      status: "QUEUED",
-      timestamp: "1 min ago",
+      position: 2,
+      status: "PENDING",
+      purchaseTime: new Date(Date.now() - 120000).toISOString(),
+      creatorDecision: {
+        decision: "PENDING",
+      },
+      potentialRefundState: {
+        isRefunded: false,
+        refundStatus: "NONE",
+      },
+      timestamp: "2 mins ago",
     },
   ]);
 
@@ -582,11 +610,16 @@ export function useCreatorControlRoom() {
       // 2. Decrement active executing interaction timer
       setInteractionQueue((prev) =>
         prev.map((item) => {
-          if (item.status === "EXECUTING" && item.timeRemainingSeconds > 0) {
+          if ((item.status === "IN_PROGRESS" || item.status === "EXECUTING") && item.timeRemainingSeconds > 0) {
             const remaining = item.timeRemainingSeconds - 1;
             if (remaining === 0) {
               playWebAudioAlert("tip");
-              return { ...item, timeRemainingSeconds: 0, status: "COMPLETED" };
+              return {
+                ...item,
+                timeRemainingSeconds: 0,
+                status: "COMPLETED",
+                completionTime: new Date().toISOString(),
+              };
             }
             return { ...item, timeRemainingSeconds: remaining };
           }
@@ -599,9 +632,45 @@ export function useCreatorControlRoom() {
   }, [telemetry.isLive]);
 
   // -------------------------------------------------------------
-  // C. REAL-TIME SSE LISTENER FOR INCOMING FAN ACTIONS
+  // C. REAL-TIME SSE LISTENER FOR INCOMING FAN ACTIONS & QUEUE
   // -------------------------------------------------------------
   useEffect(() => {
+    // Initial fetch of authoritative backend queue state
+    fetch(`/api/realtime/${creatorProfileId}/queue`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.queue?.activeItems) {
+          const mapped: LiveQueueItem[] = data.queue.activeItems.map((item: any) => ({
+            id: item.id,
+            fanId: item.fan?.id || "fan_anon",
+            fanName: item.fan?.displayName || "Fan",
+            fanAvatar: item.fan?.avatarUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+            fanLevel: item.fan?.fanLevel || 1,
+            relationshipTier: item.fan?.relationshipTier || "SUPPORTER",
+            isVip: item.fan?.isVip || false,
+            isSubscriber: item.fan?.isSubscriber || false,
+            credits: item.price?.amountCredits || 100,
+            actionTitle: item.interaction?.title || "Interaction",
+            actionType: item.interaction?.actionType || "Custom",
+            customMessage: item.interaction?.customMessage,
+            durationSeconds: item.interaction?.durationSeconds || 30,
+            timeRemainingSeconds: item.timeRemainingSeconds ?? (item.interaction?.durationSeconds || 30),
+            position: item.position || 1,
+            status: item.status,
+            purchaseTime: item.purchaseTime,
+            creatorDecision: item.creatorDecision,
+            startTime: item.startTime,
+            completionTime: item.completionTime,
+            potentialRefundState: item.potentialRefundState,
+            timestamp: "Live",
+          }));
+          setInteractionQueue(mapped);
+        }
+      })
+      .catch(() => {
+        // Fallback to initial seed
+      });
+
     const eventSource = new EventSource(`/api/realtime/${creatorProfileId}/sse`);
 
     eventSource.onmessage = (e) => {
@@ -625,11 +694,10 @@ export function useCreatorControlRoom() {
             tokensPerMin: prev.tokensPerMin + Math.round(credits / 10),
           }));
 
-          // 2. Add to Creator Queue: Alex — Ask me anything — 100 credits
-          setInteractionQueue((prev) => [
-            ...prev,
-            {
-              id: payload.queueId || `q_${Date.now()}`,
+          // 2. Add to Creator Queue with 1-based position and status: PENDING
+          setInteractionQueue((prev) => {
+            const newItem: LiveQueueItem = {
+              id: payload.queueId || `iq_${Date.now()}`,
               fanId: payload.senderId || "fan_alex",
               fanName: senderName,
               fanAvatar: payload.senderAvatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
@@ -639,10 +707,15 @@ export function useCreatorControlRoom() {
               customMessage,
               durationSeconds: payload.durationSeconds || 30,
               timeRemainingSeconds: payload.durationSeconds || 30,
-              status: "QUEUED",
+              position: payload.queuePosition || prev.length + 1,
+              status: "PENDING",
+              purchaseTime: payload.purchasedAt || new Date().toISOString(),
+              creatorDecision: { decision: "PENDING" },
+              potentialRefundState: { isRefunded: false, refundStatus: "NONE" },
               timestamp: "Just now",
-            },
-          ]);
+            };
+            return [...prev, newItem];
+          });
 
           // 3. Add to Ledger
           setPurchaseLedger((prev) => [
@@ -659,6 +732,80 @@ export function useCreatorControlRoom() {
             },
             ...prev.slice(0, 19),
           ]);
+        } else if (event.type === "INTERACTION_ACCEPTED") {
+          const payload = event.payload;
+          setInteractionQueue((prev) =>
+            prev.map((item) =>
+              item.id === payload.queueId
+                ? {
+                    ...item,
+                    status: "ACCEPTED",
+                    creatorDecision: {
+                      decision: "ACCEPTED",
+                      decidedAt: payload.acceptedAt,
+                      creatorNote: payload.creatorNote,
+                    },
+                  }
+                : item
+            )
+          );
+        } else if (event.type === "INTERACTION_STARTED") {
+          const payload = event.payload;
+          setInteractionQueue((prev) =>
+            prev.map((item) =>
+              item.id === payload.queueId
+                ? {
+                    ...item,
+                    status: "IN_PROGRESS",
+                    startTime: payload.startedAt,
+                    timeRemainingSeconds: payload.durationSeconds || item.durationSeconds || 30,
+                  }
+                : item
+            )
+          );
+        } else if (event.type === "INTERACTION_COMPLETED") {
+          const payload = event.payload;
+          playWebAudioAlert("tip");
+          setTelemetry((prev) => ({
+            ...prev,
+            completedInteractionsCount: prev.completedInteractionsCount + 1,
+          }));
+          setInteractionQueue((prev) =>
+            prev.map((item) =>
+              item.id === payload.queueId
+                ? {
+                    ...item,
+                    status: "COMPLETED",
+                    completionTime: payload.completedAt,
+                    timeRemainingSeconds: 0,
+                  }
+                : item
+            )
+          );
+        } else if (
+          event.type === "INTERACTION_REJECTED" ||
+          event.type === "INTERACTION_CANCELLED" ||
+          event.type === "INTERACTION_REFUNDED"
+        ) {
+          const payload = event.payload;
+          setInteractionQueue((prev) =>
+            prev.map((item) =>
+              item.id === payload.queueId
+                ? {
+                    ...item,
+                    status: event.type === "INTERACTION_REJECTED" ? "REJECTED" : event.type === "INTERACTION_CANCELLED" ? "CANCELLED" : "REFUNDED",
+                    potentialRefundState: {
+                      isRefunded: true,
+                      refundStatus: "PROCESSED",
+                      refundedAmountCredits: payload.refundAmountCredits,
+                      refundTransactionId: payload.refundTxId,
+                      refundReason: payload.reason,
+                      refundedAt: new Date().toISOString(),
+                    },
+                  }
+                : item
+            )
+          );
         } else if (event.type === "TIP_EVENT" || event.type === "GIFT_SENT") {
           const payload = event.payload;
           const credits = payload.credits || payload.gift?.creditAmount || 0;
@@ -801,24 +948,181 @@ export function useCreatorControlRoom() {
     setIsMicActive((prev) => !prev);
   };
 
-  const handleAcceptQueueItem = (id: string) => {
+  const handleAcceptQueueItem = async (id: string, creatorNote?: string) => {
     playWebAudioAlert("queue");
+    // Optimistic state transition
     setInteractionQueue((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: "EXECUTING" } : item))
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "ACCEPTED",
+              creatorDecision: { decision: "ACCEPTED", creatorNote, decidedAt: new Date().toISOString() },
+            }
+          : item
+      )
     );
+
+    try {
+      await fetch(`/api/realtime/${creatorProfileId}/queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ACCEPT", queueId: id, creatorNote }),
+      });
+    } catch {
+      // Handled by SSE
+    }
   };
 
-  const handleCompleteQueueItem = (id: string) => {
+  const handleStartProgressQueueItem = async (id: string) => {
+    playWebAudioAlert("queue");
+    setInteractionQueue((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "IN_PROGRESS",
+              startTime: new Date().toISOString(),
+              timeRemainingSeconds: item.durationSeconds || 30,
+            }
+          : item
+      )
+    );
+
+    try {
+      await fetch(`/api/realtime/${creatorProfileId}/queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "START_PROGRESS", queueId: id }),
+      });
+    } catch {
+      // Handled by SSE
+    }
+  };
+
+  const handleCompleteQueueItem = async (id: string) => {
     playWebAudioAlert("tip");
     setTelemetry((prev) => ({
       ...prev,
       completedInteractionsCount: prev.completedInteractionsCount + 1,
     }));
-    setInteractionQueue((prev) => prev.filter((item) => item.id !== id));
+    setInteractionQueue((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "COMPLETED",
+              completionTime: new Date().toISOString(),
+              timeRemainingSeconds: 0,
+            }
+          : item
+      )
+    );
+
+    try {
+      await fetch(`/api/realtime/${creatorProfileId}/queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "COMPLETE", queueId: id }),
+      });
+    } catch {
+      // Handled by SSE
+    }
+  };
+
+  const handleRejectQueueItem = async (id: string, reason: string) => {
+    setInteractionQueue((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "REJECTED",
+              creatorDecision: { decision: "REJECTED", rejectionReason: reason, decidedAt: new Date().toISOString() },
+              potentialRefundState: {
+                isRefunded: true,
+                refundStatus: "PROCESSED",
+                refundedAmountCredits: item.credits,
+                refundReason: reason,
+                refundedAt: new Date().toISOString(),
+              },
+            }
+          : item
+      )
+    );
+
+    try {
+      await fetch(`/api/realtime/${creatorProfileId}/queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REJECT", queueId: id, reason }),
+      });
+    } catch {
+      // Handled by SSE
+    }
+  };
+
+  const handleCancelQueueItem = async (id: string, reason: string) => {
+    setInteractionQueue((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "CANCELLED",
+              potentialRefundState: {
+                isRefunded: true,
+                refundStatus: "PROCESSED",
+                refundedAmountCredits: item.credits,
+                refundReason: reason,
+                refundedAt: new Date().toISOString(),
+              },
+            }
+          : item
+      )
+    );
+
+    try {
+      await fetch(`/api/realtime/${creatorProfileId}/queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "CANCEL", queueId: id, reason, actor: "CREATOR" }),
+      });
+    } catch {
+      // Handled by SSE
+    }
+  };
+
+  const handleRefundQueueItem = async (id: string, reason: string, partialCredits?: number) => {
+    setInteractionQueue((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "REFUNDED",
+              potentialRefundState: {
+                isRefunded: true,
+                refundStatus: "PROCESSED",
+                refundedAmountCredits: partialCredits || item.credits,
+                refundReason: reason,
+                refundedAt: new Date().toISOString(),
+              },
+            }
+          : item
+      )
+    );
+
+    try {
+      await fetch(`/api/realtime/${creatorProfileId}/queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REFUND", queueId: id, reason, partialCredits }),
+      });
+    } catch {
+      // Handled by SSE
+    }
   };
 
   const handleSkipQueueItem = (id: string) => {
-    setInteractionQueue((prev) => prev.filter((item) => item.id !== id));
+    handleCancelQueueItem(id, "Creator skipped interaction");
   };
 
   // -------------------------------------------------------------
@@ -1131,7 +1435,11 @@ export function useCreatorControlRoom() {
     purchaseLedger,
     isConfettiActive,
     onAcceptQueueItem: handleAcceptQueueItem,
+    onStartProgressQueueItem: handleStartProgressQueueItem,
     onCompleteQueueItem: handleCompleteQueueItem,
+    onRejectQueueItem: handleRejectQueueItem,
+    onCancelQueueItem: handleCancelQueueItem,
+    onRefundQueueItem: handleRefundQueueItem,
     onSkipQueueItem: handleSkipQueueItem,
     onUpdateGoal: handleUpdateGoal,
     onTriggerGoalCelebration: handleTriggerGoalCelebration,
