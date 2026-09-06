@@ -14,6 +14,7 @@ import {
   GoalUnlockDefinition,
 } from "./types";
 import { WalletLedgerService, InsufficientFundsError, WalletSuspendedError } from "@/modules/economic/wallet-ledger.service";
+import { NotificationService } from "@/modules/notifications/notification.service";
 
 const PLATFORM_RAKE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENTAGE || 20);
 
@@ -575,6 +576,16 @@ export class CollectiveGoalService {
         type: "GOAL_COMPLETED",
         payload: goalCompletedPayload,
       });
+
+      // Dispatch asynchronous celebration notification to all contributors & room
+      NotificationService.notifyGoalCompleted({
+        creatorProfileId: creatorProfile.id,
+        creatorName: creatorProfile.user?.displayName || "Creator",
+        goalId: goal.id,
+        goalTitle: goal.title,
+        targetCredits,
+        unlockTitle: predeterminedUnlock.title,
+      }).catch((err) => console.error("[CollectiveGoal] Notification error:", err));
 
       // Special chat message for goal completion
       eventBus.publish(roomChannel, {

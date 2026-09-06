@@ -1,6 +1,7 @@
 import prisma from "@/lib/db";
 import { eventBus } from "@/modules/realtime/event-bus";
 import { InsufficientFundsError, WalletSuspendedError } from "@/modules/economic/wallet-ledger.service";
+import { NotificationService } from "@/modules/notifications/notification.service";
 
 const PLATFORM_RAKE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENTAGE || 20);
 
@@ -549,7 +550,7 @@ export class PaidMessagingService {
       if (settings.messagePriceCredits !== undefined) memCreator.messagePriceCredits = Math.max(0, settings.messagePriceCredits);
       if (settings.allowFreeSubscribers !== undefined) memCreator.allowFreeSubscribers = settings.allowFreeSubscribers;
       if (settings.allowFreeVip !== undefined) memCreator.allowFreeVip = settings.allowFreeVip;
-      if (settings.customWelcomeMessage !== undefined) memCreator.customWelcomeMessage = settings.customWelcomeMessage;
+      if (settings.customWelcomeMessage !== undefined) memCreator.customWelcomeMessage = settings.customWelcomeMessage ?? undefined;
 
       return {
         creatorId: memCreator.userId,
@@ -1081,6 +1082,17 @@ export class PaidMessagingService {
         paidCredits: createdMessageRecord.paidPriceCredits,
       },
     });
+
+    // Background Async Notification Delivery
+    NotificationService.notifyMessageReceived({
+      senderUserId: createdMessageRecord.senderId,
+      senderDisplayName: createdMessageRecord.senderName,
+      recipientUserId: createdMessageRecord.recipientId,
+      messagePreview: createdMessageRecord.body,
+      conversationId,
+      isPaid: createdMessageRecord.isPaidMessage,
+      creditsAmount: createdMessageRecord.paidPriceCredits,
+    }).catch((err) => console.error("[PaidMessaging] Notification error:", err));
 
     return {
       success: true,

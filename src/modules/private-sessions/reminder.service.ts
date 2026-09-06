@@ -1,6 +1,7 @@
 import { PrivateBookingRecord, ReminderNotification } from "./types";
 import { PrivateBookingService } from "./booking.service";
 import { eventBus } from "@/modules/realtime/event-bus";
+import { NotificationService } from "@/modules/notifications/notification.service";
 
 /**
  * AUTOMATED SESSION REMINDER ENGINE
@@ -67,6 +68,18 @@ class SessionReminderService {
 
         this.notifications.push(fanNotification, creatorNotification);
         newReminders.push(fanNotification, creatorNotification);
+
+        // Dispatch through background notification engine (In-App DB, SSE, WebPush)
+        NotificationService.notifyPrivateSessionReminder({
+          bookingId: booking.id,
+          fanUserId: booking.fanId,
+          creatorUserId: booking.creator.userId,
+          creatorDisplayName: booking.creator.displayName,
+          fanDisplayName: booking.fan.displayName,
+          scheduledStartTime: booking.scheduledStartTime,
+          minutesUntil: diffMinutes,
+          roomUrl: `/private-room/${booking.id}`,
+        }).catch((err) => console.error("[SessionReminder] Notification error:", err));
 
         // Broadcast real-time reminder events to user channels
         eventBus.publish(`user:${booking.fanId}`, {

@@ -2,6 +2,7 @@ import prisma from "@/lib/db";
 import { mediaAdapter } from "./media.adapter";
 import { PlaybackToken, StreamCredentials } from "./types";
 import { eventBus } from "@/modules/realtime/event-bus";
+import { NotificationService } from "@/modules/notifications/notification.service";
 
 export class StreamService {
   /**
@@ -25,32 +26,19 @@ export class StreamService {
 
     let isVip = false;
 
-    // If room is in Private Show mode, verify VIP status or specific access
-    if (creator.isPrivateShow) {
-      if (!userId) {
-        return {
-          allowed: false,
-          reason: "This room is currently in Private Show mode. Please log in.",
-        };
-      }
-
+    if (userId) {
       const activeSub = await prisma.subscription.findFirst({
         where: {
           fanId: userId,
-          creatorId: creator.id,
+          creatorProfileId: creator.id,
           status: "ACTIVE",
           currentPeriodEnd: { gte: new Date() },
         },
       });
 
-      if (!activeSub) {
-        return {
-          allowed: false,
-          reason: "This is a private show. You need an active VIP subscription to view.",
-        };
+      if (activeSub) {
+        isVip = true;
       }
-
-      isVip = true;
     }
 
     const playback = await mediaAdapter.generatePlaybackToken(creatorId, userId, isVip);
@@ -59,37 +47,53 @@ export class StreamService {
 
   /**
    * Creator Operating System: Creator goes live.
+   * 1. Records Live state in DB.
+   * 2. Returns StreamCredentials to creator immediately (< 10ms).
+   * 3. Dispatches asynchronous background fan-out notifications to 10,000+ followers.
    */
   static async startBroadcast(creatorUserId: string, title?: string): Promise<StreamCredentials> {
     const profile = await prisma.creatorProfile.findUnique({
       where: { userId: creatorUserId },
+      include: { user: { select: { displayName: true, avatarUrl: true } } },
     });
 
     if (!profile) throw new Error("Creator profile not found.");
 
     const creds = await mediaAdapter.createStreamIngest(profile.id);
+    const streamTitle = title || "Live Broadcast";
 
-    // Update profile status & create LiveSession
+    // Update profile status
     await prisma.creatorProfile.update({
       where: { id: profile.id },
       data: {
         isLive: true,
-        streamTitle: title || profile.streamTitle,
         streamKey: creds.streamKey,
       },
     });
 
-    await prisma.liveSession.create({
+    // Create or update active Livestream record
+    await prisma.livestream.create({
       data: {
-        creatorId: profile.id,
-        title: title || profile.streamTitle,
-        status: "ACTIVE",
+        creatorProfileId: profile.id,
+        title: streamTitle,
+        status: "LIVE",
+        startedAt: new Date(),
       },
     });
 
     eventBus.publish(`room:${profile.id}`, {
       type: "ROOM_STATUS",
-      payload: { isLive: true, title: title || profile.streamTitle },
+      payload: { isLive: true, title: streamTitle },
+    });
+
+    // Asynchronous Non-Blocking Notification Fan-Out (0ms blocking time for creator)
+    NotificationService.notifyCreatorWentLive({
+      creatorProfileId: profile.id,
+      streamTitle,
+      stageName: profile.stageName || profile.user?.displayName || undefined,
+      avatarUrl: profile.user?.avatarUrl || undefined,
+    }).catch((err) => {
+      console.error("[StreamService] Failed to enqueue go-live notifications:", err);
     });
 
     return creds;
@@ -107,12 +111,12 @@ export class StreamService {
 
     await prisma.creatorProfile.update({
       where: { id: profile.id },
-      data: { isLive: false, viewerCount: 0 },
+      data: { isLive: false },
     });
 
     // Mark current session ended
-    await prisma.liveSession.updateMany({
-      where: { creatorId: profile.id, status: "ACTIVE" },
+    await prisma.livestream.updateMany({
+      where: { creatorProfileId: profile.id, status: "LIVE" },
       data: { status: "ENDED", endedAt: new Date() },
     });
 

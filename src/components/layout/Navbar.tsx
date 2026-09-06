@@ -12,9 +12,11 @@ import {
   ChevronDown,
   Sparkles,
   Tv,
+  Video,
 } from "lucide-react";
 import { useUser, PRESET_USERS } from "@/lib/user-context";
 import { WalletModal } from "@/components/wallet/WalletModal";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -53,6 +55,9 @@ export function Navbar() {
             <ShieldCheck className="h-3.5 w-3.5" />
             <span>2257 Vault</span>
           </Link>
+
+          {/* Real-time Notification Center Bell */}
+          <NotificationCenter userId={currentUser.id} />
 
           {/* User Role Switcher */}
           <div className="relative">
@@ -218,6 +223,9 @@ export function Navbar() {
                 + Get Tokens
               </span>
             </button>
+
+            {/* Real-time Notification Center Bell */}
+            <NotificationCenter userId={currentUser.id} />
 
             {/* User Role Switcher Dropdown */}
             <div className="relative">
