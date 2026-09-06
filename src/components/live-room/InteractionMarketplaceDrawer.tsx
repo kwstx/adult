@@ -305,41 +305,113 @@ export function InteractionMarketplaceDrawer({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                  Live Interaction Menu
+                  Live Interaction Menu ({interactions.length})
                 </span>
-                <span className="text-[11px] text-zinc-500">Instant Execution</span>
+                <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Active
+                </span>
               </div>
 
               {interactions.length === 0 ? (
                 <div className="py-12 text-center text-zinc-500 text-xs">
-                  No custom interactions configured by creator.
+                  No active interactions currently available.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 gap-3">
                   {interactions.map((item) => {
                     const isBusy = isTriggeringInteraction === item.id || isProcessing;
+                    const isOutOfStock = (item as any).remainingQuantity === 0;
+
+                    // Compute category badge style
+                    const actionType = item.actionType || "ACTIVITY";
+                    let badgeClass = "bg-pink-500/20 text-pink-400 border-pink-500/30";
+                    let typeLabel = "Activity";
+                    let defaultIcon = "💃";
+
+                    if (actionType === "QUESTION" || actionType === "CHAT_PIN") {
+                      badgeClass = "bg-blue-500/20 text-blue-400 border-blue-500/30";
+                      typeLabel = "Question";
+                      defaultIcon = "💬";
+                    } else if (actionType === "CHALLENGE" || actionType === "WHEEL_SPIN") {
+                      badgeClass = "bg-amber-500/20 text-amber-400 border-amber-500/30";
+                      typeLabel = "Challenge";
+                      defaultIcon = "🎯";
+                    } else if (actionType === "PRIORITY_INTERACTION" || actionType === "TIP_ALERT") {
+                      badgeClass = "bg-purple-500/20 text-purple-400 border-purple-500/30";
+                      typeLabel = "Priority";
+                      defaultIcon = "⚡";
+                    } else if (actionType === "CUSTOM_EXPERIENCE" || actionType === "CUSTOM_ACTION") {
+                      badgeClass = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+                      typeLabel = "Custom";
+                      defaultIcon = "✨";
+                    }
+
                     return (
-                      <button
+                      <div
                         key={item.id}
-                        onClick={() => handleInteractionClick(item)}
-                        disabled={isBusy}
-                        className="flex flex-col text-left rounded-2xl border border-zinc-800/80 bg-zinc-900/50 p-3.5 hover:border-pink-500/50 hover:bg-zinc-900/80 active:scale-[0.98] transition-all group disabled:opacity-50"
+                        className={`flex flex-col rounded-2xl border p-4 transition-all ${
+                          isOutOfStock
+                            ? "bg-zinc-950/60 border-zinc-900 opacity-50"
+                            : "bg-zinc-900/60 border-zinc-800/90 hover:border-pink-500/50 hover:bg-zinc-900 shadow-sm"
+                        }`}
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-extrabold text-xs text-white group-hover:text-pink-400 transition-colors">
-                            {item.title}
-                          </span>
-                          <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-black text-amber-400">
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-800 text-lg border border-zinc-700/50">
+                              {(item as any).icon || defaultIcon}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h4 className="font-extrabold text-xs text-white truncate">
+                                  {item.title}
+                                </h4>
+                                <span className={`rounded-full px-2 py-0.2 text-[9px] font-black border ${badgeClass}`}>
+                                  {typeLabel}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2">
+                                {item.description || "Live creator interaction"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-400 border border-amber-500/30 shrink-0">
                             <Coins className="h-3 w-3" />
-                            {item.creditCost}
-                          </span>
+                            <span>{item.creditCost}</span>
+                          </div>
                         </div>
-                        {item.description && (
-                          <p className="text-[11px] text-zinc-400 leading-relaxed line-clamp-2">
-                            {item.description}
-                          </p>
-                        )}
-                      </button>
+
+                        {/* Metadata Tags & Trigger CTA */}
+                        <div className="flex items-center justify-between pt-2.5 mt-1 border-t border-zinc-800/80 text-[10px]">
+                          <div className="flex items-center gap-2 text-zinc-400 flex-wrap">
+                            {(item as any).requiresAcceptance && (
+                              <span className="rounded bg-zinc-800/90 px-1.5 py-0.5 text-zinc-300 font-medium">
+                                🛡️ Needs Acceptance
+                              </span>
+                            )}
+                            {(item as any).entersQueue && (
+                              <span className="rounded bg-zinc-800/90 px-1.5 py-0.5 text-pink-300 font-medium">
+                                ⏳ Queued
+                              </span>
+                            )}
+                            {(item as any).remainingQuantity !== null && (
+                              <span className="text-amber-400 font-bold">
+                                {(item as any).remainingQuantity} slots left
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() => handleInteractionClick(item)}
+                            disabled={isBusy || isOutOfStock}
+                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 px-4 py-1.5 text-xs font-black text-white shadow-md shadow-pink-600/30 hover:from-pink-500 hover:to-rose-500 disabled:opacity-50 transition-all active:scale-95 shrink-0"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            <span>{isOutOfStock ? "Sold Out" : "Trigger Live"}</span>
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

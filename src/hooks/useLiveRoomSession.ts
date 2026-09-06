@@ -19,7 +19,9 @@ import type {
   InteractionAcceptedPayload,
   GoalUpdatedPayload,
   ViewerPresenceEventPayload,
+  NewInteractionAvailablePayload,
 } from "@/modules/realtime/types";
+import type { InteractionConfig } from "@/types/interaction";
 
 export type ConnectionState = "INITIALIZING" | "CONNECTING" | "CONNECTED" | "RECONNECTING" | "DISCONNECTED" | "ERROR";
 export type MediaPlaybackState = "IDLE" | "PREWARMING" | "PLAYING" | "PAUSED" | "RESTRICTED" | "OFFLINE";
@@ -89,6 +91,7 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
   const [interactionQueue, setInteractionQueue] = useState<InteractionPurchasedPayload[]>([]);
   const [ppvVault, setPpvVault] = useState<PPVVaultItem[]>([]);
   const [isTriggeringInteraction, setIsTriggeringInteraction] = useState<string | null>(null);
+  const [newInteractionAlert, setNewInteractionAlert] = useState<InteractionConfig | null>(null);
 
   // -------------------------------------------------------------
   // 8. CREATOR LIVE GOAL & LEADERBOARD
@@ -380,6 +383,36 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
             break;
           }
 
+          case "NEW_INTERACTION_AVAILABLE": {
+            const payload = event.payload as NewInteractionAvailablePayload;
+            if (payload?.interaction) {
+              const item = payload.interaction;
+              const newCatalogueItem: InteractionCatalogueItem = {
+                id: item.id,
+                title: item.name,
+                description: item.description,
+                creditCost: item.price,
+                actionType: item.type,
+                sortOrder: 0,
+                isEnabled: item.isActive,
+              };
+
+              setInteractions((prev) => {
+                const exists = prev.some((i) => i.id === item.id);
+                if (exists) {
+                  return prev.map((i) => (i.id === item.id ? newCatalogueItem : i));
+                }
+                return [newCatalogueItem, ...prev];
+              });
+
+              setNewInteractionAlert(item as any);
+              setTimeout(() => {
+                setNewInteractionAlert((current) => (current?.id === item.id ? null : current));
+              }, 8000);
+            }
+            break;
+          }
+
           // ---------------------------------------------------------
           // 7. ROOM STATUS
           // ---------------------------------------------------------
@@ -632,6 +665,8 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
     // 7. Interactions & PPV
     interactions,
     interactionQueue,
+    newInteractionAlert,
+    clearNewInteractionAlert: () => setNewInteractionAlert(null),
     ppvVault,
     isTriggeringInteraction,
     triggerInteraction,

@@ -72,10 +72,10 @@ export function MarketplaceControlsPanel({
 
           <button
             onClick={onOpenAddModal}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-md shadow-pink-600/30 hover:from-pink-500 hover:to-rose-500 transition-all"
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-pink-600/30 hover:opacity-95 transition-all active:scale-95"
           >
             <Plus className="h-3.5 w-3.5" />
-            Add Item
+            Add interaction
           </button>
         </div>
 
@@ -108,7 +108,7 @@ export function MarketplaceControlsPanel({
 
         {/* Category Filter Chips */}
         <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[10px] font-bold">
-          {["ALL", "Request", "Visual", "Toy", "VIP"].map((cat) => (
+          {["ALL", "Question", "Activity", "Challenge", "Priority", "Custom"].map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}

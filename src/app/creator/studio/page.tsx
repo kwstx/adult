@@ -9,7 +9,7 @@ import { MarketplaceControlsPanel } from "@/components/creator-control-room/Mark
 import { ControlRoomBottomBar } from "@/components/creator-control-room/ControlRoomBottomBar";
 
 // Modals & Drawers
-import { AddInteractionModal } from "@/components/creator-control-room/modals/AddInteractionModal";
+import { AddInteractionDrawer } from "@/components/creator-control-room/drawers/AddInteractionDrawer";
 import { EditGoalModal } from "@/components/creator-control-room/modals/EditGoalModal";
 import { ModerationCenterModal } from "@/components/creator-control-room/modals/ModerationCenterModal";
 import { OBSCredentialsModal } from "@/components/creator-control-room/modals/OBSCredentialsModal";
@@ -182,10 +182,25 @@ export default function CreatorStudioPage() {
       {/* ------------------------------------------------------------- */}
       {/* 4. MODALS & SLIDE-OUT DRAWERS                                 */}
       {/* ------------------------------------------------------------- */}
-      <AddInteractionModal
+      <AddInteractionDrawer
         isOpen={isAddInteractionOpen}
         onClose={() => setIsAddInteractionOpen(false)}
-        onAdd={onAddMarketplaceItem}
+        creatorId="creator_maya"
+        onInteractionPublished={(interaction) => {
+          onAddMarketplaceItem({
+            title: interaction.name,
+            description: interaction.description,
+            category: (interaction.type === "QUESTION" ? "Question" : interaction.type === "ACTIVITY" ? "Activity" : interaction.type === "CHALLENGE" ? "Challenge" : interaction.type === "PRIORITY_INTERACTION" ? "Priority" : "Custom") as any,
+            priceTokens: interaction.price,
+            basePriceTokens: interaction.price,
+            durationSeconds: interaction.duration,
+            maxQuantityPerStream: interaction.quantity,
+            remainingQuantity: interaction.remainingQuantity,
+            eligibility: interaction.whoCanPurchase,
+            isEnabled: interaction.isActive,
+            icon: interaction.icon,
+          });
+        }}
       />
 
       <EditGoalModal

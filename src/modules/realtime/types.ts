@@ -20,6 +20,7 @@ export type RealtimeEventType =
   | "RELATIONSHIP_UPDATE"
   | "MODERATION_ACTION"
   | "INTERACTION_TRIGGERED"
+  | "NEW_INTERACTION_AVAILABLE"
   | "1ON1_REQUEST"
   | "CONNECTED"
   | "HEARTBEAT";
@@ -191,4 +192,30 @@ export interface TipEventPayload {
   newGoalProgress: number;
   goalTarget: number;
   createdAt: Date | string;
+}
+
+// ----------------------------------------------------------------------------
+// 7. NEW_INTERACTION_AVAILABLE EVENT
+// ----------------------------------------------------------------------------
+export interface NewInteractionAvailablePayload {
+  interaction: {
+    id: string;
+    creatorProfileId: string;
+    type: "QUESTION" | "ACTIVITY" | "CHALLENGE" | "PRIORITY_INTERACTION" | "CUSTOM_EXPERIENCE";
+    name: string;
+    description: string;
+    price: number;
+    duration: number;
+    quantity: number | null;
+    remainingQuantity: number | null;
+    whoCanPurchase: "ALL" | "FOLLOWERS" | "SUBSCRIBERS_ONLY" | "MIN_FAN_LEVEL_5";
+    requiresAcceptance: boolean;
+    entersQueue: boolean;
+    isActive: boolean;
+    icon: string;
+    createdAt: string;
+  };
+  message: string;
+  creatorId: string;
+  publishedAt: string;
 }

@@ -13,6 +13,7 @@ import { LiveTipToast } from "@/components/live-room/LiveTipToast";
 import { GiftCelebrationCanvas } from "@/components/live-room/GiftCelebrationCanvas";
 import { LiveRoomLeaderboard } from "@/components/live-room/LiveRoomLeaderboard";
 import { CreatorLiveEarningsHUD } from "@/components/live-room/CreatorLiveEarningsHUD";
+import { LiveInteractionAlertBanner } from "@/components/live-room/LiveInteractionAlertBanner";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { ReportModal } from "@/components/trust/ReportModal";
 
@@ -60,6 +61,8 @@ export default function LiveRoomPage() {
     // 7. Interactions, Queue & PPV
     interactions,
     interactionQueue,
+    newInteractionAlert,
+    clearNewInteractionAlert,
     ppvVault,
     isTriggeringInteraction,
     triggerInteraction,
@@ -167,6 +170,16 @@ export default function LiveRoomPage() {
 
       {/* Real-Time Floating Tip Toasts */}
       <LiveTipToast alerts={recentTipAlerts} />
+
+      {/* Real-Time New Interaction Available Alert Banner */}
+      <LiveInteractionAlertBanner
+        interaction={newInteractionAlert}
+        onDismiss={clearNewInteractionAlert}
+        onOpenInteraction={(item) => {
+          setMarketplaceTab("interactions");
+          setIsMarketplaceOpen(true);
+        }}
+      />
 
       {/* Creator Real-Time Live Earnings & Interaction Requests HUD */}
       {isCreator && (
