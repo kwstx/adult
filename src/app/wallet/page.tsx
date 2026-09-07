@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Gift,
   Award,
+  RefreshCw,
 } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { WalletModal } from "@/components/wallet/WalletModal";
@@ -54,7 +55,7 @@ interface TypedBalanceData {
 }
 
 export default function WalletPage() {
-  const { currentUser, refreshWallet } = useUser();
+  const { currentUser, refreshWallet, isWalletLoading, isWalletSyncing } = useUser();
   const [ledgerEntries, setLedgerEntries] = useState<LedgerItem[]>([]);
   const [typedBalance, setTypedBalance] = useState<TypedBalanceData | null>(null);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
@@ -78,6 +79,7 @@ export default function WalletPage() {
   }, [currentUser]);
 
   const displayBalance = typedBalance?.totalCredits ?? currentUser.walletBalance;
+  const isBalanceLoading = isLoading || isWalletLoading;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -130,13 +132,23 @@ export default function WalletPage() {
               </button>
             </div>
 
-            {/* Simple Primary Figure: e.g. 2,450 credits */}
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-5xl sm:text-6xl font-black text-white tracking-tight">
-                {displayBalance.toLocaleString()}
-              </h1>
-              <span className="text-lg font-bold text-amber-400">credits</span>
-            </div>
+            {/* Authoritative Primary Balance Figure with Intentional Loading State */}
+            {isBalanceLoading ? (
+              <div className="flex items-center gap-3 my-1">
+                <div className="h-14 w-48 rounded-2xl bg-zinc-800 animate-pulse" />
+                <span className="flex items-center gap-1.5 text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-full animate-pulse">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-400" />
+                  <span>Syncing ledger...</span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-3">
+                <h1 className="text-5xl sm:text-6xl font-black text-white tracking-tight">
+                  {displayBalance.toLocaleString()}
+                </h1>
+                <span className="text-lg font-bold text-amber-400">credits</span>
+              </div>
+            )}
 
             {/* Account Owner */}
             <p className="text-xs text-zinc-500 mt-2">
@@ -164,65 +176,77 @@ export default function WalletPage() {
         </div>
 
         {/* Expandable Credit Type Breakdown (The Complexity Stays Underneath) */}
-        {showBreakdown && typedBalance && (
-          <div className="mt-8 pt-6 border-t border-zinc-800/80 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Purchased Credits */}
-            <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4">
-              <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
-                <span className="font-semibold flex items-center gap-1.5">
-                  <CreditCard className="h-3.5 w-3.5 text-pink-400" />
-                  Purchased Credits
-                </span>
-                <span className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">
-                  Non-expiring
-                </span>
-              </div>
-              <div className="text-2xl font-black text-white">
-                {typedBalance.purchasedCredits.toLocaleString()}
-              </div>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                Funded with real currency. Eligible for refunds.
-              </p>
+        {showBreakdown && (
+          isBalanceLoading || !typedBalance ? (
+            <div className="mt-8 pt-6 border-t border-zinc-800/80 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4 space-y-2">
+                  <div className="h-4 w-28 bg-zinc-800 rounded animate-pulse" />
+                  <div className="h-8 w-20 bg-zinc-800 rounded animate-pulse" />
+                  <div className="h-3 w-40 bg-zinc-850 rounded animate-pulse" />
+                </div>
+              ))}
             </div>
+          ) : (
+            <div className="mt-8 pt-6 border-t border-zinc-800/80 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Purchased Credits */}
+              <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4">
+                <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <CreditCard className="h-3.5 w-3.5 text-pink-400" />
+                    Purchased Credits
+                  </span>
+                  <span className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">
+                    Non-expiring
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-white">
+                  {typedBalance.purchasedCredits.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Funded with real currency. Eligible for refunds.
+                </p>
+              </div>
 
-            {/* Promotional Credits */}
-            <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4">
-              <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
-                <span className="font-semibold flex items-center gap-1.5">
-                  <Gift className="h-3.5 w-3.5 text-amber-400" />
-                  Promotional Credits
-                </span>
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">
-                  Expiring
-                </span>
+              {/* Promotional Credits */}
+              <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4">
+                <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <Gift className="h-3.5 w-3.5 text-amber-400" />
+                    Promotional Credits
+                  </span>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">
+                    Expiring
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-amber-300">
+                  {typedBalance.promotionalCredits.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  From bonuses & promotions. Spent first before purchased.
+                </p>
               </div>
-              <div className="text-2xl font-black text-amber-300">
-                {typedBalance.promotionalCredits.toLocaleString()}
-              </div>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                From bonuses & promotions. Spent first before purchased.
-              </p>
-            </div>
 
-            {/* Bonus Credits */}
-            <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4">
-              <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
-                <span className="font-semibold flex items-center gap-1.5">
-                  <Award className="h-3.5 w-3.5 text-emerald-400" />
-                  Bonus Credits
-                </span>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">
-                  Reward
-                </span>
+              {/* Bonus Credits */}
+              <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4">
+                <div className="flex items-center justify-between text-zinc-400 text-xs mb-1">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <Award className="h-3.5 w-3.5 text-emerald-400" />
+                    Bonus Credits
+                  </span>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">
+                    Reward
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-emerald-300">
+                  {typedBalance.bonusCredits.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Package top-up bonuses & loyalty awards.
+                </p>
               </div>
-              <div className="text-2xl font-black text-emerald-300">
-                {typedBalance.bonusCredits.toLocaleString()}
-              </div>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                Package top-up bonuses & loyalty awards.
-              </p>
             </div>
-          </div>
+          )
         )}
       </div>
 

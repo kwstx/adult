@@ -122,7 +122,7 @@ export function ConservativeInteractionPurchaseCard({
             </span>
             <h3 className="text-xl font-black text-white">{receipt.title}</h3>
             <p className="text-xs text-zinc-400">
-              Transaction ID: <span className="font-mono text-zinc-300">{receipt.transactionId}</span>
+              Transaction ID: <span className="font-mono text-zinc-300">{receipt.purchaseId}</span>
             </p>
           </div>
 

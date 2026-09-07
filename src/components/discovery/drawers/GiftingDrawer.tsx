@@ -230,8 +230,9 @@ export function GiftingDrawer({
                   <button
                     key={item.id}
                     onClick={() => setSelectedItem(item)}
+                    disabled={isSending}
                     type="button"
-                    className={`relative flex flex-col items-start p-3 rounded-2xl border text-left transition-all ${
+                    className={`relative flex flex-col items-start p-3 rounded-2xl border text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       isSelected
                         ? "border-pink-500 bg-pink-500/15 shadow-lg shadow-pink-500/15 ring-1 ring-pink-500"
                         : "border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700"
@@ -260,9 +261,10 @@ export function GiftingDrawer({
               type="text"
               value={customMessage}
               onChange={(e) => setCustomMessage(e.target.value)}
+              disabled={isSending}
               placeholder={`Send cheer to ${creatorName}...`}
               maxLength={100}
-              className="w-full rounded-2xl bg-zinc-900/80 px-4 py-2.5 text-xs text-white placeholder-zinc-500 border border-zinc-800 focus:border-pink-500 focus:outline-none"
+              className="w-full rounded-2xl bg-zinc-900/80 px-4 py-2.5 text-xs text-white placeholder-zinc-500 border border-zinc-800 focus:border-pink-500 focus:outline-none disabled:opacity-50"
             />
           </div>
         </div>
@@ -277,10 +279,13 @@ export function GiftingDrawer({
           <button
             onClick={handleSendTip}
             disabled={isSending || cost <= 0}
-            className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 py-3 px-6 font-bold text-white shadow-xl shadow-pink-600/30 hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all"
+            className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 py-3 px-6 font-bold text-white shadow-xl shadow-pink-600/30 hover:opacity-95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isSending ? (
-              <span className="animate-pulse">Authorizing Ledger...</span>
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <span className="animate-pulse">Authorizing Ledger...</span>
+              </>
             ) : (
               <>
                 <span>Send Gift Now</span>

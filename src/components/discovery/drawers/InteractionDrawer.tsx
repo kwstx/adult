@@ -132,8 +132,9 @@ export function InteractionDrawer({
                 <button
                   key={amt}
                   onClick={() => setChipAmount(amt)}
+                  disabled={isChipping}
                   type="button"
-                  className={`rounded-2xl py-2.5 text-xs font-extrabold transition-all ${
+                  className={`rounded-2xl py-2.5 text-xs font-extrabold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     chipAmount === amt
                       ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20"
                       : "bg-zinc-900 text-zinc-300 border border-zinc-800 hover:bg-zinc-850"
@@ -178,17 +179,27 @@ export function InteractionDrawer({
               onClose();
               onOpenGiftDrawer();
             }}
-            className="rounded-2xl bg-zinc-800 px-4 py-3 text-xs font-bold text-zinc-200 hover:bg-zinc-700 transition-colors"
+            disabled={isChipping}
+            className="rounded-2xl bg-zinc-800 px-4 py-3 text-xs font-bold text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Gift Menu
           </button>
           <button
             onClick={handleChipIn}
             disabled={isChipping}
-            className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 py-3 font-bold text-white shadow-xl shadow-pink-600/30 hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all"
+            className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 py-3 font-bold text-white shadow-xl shadow-pink-600/30 hover:opacity-95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
-            <Sparkles className="h-4 w-4" />
-            <span>Chip In {chipAmount} Tokens</span>
+            {isChipping ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <span>Recording on Ledger...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                <span>Chip In {chipAmount} Tokens</span>
+              </>
+            )}
           </button>
         </div>
       </div>

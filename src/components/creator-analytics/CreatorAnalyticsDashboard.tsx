@@ -44,9 +44,15 @@ export const CreatorAnalyticsDashboard: React.FC<CreatorAnalyticsDashboardProps>
     "overview" | "attribution" | "revenue" | "supporters" | "telemetry"
   >("overview");
   const [isLoading, setIsLoading] = useState(!initialData);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isLiveConnected, setIsLiveConnected] = useState(true);
 
   const fetchAnalytics = async (tf: AnalyticsTimeframe) => {
-    setIsLoading(true);
+    if (analytics) {
+      setIsSyncing(true);
+    } else {
+      setIsLoading(true);
+    }
     try {
       const res = await fetch(`/api/creators/${creatorId}/analytics?timeframe=${tf}`);
       const json = await res.json();
@@ -57,12 +63,56 @@ export const CreatorAnalyticsDashboard: React.FC<CreatorAnalyticsDashboardProps>
       console.error("Failed to load creator analytics:", err);
     } finally {
       setIsLoading(false);
+      setIsSyncing(false);
     }
   };
 
   useEffect(() => {
     fetchAnalytics(timeframe);
   }, [timeframe, creatorId]);
+
+  // Real-time live state synchronization via SSE
+  useEffect(() => {
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource(`/api/realtime/${creatorId}/sse`);
+      eventSource.onopen = () => setIsLiveConnected(true);
+      eventSource.onerror = () => setIsLiveConnected(false);
+
+      eventSource.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          if (event.type === "INTERACTION_PURCHASED" || event.type === "LIVE_TIP") {
+            const credits = event.payload?.creditCost || event.payload?.credits || 100;
+            setAnalytics((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                revenueStreams: {
+                  ...prev.revenueStreams,
+                  totalGrossRevenueCredits: prev.revenueStreams.totalGrossRevenueCredits + credits,
+                  totalGrossRevenueFiatEur: (prev.revenueStreams.totalGrossRevenueCredits + credits) * 0.08,
+                  totalNetCreatorCredits: prev.revenueStreams.totalNetCreatorCredits + Math.round(credits * 0.8),
+                },
+                conversionAndRepeatFunnel: {
+                  ...prev.conversionAndRepeatFunnel,
+                  repeatPurchasers: prev.conversionAndRepeatFunnel.repeatPurchasers + 1,
+                },
+              };
+            });
+          }
+        } catch {
+          // SSE format fallback
+        }
+      };
+    } catch {
+      setIsLiveConnected(false);
+    }
+
+    return () => {
+      if (eventSource) eventSource.close();
+    };
+  }, [creatorId]);
 
   const exportAnalyticsData = () => {
     if (!analytics) return;
@@ -100,13 +150,25 @@ export const CreatorAnalyticsDashboard: React.FC<CreatorAnalyticsDashboardProps>
       {/* ------------------------------------------------------------- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl lg:text-3xl font-black text-white">
               Creator Analytics & Intelligence
             </h1>
             <span className="px-3 py-1 rounded-full text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
               {analytics.stageName} (@{analytics.username})
             </span>
+            {isLiveConnected ? (
+              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live State Synced
+              </span>
+            ) : null}
+            {isSyncing ? (
+              <span className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-400 animate-pulse">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Updating metrics...
+              </span>
+            ) : null}
           </div>
           <p className="text-xs text-zinc-400 mt-1">
             Authoritative monetization telemetry, fan lifetime value CRM & conversion attribution engine

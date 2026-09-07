@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Send, Sparkles, Coins, Flame, ShieldAlert, Star } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { FanStatusBadge } from "@/components/live-room/FanStatusBadge";
+import { FanStatusProfileModal } from "@/components/live-room/FanStatusProfileModal";
 import { FAN_STATUS_STYLES } from "@/types/fan-status";
 
 export interface ChatMessageItem {

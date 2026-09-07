@@ -458,7 +458,8 @@ export function InteractionMarketplaceDrawer({
                     <button
                       key={amt}
                       onClick={() => setSelectedChipAmount(amt)}
-                      className={`rounded-2xl py-2.5 text-xs font-black transition-all ${
+                      disabled={isProcessing}
+                      className={`rounded-2xl py-2.5 text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         selectedChipAmount === amt
                           ? "bg-amber-500 text-black shadow-lg shadow-amber-500/30"
                           : "bg-zinc-900 text-zinc-300 border border-zinc-800 hover:bg-zinc-850"
@@ -473,10 +474,19 @@ export function InteractionMarketplaceDrawer({
               <button
                 onClick={handleChipIn}
                 disabled={isProcessing}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 py-3 font-bold text-white shadow-xl shadow-pink-600/30 hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all"
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 py-3 font-bold text-white shadow-xl shadow-pink-600/30 hover:opacity-95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                <Sparkles className="h-4 w-4" />
-                <span>Chip In {selectedChipAmount} Tokens</span>
+                {isProcessing ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Processing Contribution...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    <span>Chip In {selectedChipAmount} Tokens</span>
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -600,7 +610,8 @@ export function InteractionMarketplaceDrawer({
                         showFeedback(`Subscribed to ${creatorName}'s VIP Club! ✨`, "success");
                       }
                     }}
-                    className="rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 px-5 py-2.5 text-xs font-bold text-white shadow-xl shadow-pink-600/30 hover:from-pink-500 hover:to-rose-500 transition-all"
+                    disabled={isProcessing}
+                    className="rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 px-5 py-2.5 text-xs font-bold text-white shadow-xl shadow-pink-600/30 hover:from-pink-500 hover:to-rose-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
                     {relationship.isSubscribed ? "Active Member ✓" : "Join VIP Club"}
                   </button>

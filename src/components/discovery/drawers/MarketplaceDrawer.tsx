@@ -143,7 +143,8 @@ export function MarketplaceDrawer({
                     alert(`Subscribed to ${creatorName}'s VIP Club!`);
                   }
                 }}
-                className="rounded-xl bg-pink-600 px-4 py-1.5 text-xs font-bold text-white shadow-md shadow-pink-600/30 hover:bg-pink-500 transition-all"
+                disabled={unlockingId !== null}
+                className="rounded-xl bg-pink-600 px-4 py-1.5 text-xs font-bold text-white shadow-md shadow-pink-600/30 hover:bg-pink-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 Join VIP Club
               </button>
@@ -164,6 +165,7 @@ export function MarketplaceDrawer({
             ) : (
               ppvItems.map((item) => {
                 const isUnlocked = unlockedIds.has(item.id);
+                const isItemUnlocking = unlockingId === item.id;
                 return (
                   <div
                     key={item.id}
@@ -216,10 +218,17 @@ export function MarketplaceDrawer({
                         ) : (
                           <button
                             onClick={() => handleUnlock(item)}
-                            disabled={unlockingId === item.id}
-                            className="rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-md shadow-pink-600/20 hover:from-pink-500 hover:to-rose-500 disabled:opacity-50 transition-all"
+                            disabled={unlockingId !== null}
+                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-md shadow-pink-600/20 hover:from-pink-500 hover:to-rose-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                           >
-                            {unlockingId === item.id ? "Unlocking..." : "Unlock Media"}
+                            {isItemUnlocking ? (
+                              <>
+                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                <span>Unlocking...</span>
+                              </>
+                            ) : (
+                              <span>Unlock Media</span>
+                            )}
                           </button>
                         )}
                       </div>

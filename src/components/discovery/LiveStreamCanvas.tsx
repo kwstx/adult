@@ -72,6 +72,11 @@ export function LiveStreamCanvas({
       {/* Background Video Simulation / High Resolution Stream Image */}
       {isLive ? (
         <>
+          {/* Shimmer skeleton background placeholder until media frame loads */}
+          {!isLoaded && (
+            <div className="absolute inset-0 z-0 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black animate-pulse" />
+          )}
+
           <img
             src={
               posterUrl ||
@@ -80,8 +85,9 @@ export function LiveStreamCanvas({
             alt={creatorName}
             className={`h-full w-full object-cover object-center filter contrast-[1.03] brightness-95 transform transition-all duration-700 ${
               isActive ? "scale-100 opacity-100" : "scale-105 opacity-90"
-            }`}
+            } ${!isLoaded ? "opacity-0" : "opacity-100"}`}
             loading={isPreloaded ? "eager" : "lazy"}
+            onLoad={() => setIsLoaded(true)}
           />
 
           {/* Dynamic Ambient Atmosphere Gradients (Top & Bottom Vignettes) */}

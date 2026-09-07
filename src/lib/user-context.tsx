@@ -47,6 +47,8 @@ interface UserContextType {
   switchUser: (user: CurrentUser) => void;
   updateBalance: (newBalance: number) => void;
   refreshWallet: () => Promise<void>;
+  isWalletLoading: boolean;
+  isWalletSyncing: boolean;
   isAgeVerified: boolean;
   setAgeVerified: (val: boolean) => void;
 }
@@ -55,6 +57,8 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser>(PRESET_USERS[0]);
+  const [isWalletLoading, setIsWalletLoading] = useState<boolean>(false);
+  const [isWalletSyncing, setIsWalletSyncing] = useState<boolean>(false);
   const [isAgeVerified, setIsAgeVerified] = useState<boolean>(true);
 
   // Sync age verification status from authoritative backend entitlement
@@ -76,6 +80,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   // Sync balance from server if user has DB record
   const refreshWallet = async () => {
+    setIsWalletLoading(true);
+    setIsWalletSyncing(true);
     try {
       const res = await fetch(`/api/economic/wallet?userId=${currentUser.id}`);
       if (res.ok) {
@@ -89,6 +95,30 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       // Fallback
+    } finally {
+      setIsWalletLoading(false);
+      setIsWalletSyncing(false);
+    }
+  };
+
+  const switchUser = async (user: CurrentUser) => {
+    setIsWalletLoading(true);
+    setCurrentUser(user);
+    try {
+      const res = await fetch(`/api/economic/wallet?userId=${user.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.wallet) {
+          setCurrentUser((prev) => ({
+            ...prev,
+            walletBalance: data.wallet.balance,
+          }));
+        }
+      }
+    } catch {
+      // Keep preset user balance
+    } finally {
+      setIsWalletLoading(false);
     }
   };
 
@@ -99,14 +129,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
-
   return (
     <UserContext.Provider
       value={{
         currentUser,
-        switchUser: setCurrentUser,
+        switchUser,
         updateBalance,
         refreshWallet,
+        isWalletLoading,
+        isWalletSyncing,
         isAgeVerified,
         setAgeVerified: setIsAgeVerified,
       }}

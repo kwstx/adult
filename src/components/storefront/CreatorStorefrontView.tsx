@@ -16,6 +16,8 @@ import { PrivatePillar } from "./pillars/PrivatePillar";
 import { ExperiencesPillar } from "./pillars/ExperiencesPillar";
 import { UnifiedStorefrontCheckoutModal } from "./UnifiedStorefrontCheckoutModal";
 import { WalletModal } from "@/components/wallet/WalletModal";
+import { CreatorHeaderSkeleton } from "./CreatorHeaderSkeleton";
+import { PillarContentSkeleton } from "./PillarContentSkeleton";
 import { Loader2, AlertCircle } from "lucide-react";
 
 interface CreatorStorefrontViewProps {
@@ -115,14 +117,29 @@ export function CreatorStorefrontView({ creatorId }: CreatorStorefrontViewProps)
 
   if (isLoading && !data) {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center text-white">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-pink-500" />
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-            Loading Unified Storefront...
-          </p>
+      <main className="min-h-screen bg-black text-white pb-32">
+        {/* 1. Immediate Creator Identity Shell */}
+        <CreatorHeaderSkeleton creatorId={creatorId} />
+
+        {/* 2. Unified 5-Pillar Navigation Bar */}
+        <div className="mt-8">
+          <StorefrontNavigation
+            activeTab={activeTab}
+            onSelectTab={(tab) => setActiveTab(tab)}
+            isLive={false}
+            liveViewerCount={0}
+            subscriptionCount={3}
+            contentCount={6}
+            privateSlotsCount={2}
+            experiencesCount={3}
+          />
         </div>
-      </div>
+
+        {/* 3. Progressive Secondary Content Skeletons */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-8">
+          <PillarContentSkeleton tab={activeTab} />
+        </div>
+      </main>
     );
   }
 

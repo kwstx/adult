@@ -35,6 +35,7 @@ import { SearchDrawer } from "./drawers/SearchDrawer";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { ReportModal } from "@/components/trust/ReportModal";
 import { TipAlertOverlay } from "@/components/consumer/TipAlertOverlay";
+import { LiveFeedSkeleton } from "./LiveFeedSkeleton";
 
 const CATEGORY_TAGS = [
   "All",
@@ -215,6 +216,10 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
     ? likesMap[currentCandidate.id] || currentCandidate.popularitySignals.trendingScore
     : 0;
 
+  if (isLoading) {
+    return <LiveFeedSkeleton />;
+  }
+
   return (
     <div
       onWheel={activeDrawer === "none" ? handleWheel : undefined}
@@ -235,14 +240,7 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
         {/* ==================================================================== */}
         {/* 1. 3-SLOT SLIDING WINDOW (Previous: Z, Current: A, Next: B)           */}
         {/* ==================================================================== */}
-        {isLoading ? (
-          <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-950">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-pink-500 border-t-transparent shadow-[0_0_20px_rgba(236,72,153,0.5)]" />
-            <p className="mt-4 text-xs font-bold text-zinc-400 animate-pulse tracking-wide">
-              Connecting to Live Feed State Machine...
-            </p>
-          </div>
-        ) : !currentCandidate ? (
+        {!currentCandidate ? (
           <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-950 p-6 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-zinc-900 text-zinc-500 mb-4 ring-1 ring-zinc-800">
               <Radio className="h-8 w-8" />
