@@ -99,39 +99,42 @@ export class LeaderboardService {
 
     let topList: LeaderboardEntry[] = [];
 
-    try {
-      // 1. Pipeline Redis commands: ZINCRBY (stream + all_time) + HSET user profile + TTL
-      const pipeline = redis.pipeline();
+    if (redis && redis.status === "ready") {
+      try {
+        // 1. Pipeline Redis commands: ZINCRBY (stream + all_time) + HSET user profile + TTL
+        const pipeline = redis.pipeline();
 
-      pipeline.zincrby(streamKey, credits, userId);
-      pipeline.expire(streamKey, this.STREAM_ZSET_TTL);
+        pipeline.zincrby(streamKey, credits, userId);
+        pipeline.expire(streamKey, this.STREAM_ZSET_TTL);
 
-      pipeline.zincrby(allTimeKey, credits, userId);
+        pipeline.zincrby(allTimeKey, credits, userId);
 
-      // Cache user profile metadata in Redis Hash
-      pipeline.hset(profileKey, {
-        userId,
-        username,
-        displayName,
-        avatarUrl: avatarUrl || "",
-        badge: badge || "",
-        updatedAt: Date.now().toString(),
-      });
-      pipeline.expire(profileKey, 604800); // 7 days TTL
+        // Cache user profile metadata in Redis Hash
+        pipeline.hset(profileKey, {
+          userId,
+          username,
+          displayName,
+          avatarUrl: avatarUrl || "",
+          badge: badge || "",
+          updatedAt: Date.now().toString(),
+        });
+        pipeline.expire(profileKey, 604800); // 7 days TTL
 
-      // Fetch Top 10 with scores in the same round-trip
-      pipeline.zrevrange(streamKey, 0, 9, "WITHSCORES");
+        // Fetch Top 10 with scores in the same round-trip
+        pipeline.zrevrange(streamKey, 0, 9, "WITHSCORES");
 
-      const results = await pipeline.exec();
-      const zrevrangeResult = results?.[4]?.[1] as string[] | undefined;
+        const results = await pipeline.exec();
+        const zrevrangeResult = results?.[4]?.[1] as string[] | undefined;
 
-      if (Array.isArray(zrevrangeResult) && zrevrangeResult.length > 0) {
-        topList = await this.formatZSetEntries(zrevrangeResult);
-      } else {
-        topList = await this.getTopContributors(creatorId, 10, "stream");
+        if (Array.isArray(zrevrangeResult) && zrevrangeResult.length > 0) {
+          topList = await this.formatZSetEntries(zrevrangeResult);
+        }
+      } catch (redisError) {
+        console.warn("[LeaderboardService] Redis unavailable, using memory fallback:", redisError);
       }
-    } catch (redisError) {
-      console.warn("[LeaderboardService] Redis unavailable, using memory fallback:", redisError);
+    }
+
+    if (topList.length === 0) {
       topList = this.recordInMemory(creatorId, params);
     }
 
@@ -514,16 +517,28 @@ export class LeaderboardService {
   }
 
   /**
-   * Reset leaderboard for new live broadcast session.
+   * Reset leaderboard for new live broadcast session or test isolation.
    */
-  public static async resetLeaderboard(creatorId: string): Promise<void> {
-    const streamKey = this.getZSetKey(creatorId, "stream");
-    try {
-      await redis.del(streamKey);
-    } catch (e) {
-      console.warn("Failed to delete Redis stream key:", e);
+  public static async resetLeaderboard(creatorId?: string): Promise<void> {
+    if (creatorId) {
+      const streamKey = this.getZSetKey(creatorId, "stream");
+      try {
+        if (redis && redis.status === "ready") {
+          await redis.del(streamKey);
+        }
+      } catch (e) {
+        // ignore
+      }
+      this.memoryStore.delete(creatorId);
+    } else {
+      this.memoryStore.clear();
+      this.memoryUserProfiles.clear();
     }
-    this.memoryStore.delete(creatorId);
+  }
+
+  public static resetForTesting(): void {
+    this.memoryStore.clear();
+    this.memoryUserProfiles.clear();
   }
 
   // --------------------------------------------------------------------------
