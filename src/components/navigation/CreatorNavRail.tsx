@@ -13,6 +13,8 @@ import {
   ArrowLeft,
   Flame,
   Tv,
+  Users,
+  BarChart3,
 } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 
@@ -25,6 +27,8 @@ interface CreatorNavItem {
 
 const CREATOR_NAV_ITEMS: CreatorNavItem[] = [
   { name: "Studio", href: "/creator/studio", icon: Radio },
+  { name: "CRM", href: "/creator/crm", icon: Users },
+  { name: "Analytics", href: "/creator/analytics", icon: BarChart3 },
   { name: "Menu", href: "/creator/menu", icon: Sparkles },
   { name: "Wallet", href: "/wallet", icon: Wallet },
   { name: "2257", href: "/trust/mod-queue", icon: ShieldCheck },
