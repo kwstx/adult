@@ -20,6 +20,7 @@ import {
 } from "./types";
 import { CreditLotService } from "./credit-lot.service";
 import { eventBus } from "@/modules/realtime/event-bus";
+import { CreatorPermissionsGuard } from "@/modules/creator-verification/creator-permissions.guard";
 
 const DEFAULT_PLATFORM_RAKE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENTAGE || 20);
 
@@ -548,6 +549,9 @@ export class WalletLedgerService {
       throw new Error("Tip credits must be greater than zero.");
     }
 
+    // Authoritative Backend Guard: Creator must be monetization-enabled to receive earnings
+    await CreatorPermissionsGuard.assertCanReceiveEarnings(creatorProfileId, "LIVE_TIP");
+
     const result = await prisma.$transaction(async (tx: any) => {
       // 1. Check idempotency
       const existingTx = await tx.walletTransaction.findUnique({
@@ -754,6 +758,9 @@ export class WalletLedgerService {
     if (credits <= 0) {
       throw new Error("Paid question credits must be greater than zero.");
     }
+
+    // Authoritative Backend Guard: Creator must be monetization-enabled to receive earnings
+    await CreatorPermissionsGuard.assertCanReceiveEarnings(creatorProfileId, "PAID_QUESTION");
 
     return await prisma.$transaction(async (tx: any) => {
       // 1. Idempotency
@@ -967,6 +974,10 @@ export class WalletLedgerService {
         throw new Error(`PPV Content ${contentId} not found.`);
       }
 
+      // Authoritative Backend Guard: Creator must be monetization-enabled to sell PPV
+      await CreatorPermissionsGuard.assertCanSell(content.creatorProfileId, "PPV_PURCHASE");
+      await CreatorPermissionsGuard.assertCanReceiveEarnings(content.creatorProfileId, "PPV_PURCHASE");
+
       const credits = content.priceCredits;
       if (credits <= 0) {
         throw new Error("PPV content price must be greater than zero.");
@@ -1160,6 +1171,10 @@ export class WalletLedgerService {
       if (!product) {
         throw new Error(`Product ${productId} not found.`);
       }
+
+      // Authoritative Backend Guard: Creator must be monetization-enabled to sell products
+      await CreatorPermissionsGuard.assertCanSell(product.creatorProfileId, "PRODUCT_PURCHASE");
+      await CreatorPermissionsGuard.assertCanReceiveEarnings(product.creatorProfileId, "PRODUCT_PURCHASE");
 
       if (!product.isActive) {
         throw new Error(`Product "${product.title}" is currently unavailable for purchase.`);

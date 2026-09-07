@@ -15,3 +15,4 @@ export * from "./case.service";
 export * from "./enforcement.service";
 export * from "./guards";
 export * from "./age-verification";
+export * from "@/modules/creator-verification";

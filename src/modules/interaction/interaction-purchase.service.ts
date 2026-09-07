@@ -5,6 +5,7 @@ import { InteractionQueueService } from "@/modules/realtime/interaction-queue.se
 import { QueueItemData } from "@/modules/queue/interaction-queue.model";
 import { eventBus } from "@/modules/realtime/event-bus";
 import { InteractionConfig } from "@/types/interaction";
+import { CreatorPermissionsGuard } from "@/modules/creator-verification/creator-permissions.guard";
 
 // ============================================================================
 // CUSTOM VERIFICATION ERRORS
@@ -205,6 +206,12 @@ export class InteractionPurchaseService {
         // Fallback
       }
     }
+
+    // ========================================================================
+    // GATE 0: CREATOR MONETIZATION & BACKEND PERMISSIONS (2257 / STATE MACHINE)
+    // ========================================================================
+    await CreatorPermissionsGuard.assertCanSell(creatorId, "INTERACTION_PURCHASE");
+    await CreatorPermissionsGuard.assertCanReceiveEarnings(creatorId, "INTERACTION_PURCHASE");
 
     // ========================================================================
     // GATE 1: THE INTERACTION EXISTS
