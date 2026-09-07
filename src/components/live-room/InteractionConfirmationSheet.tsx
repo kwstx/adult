@@ -14,6 +14,8 @@ import {
   Flame,
 } from "lucide-react";
 import type { PurchaseInteractionReceipt } from "@/modules/interaction/interaction-purchase.service";
+import { FinancialErrorBanner } from "@/components/errors/FinancialErrorBanner";
+import { parseProductError, ParsedProductError } from "@/lib/errors/client-error";
 
 interface InteractionItemSummary {
   id: string;
@@ -55,7 +57,7 @@ export function InteractionConfirmationSheet({
 }: InteractionConfirmationSheetProps) {
   const [customQuestion, setCustomQuestion] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [productError, setProductError] = useState<ParsedProductError | null>(null);
   const [successReceipt, setSuccessReceipt] = useState<PurchaseInteractionReceipt | null>(null);
 
   if (!isOpen || !item) return null;
@@ -71,7 +73,7 @@ export function InteractionConfirmationSheet({
     }
 
     setIsSubmitting(true);
-    setErrorMessage(null);
+    setProductError(null);
 
     try {
       const res = await fetch(`/api/creators/${creatorId}/interactions/purchase`, {
@@ -88,18 +90,20 @@ export function InteractionConfirmationSheet({
         }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || "Failed to confirm interaction purchase.");
+        const parsed = await parseProductError(res);
+        setProductError(parsed);
+        return;
       }
 
+      const data = await res.json();
       setSuccessReceipt(data.receipt);
       if (onSuccess) {
         onSuccess(data.receipt);
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "An unexpected error occurred during purchase.");
+      const parsed = await parseProductError(err);
+      setProductError(parsed);
     } finally {
       setIsSubmitting(false);
     }
@@ -107,7 +111,7 @@ export function InteractionConfirmationSheet({
 
   const handleResetAndClose = () => {
     setSuccessReceipt(null);
-    setErrorMessage(null);
+    setProductError(null);
     setCustomQuestion("");
     onClose();
   };
@@ -275,12 +279,19 @@ export function InteractionConfirmationSheet({
               />
             </div>
 
-            {/* Error Feedback Message */}
-            {errorMessage && (
-              <div className="flex items-center gap-2 rounded-2xl bg-rose-950/60 border border-rose-500/50 p-3 text-xs text-rose-300 animate-fade-in">
-                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
-                <span>{errorMessage}</span>
-              </div>
+            {/* Error Feedback Message as Reassuring Product State */}
+            {productError && (
+              <FinancialErrorBanner
+                variant={
+                  productError.code === "INSUFFICIENT_FUNDS"
+                    ? "INSUFFICIENT_CREDITS"
+                    : "GENERIC_ERROR_NO_CHARGE"
+                }
+                title={productError.userTitle}
+                message={productError.userMessage}
+                onRetry={productError.isRetryable ? handleConfirmPurchase : undefined}
+                onClose={() => setProductError(null)}
+              />
             )}
 
             {/* Authoritative Security Note */}

@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { CREDIT_PACKAGES } from "@/modules/economic/types";
+import { parseProductError, ParsedProductError } from "@/lib/errors/client-error";
+import { ProductErrorState } from "@/components/errors/ProductErrorState";
+import { FinancialErrorBanner } from "@/components/errors/FinancialErrorBanner";
 
 interface PurchaseCreditsModalProps {
   isOpen: boolean;
@@ -39,7 +42,7 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
   const [selectedPkgId, setSelectedPkgId] = useState<string>("pkg_1100"); // Default to €10 / 1,100 credits
   const [flowStep, setFlowStep] = useState<PurchaseFlowStep>("SELECTION");
   const [stepDetails, setStepDetails] = useState<string>("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [productError, setProductError] = useState<ParsedProductError | null>(null);
 
   // Settlement Result Information
   const [settlementInfo, setSettlementInfo] = useState<{
@@ -69,7 +72,7 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
    * 9. Frontend receives updated wallet state (Step 11)
    */
   const handleStartPurchase = async () => {
-    setErrorMessage(null);
+    setProductError(null);
     setFlowStep("CREATING_ORDER");
     setStepDetails("Asking backend to create internal purchase record...");
 
@@ -87,9 +90,19 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
         }),
       });
 
+      if (!createRes.ok) {
+        const parsed = await parseProductError(createRes);
+        setProductError(parsed);
+        setFlowStep("ERROR");
+        return;
+      }
+
       const createData = await createRes.json();
-      if (!createRes.ok || !createData.success) {
-        throw new Error(createData.error || "Failed to initialize purchase with backend.");
+      if (!createData.success) {
+        const parsed = await parseProductError(createData);
+        setProductError(parsed);
+        setFlowStep("ERROR");
+        return;
       }
 
       const purchaseId = createData.purchaseId;
@@ -114,9 +127,19 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
         }),
       });
 
+      if (!providerRes.ok) {
+        const parsed = await parseProductError(providerRes);
+        setProductError(parsed);
+        setFlowStep("ERROR");
+        return;
+      }
+
       const providerData = await providerRes.json();
-      if (!providerRes.ok || !providerData.success) {
-        throw new Error(providerData.error || "Payment provider failed to authorize payment.");
+      if (!providerData.success) {
+        const parsed = await parseProductError(providerData);
+        setProductError(parsed);
+        setFlowStep("ERROR");
+        return;
       }
 
       // ----------------------------------------------------------------------
@@ -131,10 +154,27 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
       // STEP 11: Frontend receives authoritative updated wallet state
       // ----------------------------------------------------------------------
       const statusRes = await fetch(`/api/economic/purchase/${purchaseId}/status`);
-      const statusData = await statusRes.json();
+      if (!statusRes.ok) {
+        const parsed = await parseProductError(statusRes);
+        setProductError(parsed);
+        setFlowStep("ERROR");
+        return;
+      }
 
-      if (!statusRes.ok || !statusData.purchase) {
-        throw new Error("Failed to fetch authoritative wallet state from backend.");
+      const statusData = await statusRes.json();
+      if (!statusData.purchase) {
+        const parsed = await parseProductError({
+          userTitle: "Payment pending",
+          userMessage: "Your payment is currently being confirmed by the payment gateway. Your credits will appear automatically as soon as confirmation completes.",
+          walletCharged: false,
+          code: "PAYMENT_PENDING",
+          category: "FINANCIAL",
+          action: "WAIT",
+          isRetryable: false,
+        });
+        setProductError(parsed);
+        setFlowStep("ERROR");
+        return;
       }
 
       const purchase = statusData.purchase;
@@ -161,14 +201,15 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
       }
     } catch (err: any) {
       console.error("Purchase flow error:", err);
-      setErrorMessage(err.message || "An error occurred during the purchase flow.");
+      const parsed = await parseProductError(err);
+      setProductError(parsed);
       setFlowStep("ERROR");
     }
   };
 
   const handleReset = () => {
     setFlowStep("SELECTION");
-    setErrorMessage(null);
+    setProductError(null);
     setSettlementInfo(null);
   };
 
@@ -424,33 +465,15 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
         )}
 
         {/* ================================================================= */}
-        {/* ERROR STATE */}
+        {/* STEP 6: ERROR PRODUCT STATE */}
         {/* ================================================================= */}
-        {flowStep === "ERROR" && (
-          <div className="text-center py-4">
-            <div className="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/20 text-rose-400 border border-rose-500/40 mb-4">
-              <AlertTriangle className="h-8 w-8 text-rose-400" />
-            </div>
-
-            <h3 className="text-xl font-bold text-white mb-2">Purchase Verification Failed</h3>
-            <p className="text-xs text-rose-300 mb-6 bg-rose-950/40 border border-rose-800/50 rounded-xl p-3 max-w-md mx-auto">
-              {errorMessage || "Payment could not be confirmed by backend authority."}
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleReset}
-                className="flex-1 rounded-2xl bg-pink-600 hover:bg-pink-500 py-3 px-4 font-bold text-white transition-all text-xs"
-              >
-                Try Again
-              </button>
-              <button
-                onClick={onClose}
-                className="flex-1 rounded-2xl bg-zinc-800 hover:bg-zinc-700 py-3 px-4 font-bold text-zinc-300 transition-all text-xs"
-              >
-                Cancel
-              </button>
-            </div>
+        {flowStep === "ERROR" && productError && (
+          <div className="py-2">
+            <ProductErrorState
+              error={productError}
+              onRetry={productError.isRetryable ? handleStartPurchase : handleReset}
+              onDismiss={onClose}
+            />
           </div>
         )}
       </div>
