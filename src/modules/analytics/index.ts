@@ -12,4 +12,5 @@ export * from "./types";
 export * from "./operational-data.service";
 export * from "./analytics-store";
 export * from "./analytical-data.service";
+export * from "./creator-analytics.service";
 export * from "./analytics-pipeline";

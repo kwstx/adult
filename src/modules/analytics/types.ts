@@ -346,3 +346,190 @@ export interface FeedPositionMartRecord {
   revenueCredits: number;
   updatedAt: string;
 }
+
+// ============================================================================
+// 4. CREATOR ANALYTICS & HIGH-VALUE FAN ATTRIBUTION CONTRACTS
+// ============================================================================
+
+export interface LiveStreamTelemetryMetrics {
+  liveViewersCurrent: number;
+  averageWatchDurationSeconds: number;
+  averageWatchDurationFormatted: string;
+  peakViewers: number;
+  followersGained: number;
+  totalStreamBroadcastMinutes: number;
+  totalStreamCount: number;
+}
+
+export interface CreatorRevenueStreamMetrics {
+  subscriptionsCredits: number;
+  subscriptionsFiatEur: number;
+  ppvRevenueCredits: number;
+  ppvRevenueFiatEur: number;
+  giftRevenueCredits: number;
+  giftRevenueFiatEur: number;
+  interactionRevenueCredits: number;
+  interactionRevenueFiatEur: number;
+  privateSessionRevenueCredits: number;
+  privateSessionRevenueFiatEur: number;
+  paidMessageRevenueCredits: number;
+  paidMessageRevenueFiatEur: number;
+  totalGrossRevenueCredits: number;
+  totalGrossRevenueFiatEur: number;
+  totalNetCreatorCredits: number;
+  totalNetCreatorFiatEur: number;
+  platformRakeCredits: number;
+  activeSubscribersCount: number;
+  payingFansCount: number;
+  averageRevenuePerPayingFanCredits: number;
+}
+
+export interface TopSupporterProfile {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  relationshipTier: "STRANGER" | "SUPPORTER" | "SUPERFAN" | "VIP_DEVOTEE" | "SOULMATE" | "ROYAL_PATRON";
+  relationshipLevel: number;
+  totalSpentCredits: number;
+  totalTransactionsCount: number;
+  isRepeatPurchaser: boolean;
+  isSubscriber: boolean;
+  firstConversionActivity: string;
+  daysActive: number;
+  lastActiveAt: string;
+}
+
+export interface FanRetentionAnalysis {
+  totalUniqueFans: number;
+  averageFanLifespanDays: number;
+  retentionRateD1Percent: number;
+  retentionRateD7Percent: number;
+  retentionRateD30Percent: number;
+  retentionRateD90Percent: number;
+  churnRateMonthlyPercent: number;
+  repeatPurchaserRatePercent: number; // % of paying fans who transact 2+ times
+  retentionScore: number; // 0 - 100 composite score
+}
+
+export interface RelationshipDistribution {
+  strangers: number;
+  supporters: number;
+  superfans: number;
+  vipDevotees: number;
+  soulmates: number;
+  royalPatrons: number;
+  totalRelationships: number;
+}
+
+export interface ContentPerformanceMetrics {
+  contentId: string;
+  title: string;
+  contentType: "PHOTO" | "VIDEO" | "AUDIO" | "ALBUM" | "POST" | "BUNDLE";
+  thumbnailUrl: string | null;
+  priceCredits: number;
+  totalViews: number;
+  totalPurchases: number;
+  grossRevenueCredits: number;
+  conversionRatePercent: number;
+  isPublished: boolean;
+  createdAt: string;
+}
+
+export interface ConversionAndRepeatFunnel {
+  totalImpressions: number;
+  totalRoomEntries: number;
+  totalEngagedChatters: number;
+  firstTimePurchasers: number;
+  repeatPurchasers: number; // 2+ purchases
+  highValueFansCount: number; // >500 credits LTV or Superfan+ status
+  overallConversionRatePercent: number;
+  repeatConversionRatePercent: number;
+  highValueYieldPercent: number;
+}
+
+export interface ActivityAttributionMetric {
+  activityType: string;
+  displayName: string;
+  category: "INTERACTION" | "PPV" | "PRIVATE_SESSION" | "GOAL" | "TIP" | "PAID_MESSAGE" | "FREE_GAME";
+  firstTouchFansCount: number;
+  convertedToRepeatHighValueCount: number;
+  conversionToHighValueRatePercent: number;
+  averageFanLtvCredits: number;
+  repeatPurchaseFrequencyAvg: number;
+  liftMultiplier: number; // e.g. 4.2x higher than baseline
+  averageDaysToSecondPurchase: number;
+  recommendationScore: number; // 1-100
+  marketplaceInsight: string;
+}
+
+export interface HighValueFanAttributionResult {
+  headlineInsight: string;
+  highValueDefinition: string;
+  totalHighValueFansIdentified: number;
+  baselineConversionRatePercent: number;
+  activitiesAttribution: ActivityAttributionMetric[];
+  topActivityForRepeatConversion: {
+    activityType: string;
+    displayName: string;
+    conversionRatePercent: number;
+    liftMultiplier: number;
+  };
+  marketplaceRecommendations: string[];
+}
+
+export interface CreatorAnalyticsOverviewResult {
+  creatorProfileId: string;
+  stageName: string;
+  username: string;
+  timeframe: AnalyticsTimeframe;
+  periodStart: string;
+  periodEnd: string;
+  liveTelemetry: LiveStreamTelemetryMetrics;
+  revenueStreams: CreatorRevenueStreamMetrics;
+  topSupporters: TopSupporterProfile[];
+  fanRetention: FanRetentionAnalysis;
+  relationshipDistribution: RelationshipDistribution;
+  contentPerformance: ContentPerformanceMetrics[];
+  conversionAndRepeatFunnel: ConversionAndRepeatFunnel;
+  highValueFanAttribution: HighValueFanAttributionResult;
+  computedFromMart: boolean;
+  generatedAt: string;
+}
+
+export interface CreatorOverviewMartRecord {
+  id: string;
+  creatorProfileId: string;
+  bucketDate: string;
+  liveViewersCurrent: number;
+  peakViewers: number;
+  avgWatchDurationSeconds: number;
+  followersGained: number;
+  subscriptionsCredits: number;
+  ppvCredits: number;
+  giftCredits: number;
+  interactionCredits: number;
+  privateSessionCredits: number;
+  paidMessageCredits: number;
+  totalGrossCredits: number;
+  platformRakeCredits: number;
+  netCreatorCredits: number;
+  activeSubscribers: number;
+  payingFans: number;
+  repeatPurchasers: number;
+  updatedAt: string;
+}
+
+export interface ActivityAttributionMartRecord {
+  id: string;
+  creatorProfileId: string;
+  activityType: string;
+  displayName: string;
+  category: "INTERACTION" | "PPV" | "PRIVATE_SESSION" | "GOAL" | "TIP" | "PAID_MESSAGE" | "FREE_GAME";
+  firstTouchFans: number;
+  convertedHighValueFans: number;
+  totalLtvCredits: number;
+  totalRepeatPurchases: number;
+  totalDaysToSecondPurchase: number;
+  updatedAt: string;
+}

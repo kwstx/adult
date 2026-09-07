@@ -17,6 +17,10 @@ import {
   LiveRoomFunnelMartRecord,
   CreatorRetentionMartRecord,
   FeedPositionMartRecord,
+  CreatorOverviewMartRecord,
+  ActivityAttributionMartRecord,
+  ContentPerformanceMetrics,
+  TopSupporterProfile,
   DateRange,
   AnalyticsTimeframe,
 } from "./types";
@@ -27,6 +31,10 @@ export class AnalyticsStore {
   private static liveRoomFunnelMart: Map<string, LiveRoomFunnelMartRecord> = new Map();
   private static creatorRetentionMart: Map<string, CreatorRetentionMartRecord> = new Map();
   private static feedPositionMart: Map<string, FeedPositionMartRecord> = new Map();
+  private static creatorOverviewMart: Map<string, CreatorOverviewMartRecord> = new Map();
+  private static activityAttributionMart: Map<string, ActivityAttributionMartRecord> = new Map();
+  private static contentPerformanceMart: Map<string, ContentPerformanceMetrics> = new Map();
+  private static creatorSupportersMart: Map<string, TopSupporterProfile[]> = new Map();
 
   // Helper to generate timeframe date boundaries
   public static resolveTimeframeDates(
@@ -216,6 +224,123 @@ export class AnalyticsStore {
   }
 
   // ==========================================================================
+  // 5. CREATOR OVERVIEW MART
+  // ==========================================================================
+
+  public static upsertCreatorOverviewRecord(record: CreatorOverviewMartRecord): void {
+    const key = `${record.bucketDate}:${record.creatorProfileId}`;
+    const existing = this.creatorOverviewMart.get(key);
+
+    if (existing) {
+      existing.liveViewersCurrent = record.liveViewersCurrent;
+      existing.peakViewers = Math.max(existing.peakViewers, record.peakViewers);
+      existing.avgWatchDurationSeconds = Math.round(
+        (existing.avgWatchDurationSeconds + record.avgWatchDurationSeconds) / 2
+      );
+      existing.followersGained += record.followersGained;
+      existing.subscriptionsCredits += record.subscriptionsCredits;
+      existing.ppvCredits += record.ppvCredits;
+      existing.giftCredits += record.giftCredits;
+      existing.interactionCredits += record.interactionCredits;
+      existing.privateSessionCredits += record.privateSessionCredits;
+      existing.paidMessageCredits += record.paidMessageCredits;
+      existing.totalGrossCredits += record.totalGrossCredits;
+      existing.platformRakeCredits += record.platformRakeCredits;
+      existing.netCreatorCredits += record.netCreatorCredits;
+      existing.activeSubscribers = Math.max(existing.activeSubscribers, record.activeSubscribers);
+      existing.payingFans += record.payingFans;
+      existing.repeatPurchasers += record.repeatPurchasers;
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      this.creatorOverviewMart.set(key, { ...record, id: key });
+    }
+  }
+
+  public static queryCreatorOverviewMart(params: {
+    startDate: Date;
+    endDate: Date;
+    creatorProfileId: string;
+  }): CreatorOverviewMartRecord[] {
+    const results: CreatorOverviewMartRecord[] = [];
+    const startIso = params.startDate.toISOString().slice(0, 10);
+    const endIso = params.endDate.toISOString().slice(0, 10);
+
+    for (const record of this.creatorOverviewMart.values()) {
+      if (
+        record.creatorProfileId === params.creatorProfileId &&
+        record.bucketDate >= startIso &&
+        record.bucketDate <= endIso
+      ) {
+        results.push(record);
+      }
+    }
+
+    return results;
+  }
+
+  // ==========================================================================
+  // 6. ACTIVITY ATTRIBUTION MART (NORTH STAR: VIEWER -> REPEAT HIGH-VALUE FAN)
+  // ==========================================================================
+
+  public static upsertActivityAttributionRecord(record: ActivityAttributionMartRecord): void {
+    const key = `${record.creatorProfileId}:${record.activityType}`;
+    const existing = this.activityAttributionMart.get(key);
+
+    if (existing) {
+      existing.firstTouchFans += record.firstTouchFans;
+      existing.convertedHighValueFans += record.convertedHighValueFans;
+      existing.totalLtvCredits += record.totalLtvCredits;
+      existing.totalRepeatPurchases += record.totalRepeatPurchases;
+      existing.totalDaysToSecondPurchase += record.totalDaysToSecondPurchase;
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      this.activityAttributionMart.set(key, { ...record, id: key });
+    }
+  }
+
+  public static queryActivityAttributionMart(creatorProfileId: string): ActivityAttributionMartRecord[] {
+    const results: ActivityAttributionMartRecord[] = [];
+    for (const record of this.activityAttributionMart.values()) {
+      if (record.creatorProfileId === creatorProfileId) {
+        results.push(record);
+      }
+    }
+    return results;
+  }
+
+  // ==========================================================================
+  // 7. CONTENT PERFORMANCE MART
+  // ==========================================================================
+
+  public static upsertContentPerformanceRecord(creatorProfileId: string, record: ContentPerformanceMetrics): void {
+    const key = `${creatorProfileId}:${record.contentId}`;
+    this.contentPerformanceMart.set(key, record);
+  }
+
+  public static queryContentPerformanceMart(creatorProfileId: string): ContentPerformanceMetrics[] {
+    const results: ContentPerformanceMetrics[] = [];
+    const prefix = `${creatorProfileId}:`;
+    for (const [key, record] of this.contentPerformanceMart.entries()) {
+      if (key.startsWith(prefix)) {
+        results.push(record);
+      }
+    }
+    return results;
+  }
+
+  // ==========================================================================
+  // 8. CREATOR TOP SUPPORTERS MART
+  // ==========================================================================
+
+  public static setCreatorTopSupporters(creatorProfileId: string, supporters: TopSupporterProfile[]): void {
+    this.creatorSupportersMart.set(creatorProfileId, supporters);
+  }
+
+  public static queryCreatorTopSupporters(creatorProfileId: string): TopSupporterProfile[] {
+    return this.creatorSupportersMart.get(creatorProfileId) || [];
+  }
+
+  // ==========================================================================
   // RESET / TESTING UTILITIES
   // ==========================================================================
 
@@ -224,6 +349,10 @@ export class AnalyticsStore {
     this.liveRoomFunnelMart.clear();
     this.creatorRetentionMart.clear();
     this.feedPositionMart.clear();
+    this.creatorOverviewMart.clear();
+    this.activityAttributionMart.clear();
+    this.contentPerformanceMart.clear();
+    this.creatorSupportersMart.clear();
   }
 
   public static getMartStats() {
@@ -232,6 +361,11 @@ export class AnalyticsStore {
       liveRoomFunnelRecords: this.liveRoomFunnelMart.size,
       creatorRetentionRecords: this.creatorRetentionMart.size,
       feedPositionRecords: this.feedPositionMart.size,
+      creatorOverviewRecords: this.creatorOverviewMart.size,
+      activityAttributionRecords: this.activityAttributionMart.size,
+      contentPerformanceRecords: this.contentPerformanceMart.size,
+      creatorSupportersRecords: this.creatorSupportersMart.size,
     };
   }
 }
+
