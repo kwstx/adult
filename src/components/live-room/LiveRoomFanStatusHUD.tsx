@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Users, Crown, Sparkles, ChevronRight } from "lucide-react";
-import { FanPublicStatus } from "@/types/fan-status";
+import { FanPublicStatus, FAN_STATUS_STYLES } from "@/types/fan-status";
 import { FanStatusBadge } from "./FanStatusBadge";
-import { FAN_STATUS_STYLES } from "@/modules/relationship/fan-status.service";
 
 interface LiveRoomFanStatusHUDProps {
   creatorId: string;

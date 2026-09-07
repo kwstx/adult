@@ -1,42 +1,9 @@
 import crypto from "crypto";
 import prisma from "@/lib/db";
-import { CreditPackage } from "./types";
+import { CreditPackage, CREDIT_PACKAGES } from "./types";
 import { WalletLedgerService } from "./wallet-ledger.service";
 
-// ============================================================================
-// EXACT SPECIFICATION CREDIT PACKAGES
-// ============================================================================
-export const CREDIT_PACKAGES: (CreditPackage & { bestValue?: boolean; description?: string })[] = [
-  {
-    id: "pkg_500",
-    name: "Starter Pack",
-    credits: 500,
-    priceFiat: 5.0,
-    currency: "EUR",
-    bonusCredits: 0,
-    description: "Great for quick live tips & creator interactions",
-  },
-  {
-    id: "pkg_1100",
-    name: "Fan Favorite Pack",
-    credits: 1000,
-    priceFiat: 10.0,
-    currency: "EUR",
-    bonusCredits: 100, // 1,000 + 100 = 1,100 credits
-    popular: true,
-    description: "Includes +100 bonus credits for regular supporters",
-  },
-  {
-    id: "pkg_6000",
-    name: "Patron Prestige Pack",
-    credits: 5000,
-    priceFiat: 50.0,
-    currency: "EUR",
-    bonusCredits: 1000, // 5,000 + 1,000 = 6,000 credits
-    bestValue: true,
-    description: "Includes +1,000 bonus credits for VIP stream access & top tier gifts",
-  },
-];
+export { CREDIT_PACKAGES };
 
 export interface PaymentGatewaySession {
   purchaseId: string;

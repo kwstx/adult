@@ -21,8 +21,8 @@ import {
   VirtualSeatSlot,
   SeatOccupant,
   SocialSeatTier,
+  SEAT_TIER_CONFIGS,
 } from "@/types/seat";
-import { SEAT_TIER_CONFIGS } from "@/modules/seats/seat-entitlement.service";
 import { SeatBadge } from "./SeatBadge";
 
 interface VirtualRoomStageOverlayProps {

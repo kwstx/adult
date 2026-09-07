@@ -14,8 +14,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import { SocialSeatTier, VirtualRoomLayout } from "@/types/seat";
-import { SEAT_TIER_CONFIGS } from "@/modules/seats/seat-entitlement.service";
+import { SocialSeatTier, VirtualRoomLayout, SEAT_TIER_CONFIGS } from "@/types/seat";
 import { SeatBadge } from "./SeatBadge";
 
 interface SeatClaimSheetProps {

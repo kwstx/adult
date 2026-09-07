@@ -20,9 +20,8 @@ import {
   Send,
   ExternalLink,
 } from "lucide-react";
-import { FanPublicStatus, FanCreatorDossier } from "@/types/fan-status";
+import { FanPublicStatus, FanCreatorDossier, FAN_STATUS_STYLES } from "@/types/fan-status";
 import { FanStatusBadge } from "./FanStatusBadge";
-import { FAN_STATUS_STYLES, FanStatusService } from "@/modules/relationship/fan-status.service";
 
 interface FanStatusProfileModalProps {
   isOpen: boolean;

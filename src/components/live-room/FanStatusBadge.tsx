@@ -1,8 +1,6 @@
 "use client";
 
-import React from "react";
-import { FanStatusTier } from "@/types/fan-status";
-import { FAN_STATUS_STYLES } from "@/modules/relationship/fan-status.service";
+import { FanStatusTier, FAN_STATUS_STYLES } from "@/types/fan-status";
 import { normalizeRelationshipTier } from "@/modules/relationship/tier-definitions";
 
 interface FanStatusBadgeProps {

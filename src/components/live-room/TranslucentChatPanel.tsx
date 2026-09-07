@@ -5,11 +5,9 @@ import { Send, Coins, Sparkles, Smile, ShieldAlert } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import type { ChatMessagePayload } from "@/modules/realtime/types";
 import { FanStatusBadge } from "./FanStatusBadge";
-import { SeatBadge } from "@/components/seats/SeatBadge";
-import { SocialSeatTier } from "@/types/seat";
-import { SEAT_TIER_CONFIGS } from "@/modules/seats/seat-entitlement.service";
+import { SocialSeatTier, SEAT_TIER_CONFIGS } from "@/types/seat";
 import { normalizeRelationshipTier } from "@/modules/relationship/tier-definitions";
-import { FAN_STATUS_STYLES } from "@/modules/relationship/fan-status.service";
+import { FAN_STATUS_STYLES } from "@/types/fan-status";
 
 interface TranslucentChatPanelProps {
   messages: ChatMessagePayload[];

@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { SocialSeatTier } from "@/types/seat";
-import { SEAT_TIER_CONFIGS } from "@/modules/seats/seat-entitlement.service";
+import { SocialSeatTier, SEAT_TIER_CONFIGS } from "@/types/seat";
 import { Crown, Sparkles, Star, Flame, Diamond, Users, Shield } from "lucide-react";
 
 interface SeatBadgeProps {

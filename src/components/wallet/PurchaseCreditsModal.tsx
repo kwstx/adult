@@ -18,7 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useUser } from "@/lib/user-context";
-import { CREDIT_PACKAGES } from "@/modules/economic/payment.adapter";
+import { CREDIT_PACKAGES } from "@/modules/economic/types";
 
 interface PurchaseCreditsModalProps {
   isOpen: boolean;
