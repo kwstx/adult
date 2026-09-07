@@ -2,6 +2,7 @@
 
 import { FanStatusTier, FAN_STATUS_STYLES } from "@/types/fan-status";
 import { normalizeRelationshipTier } from "@/modules/relationship/tier-definitions";
+import { AnimatedRelationshipBadge } from "@/components/animation/AnimatedRelationshipBadge";
 
 interface FanStatusBadgeProps {
   tier: FanStatusTier | string | null | undefined;
@@ -10,6 +11,8 @@ interface FanStatusBadgeProps {
   avatarUrl?: string;
   level?: number;
   streakDays?: number;
+  isAscending?: boolean;
+  previousLevel?: number;
   interactive?: boolean;
   onClick?: () => void;
   className?: string;
@@ -22,10 +25,28 @@ export function FanStatusBadge({
   avatarUrl,
   level,
   streakDays,
+  isAscending = false,
+  previousLevel,
   interactive = false,
   onClick,
   className = "",
 }: FanStatusBadgeProps) {
+  if (isAscending) {
+    return (
+      <AnimatedRelationshipBadge
+        tier={tier}
+        level={level || 1}
+        displayName={displayName}
+        isAscending={isAscending}
+        previousLevel={previousLevel}
+        variant={variant === "stacked" ? "stacked" : "pill"}
+        interactive={interactive}
+        onClick={onClick}
+        className={className}
+      />
+    );
+  }
+
   const tierCode = normalizeRelationshipTier(tier);
   const style = FAN_STATUS_STYLES[tierCode] || FAN_STATUS_STYLES.NEW_FAN;
 

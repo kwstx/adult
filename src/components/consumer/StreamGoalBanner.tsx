@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Flame, Trophy, Sparkles, Coins, Zap } from "lucide-react";
+import { GoalMetamorphosisCard } from "@/components/animation/GoalMetamorphosisCard";
 
 interface StreamGoalBannerProps {
   title: string;
@@ -22,6 +23,18 @@ export function StreamGoalBanner({
 }: StreamGoalBannerProps) {
   const percentage = Math.min(100, Math.round((currentProgress / (target || 1)) * 100));
   const isCompleted = currentProgress >= target;
+
+  if (isCompleted) {
+    return (
+      <GoalMetamorphosisCard
+        title={title}
+        targetCredits={target}
+        currentCredits={currentProgress}
+        rewardDescription={rewardDescription}
+        onActionClick={onClick}
+      />
+    );
+  }
 
   // Animated counting
   const [displayCredits, setDisplayCredits] = useState(currentProgress);

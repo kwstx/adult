@@ -142,3 +142,9 @@ export function CountUpNumber({
 
   return <span className={cn("tabular-nums font-mono", className)}>{formatter(current)}</span>;
 }
+
+// --- Event-Driven Milestone Animation Primitives ---
+export { MajorGiftOverlay } from "@/components/animation/MajorGiftOverlay";
+export { AnimatedRelationshipBadge } from "@/components/animation/AnimatedRelationshipBadge";
+export { GoalMetamorphosisCard } from "@/components/animation/GoalMetamorphosisCard";
+export { VipEntranceOverlay } from "@/components/animation/VipEntranceOverlay";
