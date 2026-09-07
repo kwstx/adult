@@ -23,7 +23,8 @@ export type StandardEventType =
   | "GOAL_COMPLETED"
   | "RELATIONSHIP_LEVEL_UP"
   | "LEADERBOARD_UPDATED"
-  | "CONTENT_PURCHASED";
+  | "CONTENT_PURCHASED"
+  | "SESSION_BOOKED";
 
 // Combined type for full backward-compatibility with legacy room events
 export type RealtimeEventType =
