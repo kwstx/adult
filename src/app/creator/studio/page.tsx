@@ -7,6 +7,7 @@ import { AudienceChatPanel } from "@/components/creator-control-room/AudienceCha
 import { CenterStudioCanvas } from "@/components/creator-control-room/CenterStudioCanvas";
 import { MarketplaceControlsPanel } from "@/components/creator-control-room/MarketplaceControlsPanel";
 import { ControlRoomBottomBar } from "@/components/creator-control-room/ControlRoomBottomBar";
+import { DesktopCreatorMultiPanelStudio } from "@/components/creator-control-room/DesktopCreatorMultiPanelStudio";
 
 // Modals & Drawers
 import { AddInteractionDrawer } from "@/components/creator-control-room/drawers/AddInteractionDrawer";
@@ -106,29 +107,62 @@ export default function CreatorStudioPage() {
       />
 
       {/* ------------------------------------------------------------- */}
-      {/* 2. MAIN 3-REGION WORKSPACE CANVAS                             */}
-      {/* Left: Audience/Chat | Center: Studio/Queue | Right: Market    */}
+      {/* 2. DESKTOP SIMULTANEOUS MULTI-PANEL STUDIO (>= lg)            */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 w-full overflow-hidden">
-        {/* LEFT REGION: Audience, Chat, Top Supporters, CRM (340px) */}
-        <div className="w-full lg:w-[360px] xl:w-[390px] h-[340px] lg:h-full shrink-0 border-b lg:border-b-0">
-          <AudienceChatPanel
-            chatMessages={chatMessages}
-            audienceList={audienceList}
-            topSupporters={topSupporters}
-            onSendMessage={onSendChatMessage}
-            onPinMessage={onPinMessage}
-            onDeleteMessage={onDeleteMessage}
-            onMuteUser={onMuteUser}
-            onTimeoutUser={onTimeoutUser}
-            onBanUser={onBanUser}
-            onBroadcastShoutout={onBroadcastShoutout}
-            onSelectAudienceMember={setSelectedAudienceMember}
-          />
-        </div>
+      <div className="hidden lg:flex flex-1 min-h-0 w-full overflow-hidden">
+        <DesktopCreatorMultiPanelStudio
+          telemetry={telemetry}
+          videoPreviewRef={videoPreviewRef}
+          isCameraActive={isCameraActive}
+          isMicActive={isMicActive}
+          audioMeterLevel={audioMeterLevel}
+          moderationRules={moderationRules}
+          onToggleCamera={onToggleCamera}
+          onToggleMic={onToggleMic}
+          chatMessages={chatMessages}
+          audienceList={audienceList}
+          topSupporters={topSupporters}
+          selectedAudienceMember={selectedAudienceMember}
+          onSendMessage={onSendChatMessage}
+          onPinMessage={onPinMessage}
+          onDeleteMessage={onDeleteMessage}
+          onMuteUser={onMuteUser}
+          onTimeoutUser={onTimeoutUser}
+          onBanUser={onBanUser}
+          onBroadcastShoutout={onBroadcastShoutout}
+          onSelectAudienceMember={setSelectedAudienceMember}
+          interactionQueue={interactionQueue}
+          activeGoal={activeGoal}
+          purchaseLedger={purchaseLedger}
+          isConfettiActive={isConfettiActive}
+          onAcceptQueueItem={onAcceptQueueItem}
+          onStartProgressQueueItem={onStartProgressQueueItem}
+          onCompleteQueueItem={onCompleteQueueItem}
+          onRejectQueueItem={onRejectQueueItem}
+          onCancelQueueItem={onCancelQueueItem}
+          onRefundQueueItem={onRefundQueueItem}
+          onSkipQueueItem={onSkipQueueItem}
+          onOpenEditGoal={() => setIsEditGoalOpen(true)}
+          onTriggerGoalCelebration={onTriggerGoalCelebration}
+          marketplaceItems={marketplaceItems}
+          surgeMultiplier={surgeMultiplier}
+          onApplySurgeMultiplier={onApplySurgeMultiplier}
+          onOpenAddModal={() => setIsAddInteractionOpen(true)}
+          onUpdatePrice={onUpdatePrice}
+          onToggleItemEnabled={onToggleItemEnabled}
+          onSetQuantity={onSetQuantity}
+          onSetDuration={onSetDuration}
+          onSetEligibility={onSetEligibility}
+          onDeleteItem={onDeleteItem}
+        />
+      </div>
 
+      {/* ------------------------------------------------------------- */}
+      {/* 2. MOBILE / TABLET VERTICAL STACKED CANVAS (< lg)             */}
+      {/* ------------------------------------------------------------- */}
+      <div className="flex lg:hidden flex-1 flex-col min-h-0 w-full overflow-y-auto">
         {/* CENTER REGION: Live Preview, Queue, Active Goal, Purchases */}
-        <div className="flex-1 min-w-0 h-full">
+        <div className="flex-1 min-w-0 h-[420px] shrink-0">
           <CenterStudioCanvas
             videoPreviewRef={videoPreviewRef}
             isCameraActive={isCameraActive}
@@ -153,8 +187,25 @@ export default function CreatorStudioPage() {
           />
         </div>
 
-        {/* RIGHT REGION: Interaction Marketplace & Surge Pricing (340px) */}
-        <div className="w-full lg:w-[360px] xl:w-[390px] h-[340px] lg:h-full shrink-0 border-t lg:border-t-0">
+        {/* LEFT REGION: Audience, Chat, Top Supporters, CRM */}
+        <div className="w-full h-[360px] shrink-0 border-t border-zinc-800">
+          <AudienceChatPanel
+            chatMessages={chatMessages}
+            audienceList={audienceList}
+            topSupporters={topSupporters}
+            onSendMessage={onSendChatMessage}
+            onPinMessage={onPinMessage}
+            onDeleteMessage={onDeleteMessage}
+            onMuteUser={onMuteUser}
+            onTimeoutUser={onTimeoutUser}
+            onBanUser={onBanUser}
+            onBroadcastShoutout={onBroadcastShoutout}
+            onSelectAudienceMember={setSelectedAudienceMember}
+          />
+        </div>
+
+        {/* RIGHT REGION: Interaction Marketplace & Surge Pricing */}
+        <div className="w-full h-[360px] shrink-0 border-t border-zinc-800">
           <MarketplaceControlsPanel
             marketplaceItems={marketplaceItems}
             surgeMultiplier={surgeMultiplier}

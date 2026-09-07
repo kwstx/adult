@@ -27,8 +27,7 @@ import { XpFloatingToastContainer } from "@/components/xp/XpFloatingToast";
 import { FanPublicStatus } from "@/types/fan-status";
 import { VirtualRoomStageOverlay } from "@/components/seats/VirtualRoomStageOverlay";
 import { SeatClaimSheet } from "@/components/seats/SeatClaimSheet";
-import { SeatBadge } from "@/components/seats/SeatBadge";
-import { SocialSeatTier, SeatOccupant } from "@/types/seat";
+import { DesktopLiveRoomLayout } from "@/components/live-room/DesktopLiveRoomLayout";
 
 export default function LiveRoomPage() {
   const params = useParams();
@@ -182,189 +181,202 @@ export default function LiveRoomPage() {
   return (
     <main className="relative h-screen w-full overflow-hidden bg-black select-none">
       {/* ------------------------------------------------------------- */}
-      {/* 1. BACKGROUND: CREATOR'S LIVE VIDEO STREAM & AMBIENCE        */}
+      {/* DESKTOP ARCHITECTURE (>= lg): 4-ZONE WORKSTATION LAYOUT      */}
+      {/* Left: Creator/Video | Center: Chat | Right: Marketplace | Bottom: Controls */}
       {/* ------------------------------------------------------------- */}
-      <LiveRoomBackgroundVideo
-        streamUrl={streamUrl}
-        posterUrl={posterUrl}
-        creatorName={roomConfig.displayName}
-        isLive={roomConfig.isLive}
-        isPrivateShow={roomConfig.isPrivateShow && !permissions.isVip}
-        mediaState={mediaState}
-        isMuted={isMuted}
-        onToggleMute={toggleMute}
-        onDoubleTapHeart={() => {}}
-        onUnlockPrivateShow={() => {
-          setMarketplaceTab("vip");
-          setIsMarketplaceOpen(true);
-        }}
-      />
-
-      {/* ------------------------------------------------------------- */}
-      {/* 2. REAL-TIME MULTI-TIER GIFT CELEBRATION CANVAS               */}
-      {/* Handles Sarah (Sender), Creator, and Spectators distinctly    */}
-      {/* ------------------------------------------------------------- */}
-      <GiftCelebrationCanvas
-        giftEvent={activeGiftEvent}
-        currentUserId={currentUser.id}
-        isCreator={isCreator}
-        onAnimationEnd={clearActiveGiftEvent}
-      />
-
-      {/* Real-Time Floating Tip Toasts */}
-      <LiveTipToast alerts={recentTipAlerts} />
-
-      {/* Real-Time New Interaction Available Alert Banner */}
-      <LiveInteractionAlertBanner
-        interaction={newInteractionAlert}
-        onDismiss={clearNewInteractionAlert}
-        onOpenInteraction={(item) => {
-          setMarketplaceTab("interactions");
-          setIsMarketplaceOpen(true);
-        }}
-      />
-
-      {/* Creator Real-Time Live Earnings & Interaction Requests HUD */}
-      {isCreator && (
-        <CreatorLiveEarningsHUD
-          grossTokens={creatorGrossCredits}
-          netUsd={creatorNetUsd}
-          interactionQueue={interactionQueue}
-          onAcceptInteraction={acceptInteraction}
-        />
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* 3. TOP OVERLAY: CREATOR IDENTITY & LIVE STREAM GOAL          */}
-      {/* ------------------------------------------------------------- */}
-      <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none p-3 sm:p-4 space-y-2">
-        <CreatorIdentityOverlay
+      <div className="hidden lg:block h-full w-full">
+        <DesktopLiveRoomLayout
+          mediaState={mediaState}
+          streamUrl={streamUrl}
+          posterUrl={posterUrl}
+          isMuted={isMuted}
+          toggleMute={toggleMute}
+          activeGiftEvent={activeGiftEvent}
+          clearActiveGiftEvent={clearActiveGiftEvent}
+          recentTipAlerts={recentTipAlerts}
+          newInteractionAlert={newInteractionAlert}
+          clearNewInteractionAlert={clearNewInteractionAlert}
           roomConfig={roomConfig}
-          relationship={relationship}
-          goal={goal}
           viewerCount={viewerCount}
-          onToggleFollow={toggleFollow}
-          onOpenGoalDrawer={() => {
-            setMarketplaceTab("goal");
+          permissions={permissions}
+          currentUserId={currentUser.id}
+          isCreator={isCreator}
+          chatMessages={chatMessages}
+          isChatSending={isChatSending}
+          sendChatMessage={sendChatMessage}
+          interactions={interactions}
+          interactionQueue={interactionQueue}
+          isTriggeringInteraction={isTriggeringInteraction}
+          triggerInteraction={triggerInteraction}
+          acceptInteraction={acceptInteraction}
+          sendGift={sendGift}
+          chipInGoal={chipInGoal}
+          unlockPPV={unlockPPV}
+          goal={goal}
+          relationship={relationship}
+          toggleFollow={toggleFollow}
+          walletBalance={walletBalance}
+          leaderboard={leaderboard}
+          roomLayout={roomLayout}
+          creatorGrossCredits={creatorGrossCredits}
+          creatorNetUsd={creatorNetUsd}
+          onOpenWalletModal={() => setIsWalletModalOpen(true)}
+          onOpenReportModal={() => setIsReportModalOpen(true)}
+          onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
+          onOpenVirtualRoom={() => setIsVirtualRoomOpen(true)}
+          onInspectFan={(fanId) => setInspectedFanId(fanId)}
+        />
+      </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MOBILE ARCHITECTURE (< lg): IMMERSIVE PORTRAIT OVERLAYS       */}
+      {/* Full-screen video + translucent floating chat + slide drawers  */}
+      {/* ------------------------------------------------------------- */}
+      <div className="block lg:hidden h-full w-full relative">
+        {/* 1. BACKGROUND: CREATOR'S LIVE VIDEO STREAM & AMBIENCE */}
+        <LiveRoomBackgroundVideo
+          streamUrl={streamUrl}
+          posterUrl={posterUrl}
+          creatorName={roomConfig.displayName}
+          isLive={roomConfig.isLive}
+          isPrivateShow={roomConfig.isPrivateShow && !permissions.isVip}
+          mediaState={mediaState}
+          isMuted={isMuted}
+          onToggleMute={toggleMute}
+          onDoubleTapHeart={() => {}}
+          onUnlockPrivateShow={() => {
+            setMarketplaceTab("vip");
             setIsMarketplaceOpen(true);
           }}
         />
 
-        {/* High-Value Relationship Presence HUD & Virtual Room Seats */}
-        <div className="pointer-events-auto flex items-center justify-between gap-2 overflow-x-auto scrollbar-none">
-          <LiveRoomFanStatusHUD
-            creatorId={roomConfig.creatorId}
-            isCreator={isCreator}
-            onSelectFan={(fan: FanPublicStatus) => setInspectedFanId(fan.userId)}
+        {/* 2. REAL-TIME MULTI-TIER GIFT CELEBRATION CANVAS */}
+        <GiftCelebrationCanvas
+          giftEvent={activeGiftEvent}
+          currentUserId={currentUser.id}
+          isCreator={isCreator}
+          onAnimationEnd={clearActiveGiftEvent}
+        />
+
+        {/* Real-Time Floating Tip Toasts */}
+        <LiveTipToast alerts={recentTipAlerts} />
+
+        {/* Real-Time New Interaction Available Alert Banner */}
+        <LiveInteractionAlertBanner
+          interaction={newInteractionAlert}
+          onDismiss={clearNewInteractionAlert}
+          onOpenInteraction={() => {
+            setMarketplaceTab("interactions");
+            setIsMarketplaceOpen(true);
+          }}
+        />
+
+        {/* Creator Real-Time Live Earnings & Interaction Requests HUD */}
+        {isCreator && (
+          <CreatorLiveEarningsHUD
+            grossTokens={creatorGrossCredits}
+            netUsd={creatorNetUsd}
+            interactionQueue={interactionQueue}
+            onAcceptInteraction={acceptInteraction}
+          />
+        )}
+
+        {/* 3. TOP OVERLAY: CREATOR IDENTITY & LIVE STREAM GOAL */}
+        <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none p-3 sm:p-4 space-y-2">
+          <CreatorIdentityOverlay
+            roomConfig={roomConfig}
+            relationship={relationship}
+            goal={goal}
+            viewerCount={viewerCount}
+            onToggleFollow={toggleFollow}
+            onOpenGoalDrawer={() => {
+              setMarketplaceTab("goal");
+              setIsMarketplaceOpen(true);
+            }}
           />
 
-          {/* Virtual Room Seats Trigger Pill */}
-          <button
-            onClick={() => setIsVirtualRoomOpen(true)}
-            className="flex items-center gap-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white border border-purple-500/30 shadow-lg hover:border-purple-400/60 transition-all shrink-0"
-          >
-            <span className="flex h-2 w-2 rounded-full bg-purple-400 animate-ping" />
-            <span>Virtual Room</span>
-            {roomLayout && (
-              <span className="rounded-full bg-purple-500/30 px-1.5 py-0.2 text-[10px] text-purple-200 font-extrabold">
-                {roomLayout.totalSeatedCount} seated
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
+          {/* High-Value Relationship Presence HUD & Virtual Room Seats */}
+          <div className="pointer-events-auto flex items-center justify-between gap-2 overflow-x-auto scrollbar-none">
+            <LiveRoomFanStatusHUD
+              creatorId={roomConfig.creatorId}
+              isCreator={isCreator}
+              onSelectFan={(fan: FanPublicStatus) => setInspectedFanId(fan.userId)}
+            />
 
-      {/* ------------------------------------------------------------- */}
-      {/* 3.5. TOP SUPPORTERS SIDE WIDGET (DOCKABLE LEFT OVERLAY)       */}
-      {/* ------------------------------------------------------------- */}
-      <div className="hidden lg:block absolute top-32 left-4 z-30 pointer-events-auto">
-        <TopSupportersSideWidget
-          leaderboard={leaderboard}
-          currentUserId={currentUser.id}
-          creatorName={roomConfig.displayName}
-          onOpenFullLeaderboard={() => setIsLeaderboardOpen(true)}
-          onSendGift={(amount) => {
+            {/* Virtual Room Seats Trigger Pill */}
+            <button
+              onClick={() => setIsVirtualRoomOpen(true)}
+              className="flex items-center gap-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white border border-purple-500/30 shadow-lg hover:border-purple-400/60 transition-all shrink-0"
+            >
+              <span className="flex h-2 w-2 rounded-full bg-purple-400 animate-ping" />
+              <span>Virtual Room</span>
+              {roomLayout && (
+                <span className="rounded-full bg-purple-500/30 px-1.5 py-0.2 text-[10px] text-purple-200 font-extrabold">
+                  {roomLayout.totalSeatedCount} seated
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* 4. BOTTOM OVERLAY: TRANSLUCENT CHAT PANEL */}
+        <TranslucentChatPanel
+          messages={chatMessages}
+          isChatSending={isChatSending}
+          canChat={permissions.canChat}
+          onSendMessage={sendChatMessage}
+          onOpenMarketplace={() => {
             setMarketplaceTab("gifts");
             setIsMarketplaceOpen(true);
           }}
-          onSelectUser={(userId) => setInspectedFanId(userId)}
+          onInspectFan={(fanId) => setInspectedFanId(fanId)}
+        />
+
+        {/* 5. FLOATING INTERACTION CONTROLS (RIGHT-SIDE BUTTONS) */}
+        <FloatingInteractionControls
+          walletBalance={walletBalance}
+          isMuted={isMuted}
+          onToggleMute={toggleMute}
+          onOpenMarketplace={() => {
+            setMarketplaceTab("gifts");
+            setIsMarketplaceOpen(true);
+          }}
+          onOpenGoalTab={() => {
+            setMarketplaceTab("goal");
+            setIsMarketplaceOpen(true);
+          }}
+          onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
+          onOpenWalletModal={() => setIsWalletModalOpen(true)}
+          onOpenReportModal={() => setIsReportModalOpen(true)}
+          onSendHeart={() => {}}
+        />
+
+        {/* 6. INTERACTION & GIFT MARKETPLACE DRAWER */}
+        <InteractionMarketplaceDrawer
+          isOpen={isMarketplaceOpen}
+          onClose={() => setIsMarketplaceOpen(false)}
+          initialTab={marketplaceTab}
+          creatorId={roomConfig.creatorId}
+          creatorName={roomConfig.displayName}
+          walletBalance={walletBalance}
+          interactions={interactions}
+          goal={goal}
+          ppvVault={ppvVault}
+          relationship={relationship}
+          isTriggeringInteraction={isTriggeringInteraction}
+          onSendGift={sendGift}
+          onTriggerInteraction={triggerInteraction}
+          onChipInGoal={chipInGoal}
+          onUnlockPPV={unlockPPV}
+          onOpenWalletModal={() => {
+            setIsMarketplaceOpen(false);
+            setIsWalletModalOpen(true);
+          }}
         />
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* 4. BOTTOM OVERLAY: TRANSLUCENT CHAT PANEL & TOP SUPPORTERS    */}
-      {/* ------------------------------------------------------------- */}
-      <div className="absolute bottom-20 left-4 z-20 pointer-events-auto hidden sm:block lg:hidden">
-        <TopSupportersBottomBanner
-          leaderboard={leaderboard}
-          currentUserId={currentUser.id}
-          onOpenFullLeaderboard={() => setIsLeaderboardOpen(true)}
-        />
-      </div>
-
-      {/* ------------------------------------------------------------- */}
-      {/* 4. BOTTOM OVERLAY: TRANSLUCENT CHAT PANEL                    */}
-      {/* ------------------------------------------------------------- */}
-      <TranslucentChatPanel
-        messages={chatMessages}
-        isChatSending={isChatSending}
-        canChat={permissions.canChat}
-        onSendMessage={sendChatMessage}
-        onOpenMarketplace={() => {
-          setMarketplaceTab("gifts");
-          setIsMarketplaceOpen(true);
-        }}
-        onInspectFan={(fanId, fanName) => setInspectedFanId(fanId)}
-      />
-
-      {/* ------------------------------------------------------------- */}
-      {/* 5. FLOATING INTERACTION CONTROLS (RIGHT-SIDE BUTTONS)         */}
-      {/* ------------------------------------------------------------- */}
-      <FloatingInteractionControls
-        walletBalance={walletBalance}
-        isMuted={isMuted}
-        onToggleMute={toggleMute}
-        onOpenMarketplace={() => {
-          setMarketplaceTab("gifts");
-          setIsMarketplaceOpen(true);
-        }}
-        onOpenGoalTab={() => {
-          setMarketplaceTab("goal");
-          setIsMarketplaceOpen(true);
-        }}
-        onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
-        onOpenWalletModal={() => setIsWalletModalOpen(true)}
-        onOpenReportModal={() => setIsReportModalOpen(true)}
-        onSendHeart={() => {}}
-      />
-
-      {/* ------------------------------------------------------------- */}
-      {/* 6. INTERACTION & GIFT MARKETPLACE DRAWER                     */}
-      {/* ------------------------------------------------------------- */}
-      <InteractionMarketplaceDrawer
-        isOpen={isMarketplaceOpen}
-        onClose={() => setIsMarketplaceOpen(false)}
-        initialTab={marketplaceTab}
-        creatorId={roomConfig.creatorId}
-        creatorName={roomConfig.displayName}
-        walletBalance={walletBalance}
-        interactions={interactions}
-        goal={goal}
-        ppvVault={ppvVault}
-        relationship={relationship}
-        isTriggeringInteraction={isTriggeringInteraction}
-        onSendGift={sendGift}
-        onTriggerInteraction={triggerInteraction}
-        onChipInGoal={chipInGoal}
-        onUnlockPPV={unlockPPV}
-        onOpenWalletModal={() => {
-          setIsMarketplaceOpen(false);
-          setIsWalletModalOpen(true);
-        }}
-      />
-
-      {/* ------------------------------------------------------------- */}
-      {/* 7. LIVE ROOM LEADERBOARD MODAL                                */}
+      {/* SHARED MODALS (LEADERBOARD, FAN PROFILE, WALLET, REPORT, XP)  */}
       {/* ------------------------------------------------------------- */}
       <LiveRoomLeaderboard
         isOpen={isLeaderboardOpen}
@@ -374,9 +386,6 @@ export default function LiveRoomPage() {
         creatorName={roomConfig.displayName}
       />
 
-      {/* ------------------------------------------------------------- */}
-      {/* 8. FAN STATUS PROFILE MODAL (Role-Aware Inspection)           */}
-      {/* ------------------------------------------------------------- */}
       <FanStatusProfileModal
         isOpen={Boolean(inspectedFanId)}
         onClose={() => setInspectedFanId(null)}
@@ -392,7 +401,6 @@ export default function LiveRoomPage() {
         }}
       />
 
-      {/* Modals */}
       <WalletModal
         isOpen={isWalletModalOpen}
         onClose={() => setIsWalletModalOpen(false)}
@@ -405,9 +413,7 @@ export default function LiveRoomPage() {
         creatorName={roomConfig.displayName}
       />
 
-      {/* ------------------------------------------------------------- */}
-      {/* 9. AUTHORITATIVE XP LEVEL-UP CELEBRATION MODAL & TOASTS       */}
-      {/* ------------------------------------------------------------- */}
+      {/* Authoritative XP Level-Up Celebration Modal & Floating Toasts */}
       <LevelUpCelebrationModal
         payload={activeLevelUp}
         onClose={dismissLevelUp}
@@ -417,9 +423,7 @@ export default function LiveRoomPage() {
         onDismiss={dismissToast}
       />
 
-      {/* ------------------------------------------------------------- */}
-      {/* 10. VIRTUAL ROOM AUDIENCE STAGE & SOCIAL SEATING MODAL        */}
-      {/* ------------------------------------------------------------- */}
+      {/* Virtual Room Audience Stage & Social Seating Modal */}
       <VirtualRoomStageOverlay
         isOpen={isVirtualRoomOpen}
         onClose={() => setIsVirtualRoomOpen(false)}
@@ -438,9 +442,7 @@ export default function LiveRoomPage() {
         }}
       />
 
-      {/* ------------------------------------------------------------- */}
-      {/* 11. SOCIAL SEAT CLAIM & UPGRADE ACTION SHEET                  */}
-      {/* ------------------------------------------------------------- */}
+      {/* Social Seat Claim & Upgrade Action Sheet */}
       <SeatClaimSheet
         isOpen={isClaimSheetOpen}
         onClose={() => setIsClaimSheetOpen(false)}
