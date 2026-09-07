@@ -516,7 +516,7 @@ export class CollectiveGoalService {
       progress: newCredits,
       percentage,
       remaining,
-      isCompleted: isCompletedNow,
+      isCompleted: Boolean(isCompletedNow),
       contributorCount: goal.contributorCount,
       recentContribution: {
         fanId: isAnonymous ? "anon" : fan.id,
@@ -548,7 +548,7 @@ export class CollectiveGoalService {
       newProgress: newCredits,
       target: targetCredits,
       percentage,
-      isCompleted: isCompletedNow,
+      isCompleted: Boolean(isCompletedNow),
       timestamp: new Date().toISOString(),
     };
 
@@ -559,7 +559,7 @@ export class CollectiveGoalService {
 
     // C. IF THRESHOLD CROSSED: BROADCAST THE ICONIC "GOAL_COMPLETED" EVENT
     if (isThresholdCrossedThisTransaction) {
-      const goalCompletedPayload: GoalCompletedPayload = {
+      const completedPayload: GoalCompletedPayload = {
         goalId: goal.id,
         creatorId: creatorProfile.id,
         title: goal.title,
@@ -568,13 +568,13 @@ export class CollectiveGoalService {
         contributorCount: goal.contributorCount,
         completedAt: new Date().toISOString(),
         unlock: predeterminedUnlock,
-        topContributors,
+        topContributors: topContributors.slice(0, 3),
         celebrationTheme: "MIDNIGHT_NEON",
       };
 
       eventBus.publish(roomChannel, {
         type: "GOAL_COMPLETED",
-        payload: goalCompletedPayload,
+        payload: completedPayload,
       });
 
       // Dispatch asynchronous celebration notification to all contributors & room
@@ -642,8 +642,8 @@ export class CollectiveGoalService {
         isAnonymous: contribution.isAnonymous,
         createdAt: contribution.createdAt.toISOString(),
       },
-      isCompleted: isCompletedNow,
-      isThresholdCrossedThisTransaction,
+      isCompleted: Boolean(isCompletedNow),
+      isThresholdCrossedThisTransaction: Boolean(isThresholdCrossedThisTransaction),
       unlockCreated: isThresholdCrossedThisTransaction ? predeterminedUnlock : null,
       fanRemainingBalance: fanBalance,
       ledgerTransactionId: ledgerTx.id,

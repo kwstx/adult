@@ -121,6 +121,20 @@ export class PaymentAdapter {
   }
 
   /**
+   * Alias for createInternalPurchaseRecord to create checkout sessions.
+   */
+  static async createCheckoutSession(params: {
+    userId: string;
+    packageId: string;
+    gateway?: string;
+    returnUrl?: string;
+    ipAddress?: string;
+    countryCode?: string;
+  }): Promise<PaymentGatewaySession> {
+    return this.createInternalPurchaseRecord(params);
+  }
+
+  /**
    * STEP 4 & 5: Creates an internal purchase record in the database.
    * Status is initialized to INITIALIZED (never granted until webhook confirmation).
    */

@@ -322,7 +322,7 @@ export default function AdminDashboardPage() {
   // --------------------------------------------------------------------------
 
   const handleReviewVerification = async (verificationId: string, decision: "APPROVED" | "REJECTED") => {
-    let rejectionReason;
+    let rejectionReason: string | null = null;
     if (decision === "REJECTED") {
       rejectionReason = prompt("Enter specific reason for rejecting 2257 verification:", "Identity documents unreadable or expired.");
       if (!rejectionReason) return;
@@ -447,7 +447,7 @@ export default function AdminDashboardPage() {
   // --------------------------------------------------------------------------
 
   const handleReviewPayout = async (payoutId: string, decision: "APPROVE" | "REJECT") => {
-    let rejectionReason;
+    let rejectionReason: string | null = null;
     if (decision === "REJECT") {
       rejectionReason = prompt("Enter reason for rejecting creator payout:", "Compliance review hold / suspicious volume");
       if (!rejectionReason) return;

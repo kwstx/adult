@@ -178,13 +178,13 @@ export class InteractionPurchaseService {
 
         if (existingTx) {
           const queueItem = InteractionQueueService.getCreatorQueue(creatorId).find(
-            (q) => q.senderId === fanUserId && q.menuItemId === interactionId
+            (q) => q.fan.id === fanUserId && q.interaction.id === interactionId
           );
           return {
             success: true,
             purchaseId: existingTx.id,
             queueId: queueItem?.id || `iq_${existingTx.id}`,
-            queuePosition: queueItem?.queuePosition || 1,
+            queuePosition: queueItem?.position || 1,
             interactionId,
             title: "Interaction",
             actionType: "QUESTION",

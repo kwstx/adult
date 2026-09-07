@@ -838,8 +838,9 @@ export class AdminService {
     const result = await WalletLedgerService.processRefund({
       originalTransactionId: transactionId,
       reason: input.reason,
+      requestedByUserId: adminContext.adminId,
+      adminUserId: adminContext.adminId,
       idempotencyKey: input.idempotencyKey,
-      customCreditsToRefund: input.customCreditsToRefund,
     });
 
     await AuditService.logEvent(
@@ -879,16 +880,18 @@ export class AdminService {
         result = await WalletLedgerService.grantPromotionalCredits({
           userId: input.userId,
           amountCredits: input.amountCredits,
-          grantReason: input.reason,
+          reason: input.reason,
           idempotencyKey: input.idempotencyKey,
-          expiresInDays: 30,
+          durationDays: 30,
+          adminUserId: adminContext.adminId,
         });
       } else {
         result = await WalletLedgerService.grantBonusCredits({
           userId: input.userId,
           amountCredits: input.amountCredits,
-          grantReason: input.reason,
+          reason: input.reason,
           idempotencyKey: input.idempotencyKey,
+          adminUserId: adminContext.adminId,
         });
       }
     } else {
@@ -995,10 +998,9 @@ export class AdminService {
   ) {
     const result = await WalletLedgerService.processChargebackDispute({
       paymentTransactionId: input.paymentTransactionId,
-      gatewayChargebackId: input.chargebackId || `cb_${Date.now()}`,
-      gatewayFeeCents: input.gatewayFeeCents || 1500,
+      disputeReferenceId: input.chargebackId || `cb_${Date.now()}`,
+      disputeFeeCents: input.gatewayFeeCents || 1500,
       reason: input.reason,
-      freezeAccountOnChargeback: input.freezeWallet !== false,
       idempotencyKey: `cb_handle_${input.paymentTransactionId}_${Date.now()}`,
     });
 
@@ -1089,7 +1091,7 @@ export class AdminService {
           reviewedAt: new Date(),
           completedAt: isApprove ? new Date() : null,
           failureReason: isApprove ? null : input.rejectionReason || "Payout rejected by administrator.",
-          gatewayReferenceId: input.gatewayReferenceId || p.gatewayReferenceId,
+          gatewayReferenceId: input.gatewayReferenceId || payout.gatewayReferenceId,
         },
       });
 
@@ -1237,9 +1239,11 @@ export class AdminService {
     // Realtime broadcast room emergency shutdown
     try {
       eventBus.publish(`stream:${input.livestreamId}`, {
-        type: "LIVE_TERMINATED_SAFETY",
-        reason: input.reason,
-        terminatedAt: new Date().toISOString(),
+        type: "STREAM_TERMINATED_SAFETY" as any,
+        payload: {
+          reason: input.reason,
+          terminatedAt: new Date().toISOString(),
+        },
       });
     } catch {
       // Best-effort realtime publish

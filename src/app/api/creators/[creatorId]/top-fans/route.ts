@@ -1,28 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
-import { RelationshipService } from "@/modules/relationship/relationship.service";
+import { apiHandler, successResponse } from "@/lib/api-handler";
+import { Validator, vNumber } from "@/lib/validator";
+import { CreatorService } from "@/modules/creator/creator.service";
 
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ creatorId: string }> }
-) {
-  try {
-    const { creatorId } = await context.params;
-    const url = new URL(req.url);
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+/**
+ * GET /api/creators/[creatorId]/top-fans?limit=20
+ * Thin endpoint: retrieves creator top fans leaderboard.
+ */
+export const GET = apiHandler<{ creatorId: string }>(async (req, ctx) => {
+  const query = Validator.validateQuery(req, {
+    limit: vNumber({ integer: true, min: 1, max: 50, defaultValue: 20 }),
+  });
 
-    const topFans = await RelationshipService.getCreatorTopFans(creatorId, limit);
-    return NextResponse.json({
-      success: true,
-      data: topFans,
-    });
-  } catch (error: any) {
-    console.error("Failed to fetch top fans:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Failed to fetch top fans",
-      },
-      { status: 500 }
-    );
-  }
-}
+  const fans = await CreatorService.getTopFans(ctx.params.creatorId, query.limit);
+  return successResponse(fans);
+});

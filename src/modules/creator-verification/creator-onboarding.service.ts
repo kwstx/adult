@@ -750,11 +750,11 @@ export class CreatorOnboardingService {
     });
 
     // Broadcast real-time event for UI and telemetry
-    eventBus.publish({
+    eventBus.publish(`creator:${creatorProfileId}`, {
       type: "CREATOR_MONETIZATION_ACTIVATED" as any,
-      creatorId: creatorProfileId,
-      userId: creator.userId,
       payload: {
+        creatorId: creatorProfileId,
+        userId: creator.userId,
         stageName: creator.stageName,
         activatedAt: new Date().toISOString(),
       },

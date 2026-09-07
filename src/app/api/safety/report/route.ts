@@ -44,11 +44,10 @@ export async function POST(req: NextRequest) {
  * Retrieve moderation queue
  */
 export async function GET() {
-  const reports = await prisma.moderationReport.findMany({
+  const reports = await prisma.report.findMany({
     orderBy: { createdAt: "desc" },
     include: {
       reporter: { select: { username: true, displayName: true } },
-      targetUser: { select: { username: true, displayName: true } },
     },
     take: 50,
   });

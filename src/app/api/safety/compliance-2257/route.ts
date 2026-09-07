@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "creatorId is required." }, { status: 400 });
   }
 
-  const record = await prisma.compliance2257Record.findUnique({
-    where: { creatorId },
+  const record = await prisma.creatorVerification.findFirst({
+    where: { OR: [{ creatorProfileId: creatorId }, { userId: creatorId }] },
   });
 
   return NextResponse.json({ record });

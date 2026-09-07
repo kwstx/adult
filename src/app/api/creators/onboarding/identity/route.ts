@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ipAddress = req.headers.get("x-forwarded-for") || req.ip || undefined;
+    const ipAddress = req.headers.get("x-forwarded-for") || undefined;
     const userAgent = req.headers.get("user-agent") || undefined;
 
     const result = await CreatorOnboardingService.submitIdentityVerification(

@@ -442,7 +442,11 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
             );
             // If current fan was refunded, refresh balance
             if (refunded.senderId === currentUser.id) {
-              updateBalance();
+              if (typeof refunded.fanRemainingBalance === "number") {
+                updateBalance(refunded.fanRemainingBalance);
+              } else if (typeof refunded.remainingBalance === "number") {
+                updateBalance(refunded.remainingBalance);
+              }
             }
             break;
           }
@@ -450,10 +454,11 @@ export function useLiveRoomSession(creatorIdOrUsername: string) {
           case "QUEUE_STATE_CHANGED": {
             const qState = event.payload as any;
             if (qState.item) {
+              const targetId = qState.item.queueId || qState.item.id;
               setInteractionQueue((prev) => {
-                const exists = prev.some((i) => (i.queueId || i.id) === qState.item.id);
+                const exists = prev.some((i) => (i.queueId || (i as any).id) === targetId);
                 if (exists) {
-                  return prev.map((i) => ((i.queueId || i.id) === qState.item.id ? qState.item : i));
+                  return prev.map((i) => (((i.queueId || (i as any).id) === targetId) ? qState.item : i));
                 }
                 return [...prev, qState.item];
               });

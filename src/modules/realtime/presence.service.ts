@@ -107,10 +107,10 @@ class PresenceService {
       });
 
       // Update DB asynchronously without blocking realtime loop
-      prisma.creatorProfile
-        .update({
-          where: { id: creatorId },
-          data: { viewerCount: currentCount },
+      prisma.livestream
+        .updateMany({
+          where: { creatorProfileId: creatorId, status: "LIVE" },
+          data: { currentViewerCount: currentCount },
         })
         .catch(() => {});
     }, 1000); // Debounce interval: 1s

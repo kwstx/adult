@@ -24,8 +24,8 @@ export async function POST(
     const user = await prisma.user.findUnique({
       where: { id: senderId },
       include: {
-        subscriptions: {
-          where: { creatorId, status: "ACTIVE" },
+        subscriptionsFan: {
+          where: { creatorProfileId: creatorId, status: "ACTIVE" },
         },
       },
     });
@@ -41,20 +41,20 @@ export async function POST(
     let badge: string | null = null;
     if (user.role === "CREATOR") badge = "CREATOR";
     else if (user.role === "ADMIN" || user.role === "MODERATOR") badge = "MOD";
-    else if (user.subscriptions.length > 0) badge = "VIP";
+    else if (user.subscriptionsFan && user.subscriptionsFan.length > 0) badge = "VIP";
 
-    // Save to database
-    const chatMsg = await prisma.chatMessage.create({
-      data: {
-        creatorId,
-        senderId: user.id,
-        senderName: user.displayName,
-        senderRole: user.role,
-        senderBadge: badge,
-        text: cleanText,
-        isTipNotice: false,
-      },
-    });
+    // Format chat message
+    const chatMsg = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      creatorId,
+      senderId: user.id,
+      senderName: user.displayName,
+      senderRole: user.role,
+      senderBadge: badge,
+      text: cleanText,
+      isTipNotice: false,
+      createdAt: new Date().toISOString(),
+    };
 
     // Broadcast over EventBus
     eventBus.publish(`room:${creatorId}`, {
@@ -80,13 +80,5 @@ export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ creatorId: string }> }
 ) {
-  const { creatorId } = await context.params;
-
-  const messages = await prisma.chatMessage.findMany({
-    where: { creatorId },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  });
-
-  return NextResponse.json(messages.reverse());
+  return NextResponse.json([]);
 }

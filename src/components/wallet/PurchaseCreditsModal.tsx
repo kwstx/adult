@@ -341,12 +341,12 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
                   className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${
                     flowStep === "PROVIDER_PROCESSING"
                       ? "bg-pink-500/20 text-pink-400 border border-pink-500 animate-pulse"
-                      : flowStep === "AWAITING_WEBHOOK" || flowStep === "SUCCESS"
+                      : flowStep === "AWAITING_WEBHOOK"
                       ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                       : "bg-zinc-800 text-zinc-500"
                   }`}
                 >
-                  {flowStep === "AWAITING_WEBHOOK" || flowStep === "SUCCESS" ? (
+                  {flowStep === "AWAITING_WEBHOOK" ? (
                     <Check className="h-3.5 w-3.5" />
                   ) : (
                     "2"
@@ -364,12 +364,10 @@ export function PurchaseCreditsModal({ isOpen, onClose, onSuccess }: PurchaseCre
                   className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${
                     flowStep === "AWAITING_WEBHOOK"
                       ? "bg-pink-500/20 text-pink-400 border border-pink-500 animate-pulse"
-                      : flowStep === "SUCCESS"
-                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                       : "bg-zinc-800 text-zinc-500"
                   }`}
                 >
-                  {flowStep === "SUCCESS" ? <Check className="h-3.5 w-3.5" /> : "3"}
+                  3
                 </div>
                 <div className="flex-1">
                   <div className="font-semibold text-zinc-200">3. HMAC Webhook & Ledger Credit</div>

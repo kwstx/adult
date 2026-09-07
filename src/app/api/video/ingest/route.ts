@@ -42,12 +42,15 @@ export async function POST(req: NextRequest) {
         success: true,
         isLive: true,
         streamId: broadcast.livestream.id,
-        mediaRoomId: broadcast.mediaRoom.id,
+        mediaRoomId: broadcast.livestream.mediaRoomId,
         credentials: broadcast.credentials,
-        audienceRules: broadcast.audienceRule,
+        ticketPriceCredits: broadcast.livestream.ticketPriceCredits,
       });
     } else if (action === "STOP") {
-      const result = await VideoRoomService.endBroadcast(creatorUserId);
+      const result = await VideoRoomService.endBroadcast(
+        creatorUserId,
+        body.livestreamId || "default_stream"
+      );
       return NextResponse.json({
         success: true,
         isLive: false,

@@ -27,7 +27,8 @@ export type LedgerTransactionType =
   | "ADMIN_ADJUSTMENT"
   | "PROMOTIONAL_GRANT"
   | "BONUS_GRANT"
-  | "CREDIT_EXPIRATION";
+  | "CREDIT_EXPIRATION"
+  | "PAID_MESSAGE";
 
 export type LedgerTransactionDirection = "DEBIT" | "CREDIT" | "TRANSFER";
 
@@ -412,7 +413,7 @@ export interface WalletStatementItem {
   counterparty: {
     id: string | null;
     name: string | null;
-    role: "FAN" | "CREATOR" | "PLATFORM";
+    role: "FAN" | "CREATOR" | "PLATFORM" | "ADMIN" | "MODERATOR" | string;
   };
   description: string;
   referenceType: string | null;

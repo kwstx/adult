@@ -292,7 +292,7 @@ export class SubscriptionService {
     const attempts = subscription.failedPaymentAttempts + 1;
     const now = new Date();
 
-    let newStatus = SubscriptionStatus.PAST_DUE;
+    let newStatus: SubscriptionStatus = SubscriptionStatus.PAST_DUE;
     let gracePeriodEndsAt = subscription.gracePeriodEndsAt;
 
     if (!gracePeriodEndsAt) {

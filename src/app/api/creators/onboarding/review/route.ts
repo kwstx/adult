@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     const reviewerId = review.reviewerId || req.headers.get("x-reviewer-id") || "compliance_admin";
     const reviewerRole = (req.headers.get("x-reviewer-role") as any) || "ADMIN";
-    const ipAddress = req.headers.get("x-forwarded-for") || req.ip || undefined;
+    const ipAddress = req.headers.get("x-forwarded-for") || undefined;
     const userAgent = req.headers.get("user-agent") || undefined;
 
     const result = await CreatorOnboardingService.reviewCreatorApplication(

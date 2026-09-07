@@ -220,7 +220,7 @@ export interface InteractionPurchasedPayload {
     actionType: string; // DANCE, WHEEL_SPIN, ALERT_SOUND, CHAT_HIGHLIGHT, CUSTOM
   };
   customMessage?: string;
-  status: "QUEUED" | "ACCEPTED" | "COMPLETED" | "REJECTED";
+  status: "QUEUED" | "ACCEPTED" | "IN_PROGRESS" | "COMPLETED" | "REJECTED";
   purchasedAt: string;
 }
 

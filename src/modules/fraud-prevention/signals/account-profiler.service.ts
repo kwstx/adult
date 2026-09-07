@@ -93,10 +93,10 @@ export class AccountProfilerService {
       );
 
       const successfulPayments = user.paymentTransactions.filter(
-        (pt) => pt.status === "SUCCESS"
+        (pt) => pt.status === "SUCCEEDED"
       );
       const disputePayments = user.paymentTransactions.filter(
-        (pt) => pt.status === "FAILED" || (pt as any).status === "REFUNDED"
+        (pt) => pt.status === "FAILED" || pt.status === "REFUNDED" || pt.status === "DISPUTED_CHARGEBACK"
       );
 
       const totalDepositsFiatCents = successfulPayments.reduce(

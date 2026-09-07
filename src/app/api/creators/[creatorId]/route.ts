@@ -1,54 +1,41 @@
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/db";
+import { apiHandler, successResponse } from "@/lib/api-handler";
+import { Validator, vString, vNumber, vBoolean } from "@/lib/validator";
+import { CreatorService } from "@/modules/creator/creator.service";
 
-export async function GET(
-  _req: NextRequest,
-  context: { params: Promise<{ creatorId: string }> }
-) {
-  try {
-    const { creatorId } = await context.params;
+/**
+ * GET /api/creators/[creatorId]
+ * Thin endpoint: retrieves creator profile and interactive menu.
+ */
+export const GET = apiHandler<{ creatorId: string }>(async (req, ctx) => {
+  const creator = await CreatorService.getCreator(ctx.params.creatorId, ctx.user?.id);
+  return successResponse(creator);
+});
 
-    // Search by creatorProfile id OR username
-    const creator = await prisma.creatorProfile.findFirst({
-      where: {
-        OR: [{ id: creatorId }, { user: { username: creatorId } }],
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            avatarUrl: true,
-            kycStatus: true,
-          },
-        },
-        interactionDefinitions: {
-          where: { isActive: true },
-          orderBy: { sortOrder: "asc" },
-        },
-        contents: {
-          orderBy: { createdAt: "desc" },
-        },
-        verifications: {
-          select: {
-            verificationStatus: true,
-            verifiedAt: true,
-          },
-        },
-      },
+/**
+ * PATCH /api/creators/[creatorId]
+ * Thin endpoint: validates settings -> updates creator configurations.
+ */
+export const PATCH = apiHandler<{ creatorId: string }>(
+  async (req, ctx) => {
+    const body = await Validator.validateBody(req, {
+      stageName: vString({ min: 2, max: 50 }),
+      bio: vString({ max: 500 }),
+      category: vString(),
+      tags: vString(),
+      defaultMinTip: vNumber({ integer: true, min: 0 }),
+      paidMessagesEnabled: vBoolean(),
+      messagePriceCredits: vNumber({ integer: true, min: 0 }),
+      subscriptionTier1Price: vNumber({ integer: true, min: 0 }),
+      subscriptionTier2Price: vNumber({ integer: true, min: 0 }),
+      subscriptionTier3Price: vNumber({ integer: true, min: 0 }),
+      customRules: vString({ max: 2000 }),
+      allowFreeSubscribers: vBoolean(),
+      allowFreeVip: vBoolean(),
+      customWelcomeMessage: vString({ max: 500 }),
     });
 
-    if (!creator) {
-      return NextResponse.json({ error: "Creator not found." }, { status: 404 });
-    }
-
-    return NextResponse.json({ creator });
-  } catch (error: any) {
-    console.error("Creator fetch error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch creator." },
-      { status: 500 }
-    );
-  }
-}
+    const updated = await CreatorService.updateSettings(ctx.params.creatorId, body);
+    return successResponse(updated);
+  },
+  { requireAuth: true }
+);

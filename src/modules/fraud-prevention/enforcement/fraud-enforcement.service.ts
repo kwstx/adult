@@ -105,7 +105,7 @@ export class FraudEnforcementService {
               reporterType: "SYSTEM",
               reasonCategory: "OTHER",
               reason: `Automated Fraud Alert: Risk Score ${assessment.riskScore}/100 [${assessment.actionType}]`,
-              priority: assessment.riskScore >= 85 ? "URGENT" : "HIGH",
+              priority: assessment.riskScore >= 85 ? "CRITICAL_URGENT_UNDERAGE" : "HIGH",
               status: "OPEN",
               evidence: JSON.stringify({
                 assessmentId: assessment.assessmentId,
@@ -159,7 +159,7 @@ export class FraudEnforcementService {
           await prisma.$transaction([
             prisma.wallet.updateMany({
               where: { userId },
-              data: { status: "LOCKED" },
+              data: { status: "FROZEN_SECURITY" },
             }),
             prisma.user.update({
               where: { id: userId },

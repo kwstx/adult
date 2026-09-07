@@ -188,7 +188,7 @@ export class InteractionService {
 
     // 6. Validate Quantity
     let quantity: number | null = null;
-    if (input.quantity !== undefined && input.quantity !== null && input.quantity !== "") {
+    if (input.quantity !== undefined && input.quantity !== null) {
       const qNum = Number(input.quantity);
       if (isNaN(qNum) || qNum < 1) {
         errors.quantity = "Quantity must be at least 1, or left unlimited.";

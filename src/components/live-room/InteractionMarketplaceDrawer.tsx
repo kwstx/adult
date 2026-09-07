@@ -503,7 +503,7 @@ export function InteractionMarketplaceDrawer({
                   >
                     <div className="relative h-28 sm:h-20 w-full sm:w-28 shrink-0 rounded-xl overflow-hidden bg-zinc-950">
                       <img
-                        src={item.previewUrl}
+                        src={item.previewUrl || undefined}
                         alt={item.title}
                         className={`h-full w-full object-cover ${
                           !item.isUnlocked ? "filter blur-sm scale-110" : ""

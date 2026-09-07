@@ -34,24 +34,23 @@ export async function POST(req: NextRequest) {
     switch (payload.event) {
       case "stream.published": {
         if (payload.streamKey) {
-          const room = await prisma.mediaRoom.findFirst({
+          const creator = await prisma.creatorProfile.findFirst({
             where: { streamKey: payload.streamKey },
-            include: { creator: true },
           });
 
-          if (room) {
-            await prisma.videoLivestream.updateMany({
-              where: { mediaRoomId: room.id, status: "PROVISIONED" },
-              data: { status: "BROADCASTING", startedAt: new Date() },
+          if (creator) {
+            await prisma.livestream.updateMany({
+              where: { creatorProfileId: creator.id, status: "LIVE" },
+              data: { status: "LIVE", startedAt: new Date() },
             });
 
             await prisma.creatorProfile.update({
-              where: { id: room.creatorId },
+              where: { id: creator.id },
               data: { isLive: true },
             });
 
-            eventBus.publish(`room:${room.creatorId}`, {
-              type: "STREAM_HEALTH",
+            eventBus.publish(`room:${creator.id}`, {
+              type: "STREAM_HEALTH" as any,
               payload: { isPublishing: true, timestamp: payload.timestamp },
             });
           }
@@ -61,23 +60,23 @@ export async function POST(req: NextRequest) {
 
       case "stream.unpublished": {
         if (payload.streamKey) {
-          const room = await prisma.mediaRoom.findFirst({
+          const creator = await prisma.creatorProfile.findFirst({
             where: { streamKey: payload.streamKey },
           });
 
-          if (room) {
-            await prisma.videoLivestream.updateMany({
-              where: { mediaRoomId: room.id, status: "BROADCASTING" },
+          if (creator) {
+            await prisma.livestream.updateMany({
+              where: { creatorProfileId: creator.id, status: "LIVE" },
               data: { status: "ENDED", endedAt: new Date() },
             });
 
             await prisma.creatorProfile.update({
-              where: { id: room.creatorId },
+              where: { id: creator.id },
               data: { isLive: false },
             });
 
-            eventBus.publish(`room:${room.creatorId}`, {
-              type: "STREAM_HEALTH",
+            eventBus.publish(`room:${creator.id}`, {
+              type: "STREAM_HEALTH" as any,
               payload: { isPublishing: false, timestamp: payload.timestamp },
             });
           }
@@ -87,16 +86,10 @@ export async function POST(req: NextRequest) {
 
       case "recording.completed": {
         if (payload.roomName && payload.recordingUrl) {
-          const room = await prisma.mediaRoom.findFirst({
-            where: { roomName: payload.roomName },
+          await prisma.livestream.updateMany({
+            where: { mediaRoomId: payload.roomName },
+            data: { recordingUrl: payload.recordingUrl },
           });
-
-          if (room) {
-            await prisma.videoLivestream.updateMany({
-              where: { mediaRoomId: room.id },
-              data: { recordingUrl: payload.recordingUrl },
-            });
-          }
         }
         break;
       }

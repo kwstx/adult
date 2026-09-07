@@ -369,7 +369,7 @@ export class LeaderboardService {
       if (!creator?.user?.wallet) return [];
 
       // Query aggregated sums per source wallet from the immutable ledger
-      const aggregatedTips = await prisma.ledgerEntry.groupBy({
+      const aggregatedTips = await prisma.walletTransaction.groupBy({
         by: ["sourceWalletId"],
         where: {
           destinationWalletId: creator.user.wallet.id,
@@ -377,11 +377,11 @@ export class LeaderboardService {
           status: "COMPLETED",
         },
         _sum: {
-          amount: true,
+          amountCredits: true,
         },
         orderBy: {
           _sum: {
-            amount: "desc",
+            amountCredits: "desc",
           },
         },
         take: 50,
@@ -390,7 +390,7 @@ export class LeaderboardService {
       if (aggregatedTips.length === 0) return [];
 
       // Fetch the corresponding user IDs
-      const walletIds = aggregatedTips.map((t) => t.sourceWalletId);
+      const walletIds = aggregatedTips.map((t: any) => t.sourceWalletId).filter(Boolean) as string[];
       const wallets = await prisma.wallet.findMany({
         where: { id: { in: walletIds } },
         include: { user: true },
@@ -403,11 +403,11 @@ export class LeaderboardService {
 
       const entriesToReturn: LeaderboardEntry[] = [];
 
-      aggregatedTips.forEach((item, index) => {
+      aggregatedTips.forEach((item: any, index: number) => {
         const user = walletUserMap.get(item.sourceWalletId);
         if (!user) return;
 
-        const totalCredits = item._sum.amount || 0;
+        const totalCredits = item._sum.amountCredits || 0;
         const rank = index + 1;
 
         // Populate Redis Sorted Set
@@ -483,7 +483,7 @@ export class LeaderboardService {
               timeframe: timeframe === "stream" ? "STREAM_SESSION" : "ALL_TIME",
               periodKey: livestreamId || dateKey,
               creatorProfileId: creatorId,
-              livestreamId: livestreamId || null,
+              livestreamId: livestreamId || "",
               userId,
             },
           },
@@ -497,7 +497,7 @@ export class LeaderboardService {
             timeframe: timeframe === "stream" ? "STREAM_SESSION" : "ALL_TIME",
             periodKey: livestreamId || dateKey,
             creatorProfileId: creatorId,
-            livestreamId: livestreamId || null,
+            livestreamId: livestreamId || "",
             userId,
             rank,
             totalCreditsContributed: BigInt(credits),

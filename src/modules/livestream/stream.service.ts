@@ -46,12 +46,45 @@ export class StreamService {
   }
 
   /**
+   * Get active live streams for discovery feed.
+   */
+  static async getActiveStreams(params: { category?: string; limit?: number }) {
+    const { category, limit = 20 } = params;
+    return prisma.livestream.findMany({
+      where: {
+        status: "LIVE",
+      },
+      take: limit,
+      orderBy: { startedAt: "desc" },
+      include: {
+        creatorProfile: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * Creator Operating System: Creator goes live.
    * 1. Records Live state in DB.
    * 2. Returns StreamCredentials to creator immediately (< 10ms).
    * 3. Dispatches asynchronous background fan-out notifications to 10,000+ followers.
    */
-  static async startBroadcast(creatorUserId: string, title?: string): Promise<StreamCredentials> {
+  static async startBroadcast(
+    creatorUserId: string,
+    title?: string,
+    category?: string,
+    streamMode?: string
+  ): Promise<StreamCredentials> {
     const profile = await prisma.creatorProfile.findUnique({
       where: { userId: creatorUserId },
       include: { user: { select: { displayName: true, avatarUrl: true } } },

@@ -1,51 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/db";
+import { apiHandler, successResponse } from "@/lib/api-handler";
+import { Validator, vString, vBoolean, vNumber } from "@/lib/validator";
+import { CreatorService } from "@/modules/creator/creator.service";
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const tag = searchParams.get("tag");
-    const query = searchParams.get("q");
+/**
+ * GET /api/creators?category=<cat>&tags=<tags>&isLive=true&page=1&limit=20
+ * Thin endpoint: validates filters -> calls CreatorService.listCreators.
+ */
+export const GET = apiHandler(async (req) => {
+  const query = Validator.validateQuery(req, {
+    category: vString(),
+    tags: vString(),
+    isLive: vBoolean(),
+    page: vNumber({ integer: true, min: 1, defaultValue: 1 }),
+    limit: vNumber({ integer: true, min: 1, max: 50, defaultValue: 20 }),
+  });
 
-    const where: any = {};
-    if (tag) {
-      where.tags = { contains: tag };
-    }
-    if (query) {
-      where.OR = [
-        { user: { displayName: { contains: query } } },
-        { user: { username: { contains: query } } },
-        { streamTitle: { contains: query } },
-        { tags: { contains: query } },
-      ];
-    }
+  const results = await CreatorService.listCreators({
+    category: query.category,
+    tags: query.tags,
+    isLive: query.isLive,
+    page: query.page,
+    limit: query.limit,
+  });
 
-    const creators = await prisma.creatorProfile.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            avatarUrl: true,
-            kycStatus: true,
-          },
-        },
-        interactionItems: {
-          where: { isEnabled: true },
-          orderBy: { sortOrder: "asc" },
-        },
-      },
-      orderBy: [{ isLive: "desc" }, { viewerCount: "desc" }],
-    });
-
-    return NextResponse.json({ creators });
-  } catch (error: any) {
-    console.error("Creators fetch error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch creators." },
-      { status: 500 }
-    );
-  }
-}
+  return successResponse(results);
+});

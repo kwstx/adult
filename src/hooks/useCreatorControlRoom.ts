@@ -837,7 +837,9 @@ export function useCreatorControlRoom() {
                 customMessage: payload.customMessage || payload.gift?.customMessage,
                 durationSeconds: 15,
                 timeRemainingSeconds: 15,
+                position: prev.length + 1,
                 status: "QUEUED",
+                purchaseTime: new Date().toISOString(),
                 timestamp: "Just now",
               },
             ]);
@@ -1342,7 +1344,9 @@ export function useCreatorControlRoom() {
         customMessage: `Test interaction trigger (${tokens} tokens)!`,
         durationSeconds: 20,
         timeRemainingSeconds: 20,
+        position: prev.length + 1,
         status: "QUEUED",
+        purchaseTime: new Date().toISOString(),
         timestamp: "Just now",
       },
     ]);

@@ -31,15 +31,18 @@ export async function POST(
     }
 
     if (action === "TOGGLE_FOLLOW") {
-      // Record discovery follow event
-      await prisma.discoveryEvent.create({
-        data: {
-          sessionId: `sess_${userId}_${Date.now()}`,
-          userId,
-          creatorId: creator.id,
-          eventType: "FOLLOW",
-          category: creator.tags?.split(",")[0] || "general",
+      await prisma.follow.upsert({
+        where: {
+          followerId_creatorProfileId: {
+            followerId: userId,
+            creatorProfileId: creator.id,
+          },
         },
+        create: {
+          followerId: userId,
+          creatorProfileId: creator.id,
+        },
+        update: {},
       });
 
       return NextResponse.json({

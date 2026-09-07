@@ -24,7 +24,7 @@ export interface ViewerRelationship {
   fanLevel: number;
   fanTitle: string;
   fanBadge: string | null;
-  topContributorRank: number | null; // 1 = #1 Top Tipper, etc.
+  topContributorRank: number | null;
 }
 
 export interface RoomConfig {
@@ -70,7 +70,7 @@ export interface PPVVaultItem {
   id: string;
   title: string;
   description: string | null;
-  previewUrl: string;
+  previewUrl: string | null;
   creditPrice: number;
   mediaType: string;
   isUnlocked: boolean;
@@ -103,38 +103,39 @@ export class RoomSessionService {
       where: {
         OR: [
           { id: creatorIdOrUsername },
+          { userId: creatorIdOrUsername },
           { user: { username: creatorIdOrUsername } },
         ],
       },
       include: {
         user: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            avatarUrl: true,
-            kycStatus: true,
-            role: true,
+          include: {
             wallet: true,
           },
         },
-        interactionItems: {
+        interactionDefinitions: {
           where: { isEnabled: true },
           orderBy: { sortOrder: "asc" },
         },
-        ppvContents: {
+        contents: {
+          where: { isPublished: true },
           orderBy: { createdAt: "desc" },
         },
-        compliance2257: {
+        verifications: {
           select: {
             verificationStatus: true,
-            approvedAt: true,
+            verifiedAt: true,
           },
         },
-        liveSessions: {
-          where: { status: "ACTIVE" },
+        livestreams: {
+          where: { status: "LIVE" },
           take: 1,
           orderBy: { startedAt: "desc" },
+        },
+        collectiveGoals: {
+          where: { status: "ACTIVE" },
+          take: 1,
+          orderBy: { createdAt: "desc" },
         },
       },
     });
@@ -147,13 +148,13 @@ export class RoomSessionService {
           where: { id: viewerUserId },
           include: {
             wallet: true,
-            subscriptions: {
-              where: { creatorId: creator.id },
+            subscriptionsFan: {
+              where: { creatorProfileId: creator.id },
             },
-            ppvPurchases: {
-              where: { ppvContent: { creatorId: creator.id } },
+            contentPurchases: {
+              where: { content: { creatorProfileId: creator.id } },
             },
-            ageRecords: {
+            ageAssuranceRecords: {
               where: { status: "APPROVED" },
               take: 1,
             },
@@ -168,9 +169,9 @@ export class RoomSessionService {
     const isAgeVerified =
       viewer?.kycStatus === "AGE_VERIFIED" ||
       viewer?.kycStatus === "COMPLIANCE_2257_APPROVED" ||
-      (viewer?.ageRecords?.length ?? 0) > 0;
+      (viewer?.ageAssuranceRecords?.length ?? 0) > 0;
 
-    const activeSubscription = viewer?.subscriptions?.find(
+    const activeSubscription = viewer?.subscriptionsFan?.find(
       (s) => s.status === "ACTIVE" && new Date(s.currentPeriodEnd) >= new Date()
     );
     const isVip = Boolean(activeSubscription) || isCreator || isAdmin;
@@ -178,7 +179,8 @@ export class RoomSessionService {
     let canView = true;
     let restrictionReason: string | undefined;
 
-    if (creator.isPrivateShow && !isVip) {
+    const activeLive = creator.livestreams[0];
+    if (activeLive?.streamMode === "PRIVATE_1ON1" && !isCreator && !isAdmin) {
       canView = false;
       restrictionReason = "This room is in Private Show mode. VIP membership is required to view.";
     }
@@ -201,39 +203,40 @@ export class RoomSessionService {
     let topRank: number | null = null;
 
     if (viewer) {
-      // Aggregate historical tips from ledger
-      const fanTips = await prisma.ledgerEntry.findMany({
-        where: {
-          sourceWalletId: viewer.wallet?.id,
-          destinationWalletId: creator.user.wallet?.id,
-          status: "COMPLETED",
-          transactionType: { in: ["LIVE_TIP", "PPV_UNLOCK", "SUBSCRIPTION"] },
-        },
-        select: { amount: true },
-      });
-      totalContributed = fanTips.reduce((sum, item) => sum + item.amount, 0);
-
-      // Calculate Top Tipper Leaderboard rank
-      const allTippers = await prisma.ledgerEntry.groupBy({
-        by: ["sourceWalletId"],
-        where: {
-          destinationWalletId: creator.user.wallet?.id,
-          status: "COMPLETED",
-          transactionType: "LIVE_TIP",
-          sourceWalletId: { not: null },
-        },
-        _sum: { amount: true },
-        orderBy: { _sum: { amount: "desc" } },
-      });
-
       const viewerWalletId = viewer.wallet?.id;
-      const rankIndex = allTippers.findIndex((t) => t.sourceWalletId === viewerWalletId);
-      if (rankIndex >= 0) {
-        topRank = rankIndex + 1;
+      const creatorWalletId = creator.user.wallet?.id;
+
+      if (viewerWalletId && creatorWalletId) {
+        const fanTips = await prisma.walletTransaction.findMany({
+          where: {
+            sourceWalletId: viewerWalletId,
+            destinationWalletId: creatorWalletId,
+            status: "COMPLETED",
+            transactionType: { in: ["LIVE_TIP", "PPV_PURCHASE", "SUBSCRIPTION_PAYMENT", "INTERACTION_FEE"] },
+          },
+          select: { amountCredits: true },
+        });
+        totalContributed = fanTips.reduce((sum, item) => sum + item.amountCredits, 0);
+
+        const allTippers = await prisma.walletTransaction.groupBy({
+          by: ["sourceWalletId"],
+          where: {
+            destinationWalletId: creatorWalletId,
+            status: "COMPLETED",
+            transactionType: "LIVE_TIP",
+            sourceWalletId: { not: null },
+          },
+          _sum: { amountCredits: true },
+          orderBy: { _sum: { amountCredits: "desc" } },
+        });
+
+        const rankIndex = allTippers.findIndex((t: any) => t.sourceWalletId === viewerWalletId);
+        if (rankIndex >= 0) {
+          topRank = rankIndex + 1;
+        }
       }
     }
 
-    // Fan Level formula: Level = floor(sqrt(tokens / 40)) + 1
     const fanLevel = Math.max(1, Math.floor(Math.sqrt(totalContributed / 40)) + 1);
     let fanTitle = "New Explorer";
     let fanBadge: string | null = null;
@@ -274,13 +277,14 @@ export class RoomSessionService {
     };
 
     // 5. Creator Live Goal
-    const goalTarget = creator.currentGoalTarget || 500;
-    const goalProgress = creator.currentGoalProgress || 0;
+    const activeGoal = creator.collectiveGoals[0];
+    const goalTarget = activeGoal?.targetCredits || 500;
+    const goalProgress = activeGoal?.currentCredits || 0;
     const goalPercent = Math.min(100, Math.round((goalProgress / goalTarget) * 100));
     const goalRemaining = Math.max(0, goalTarget - goalProgress);
 
     const goal: StreamGoalData = {
-      title: creator.currentGoalTitle || "Stream Milestone Goal 🎯",
+      title: activeGoal?.title || "Stream Milestone Goal 🎯",
       target: goalTarget,
       progress: goalProgress,
       percentage: goalPercent,
@@ -289,29 +293,30 @@ export class RoomSessionService {
     };
 
     // 6. Interaction Catalogue
-    const interactions: InteractionCatalogueItem[] = creator.interactionItems.map((item) => ({
+    const interactions: InteractionCatalogueItem[] = creator.interactionDefinitions.map((item) => ({
       id: item.id,
       title: item.title,
       description: item.description,
-      creditCost: item.creditCost,
+      creditCost: item.priceCredits,
       actionType: item.actionType,
       sortOrder: item.sortOrder,
       isEnabled: item.isEnabled,
     }));
 
     // 7. PPV Vault with unlocked status for this viewer
-    const unlockedPpvIds = new Set(viewer?.ppvPurchases.map((p) => p.ppvContentId) || []);
-    const ppvVault: PPVVaultItem[] = creator.ppvContents.map((ppv) => ({
+    const unlockedPpvIds = new Set(viewer?.contentPurchases.map((p) => p.contentId) || []);
+    const ppvVault: PPVVaultItem[] = creator.contents.map((ppv) => ({
       id: ppv.id,
       title: ppv.title,
       description: ppv.description,
       previewUrl: ppv.previewUrl,
-      creditPrice: ppv.creditPrice,
-      mediaType: ppv.mediaType,
+      creditPrice: ppv.priceCredits,
+      mediaType: ppv.contentType,
       isUnlocked: unlockedPpvIds.has(ppv.id) || isCreator,
     }));
 
     // 8. Room Configuration
+    const approvedVerification = creator.verifications.find((v) => v.verificationStatus === "APPROVED");
     const roomConfig: RoomConfig = {
       id: creator.id,
       creatorId: creator.id,
@@ -321,15 +326,15 @@ export class RoomSessionService {
       avatarUrl: creator.user.avatarUrl,
       bannerUrl: creator.bannerUrl,
       bio: creator.bio,
-      streamTitle: creator.streamTitle,
+      streamTitle: activeLive?.title || "Live Stream",
       isLive: creator.isLive,
-      viewerCount: creator.viewerCount,
+      viewerCount: activeLive?.currentViewerCount || 0,
       tags: creator.tags ? creator.tags.split(",").map((t) => t.trim()) : [],
-      isPrivateShow: creator.isPrivateShow,
-      minTipForPrivate: creator.minTipForPrivate,
-      is2257Compliant: creator.compliance2257?.verificationStatus === "APPROVED",
-      complianceApprovedAt: creator.compliance2257?.approvedAt || null,
-      activeSessionId: creator.liveSessions[0]?.id,
+      isPrivateShow: activeLive?.streamMode === "PRIVATE_1ON1",
+      minTipForPrivate: creator.defaultMinTip,
+      is2257Compliant: !!approvedVerification,
+      complianceApprovedAt: approvedVerification?.verifiedAt || null,
+      activeSessionId: activeLive?.id,
     };
 
     // 9. Playback Access Token (if allowed)

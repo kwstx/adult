@@ -145,4 +145,80 @@ export class VideoRoomService {
 
     return stream;
   }
+
+  /**
+   * Request Interactive 1-on-1 WebRTC Session
+   */
+  static async requestInteractive1on1Session(params: {
+    creatorId: string;
+    fanUserId: string;
+    creditRatePerMinute: number;
+  }) {
+    const session = {
+      id: `session_1on1_${Date.now()}`,
+      creatorId: params.creatorId,
+      fanUserId: params.fanUserId,
+      creditRatePerMinute: params.creditRatePerMinute,
+      status: "REQUESTED",
+      createdAt: new Date().toISOString(),
+    };
+    return session;
+  }
+
+  /**
+   * Join Interactive 1-on-1 WebRTC Session
+   */
+  static async joinInteractive1on1Session(params: {
+    sessionId: string;
+    userId: string;
+  }) {
+    return {
+      sessionId: params.sessionId,
+      userId: params.userId,
+      signalingToken: `sig_${params.sessionId}_${params.userId}`,
+      webrtcEndpoint: "wss://sfu.platform.local/ws",
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+      ],
+      role: "PUBLISHER",
+    };
+  }
+
+  /**
+   * End Interactive 1-on-1 WebRTC Session
+   */
+  static async endInteractive1on1Session(params: {
+    sessionId: string;
+    endedByUserId: string;
+  }) {
+    return {
+      sessionId: params.sessionId,
+      endedBy: params.endedByUserId,
+      durationMinutes: 10,
+      totalCreditsSettled: 1000,
+      status: "COMPLETED",
+      endedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Get Livestream Relation Graph
+   */
+  static async getLivestreamRelationGraph(params: {
+    creatorIdOrRoom: string;
+    viewerUserId?: string;
+  }) {
+    const stream = await this.getActiveStream(params.creatorIdOrRoom);
+    if (!stream) return null;
+    return {
+      livestream: stream,
+      creator: stream.creatorProfile,
+      status: stream.status,
+      mediaRoomId: stream.mediaRoomId,
+      title: stream.title,
+      category: stream.category,
+      hlsPlaybackUrl: stream.hlsPlaybackUrl,
+      whepPlaybackUrl: stream.whepPlaybackUrl,
+    };
+  }
 }

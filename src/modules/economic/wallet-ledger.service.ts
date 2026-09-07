@@ -140,7 +140,7 @@ export class WalletLedgerService {
       throw new Error("Total credits to mint must be greater than zero.");
     }
 
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       // 1. Check idempotency on ledger
       const existingTx = await tx.walletTransaction.findUnique({
         where: { idempotencyKey },
@@ -322,7 +322,7 @@ export class WalletLedgerService {
     const expiresAt =
       customExpiresAt || new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
 
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       const existingTx = await tx.walletTransaction.findUnique({
         where: { idempotencyKey },
       });
@@ -435,7 +435,7 @@ export class WalletLedgerService {
       throw new Error("Bonus credits amount must be greater than zero.");
     }
 
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       const existingTx = await tx.walletTransaction.findUnique({ where: { idempotencyKey } });
       if (existingTx) {
         const wallet = await tx.wallet.findUnique({ where: { id: existingTx.destinationWalletId } });
@@ -552,7 +552,7 @@ export class WalletLedgerService {
     // Authoritative Backend Guard: Creator must be monetization-enabled to receive earnings
     await CreatorPermissionsGuard.assertCanReceiveEarnings(creatorProfileId, "LIVE_TIP");
 
-    const result = await prisma.$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       // 1. Check idempotency
       const existingTx = await tx.walletTransaction.findUnique({
         where: { idempotencyKey },
@@ -762,7 +762,7 @@ export class WalletLedgerService {
     // Authoritative Backend Guard: Creator must be monetization-enabled to receive earnings
     await CreatorPermissionsGuard.assertCanReceiveEarnings(creatorProfileId, "PAID_QUESTION");
 
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       // 1. Idempotency
       const existingTx = await tx.walletTransaction.findUnique({ where: { idempotencyKey } });
       if (existingTx) {
@@ -937,7 +937,7 @@ export class WalletLedgerService {
       idempotencyKey = `ppv_${fanUserId}_${contentId}_${Date.now()}`,
     } = input;
 
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       // 1. Check if already purchased
       const existingPurchase = await tx.contentPurchase.findUnique({
         where: {
@@ -1143,7 +1143,7 @@ export class WalletLedgerService {
       throw new Error("Purchase quantity must be at least 1.");
     }
 
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       // 1. Idempotency check
       const existingTx = await tx.walletTransaction.findUnique({ where: { idempotencyKey } });
       if (existingTx) {
@@ -1343,7 +1343,7 @@ export class WalletLedgerService {
       idempotencyKey = `refund_${originalTransactionId}_${Date.now()}`,
     } = input;
 
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       // 1. Fetch Original Transaction
       const originalTx = await tx.walletTransaction.findUnique({
         where: { id: originalTransactionId },
@@ -1395,8 +1395,9 @@ export class WalletLedgerService {
       // 4. Debit Creator Wallet if creator was credited
       let updatedCreatorWallet: any = null;
       if (creatorWallet && creatorNetToDeduct > 0) {
-        creatorBalanceBefore = creatorWallet.balance;
-        creatorBalanceAfter = creatorBalanceBefore - creatorNetToDeduct;
+        const cBal = creatorWallet.balance;
+        creatorBalanceBefore = cBal;
+        creatorBalanceAfter = cBal - creatorNetToDeduct;
 
         updatedCreatorWallet = await tx.wallet.update({
           where: { id: creatorWallet.id },
@@ -1501,7 +1502,7 @@ export class WalletLedgerService {
       idempotencyKey = `cb_${disputeReferenceId}_${Date.now()}`,
     } = input;
 
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx: any): Promise<LedgerOperationResult> => {
       // 1. Locate Payment Transaction
       let paymentTx: any = null;
       if (paymentTransactionId) {

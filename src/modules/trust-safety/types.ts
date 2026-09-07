@@ -198,7 +198,7 @@ export interface AuditLogInput {
   actorId?: string;
   actorType?: ActorType;
   action: string;
-  targetEntityType: "Content" | "User" | "CreatorProfile" | "ModerationCase" | "Report" | "Compliance2257";
+  targetEntityType: "Content" | "User" | "CreatorProfile" | "ModerationCase" | "Report" | "Compliance2257" | "CreatorVerification" | "WalletTransaction" | "PaymentTransaction" | "Payout" | "Livestream" | string;
   targetEntityId: string;
   oldState?: string;
   newState?: string;
