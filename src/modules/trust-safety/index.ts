@@ -15,4 +15,8 @@ export * from "./case.service";
 export * from "./enforcement.service";
 export * from "./guards";
 export * from "./age-verification";
-export * from "@/modules/creator-verification";
+export {
+  CreatorOnboardingStateMachine,
+  CreatorPermissionsGuard,
+  CreatorOnboardingService,
+} from "@/modules/creator-verification";
