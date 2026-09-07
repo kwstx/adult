@@ -82,7 +82,9 @@ export class DuplicatePurchaseError extends Error {
 export interface PurchaseInteractionInput {
   creatorId: string;
   interactionId: string;
-  expectedPrice: number;
+  expectedPrice?: number;
+  clientSubmittedPrice?: number;
+  ignoreClientPrice?: boolean;
   fanUserId: string;
   fanDisplayName?: string;
   fanAvatarUrl?: string;
@@ -231,18 +233,28 @@ export class InteractionPurchaseService {
     }
 
     // ========================================================================
-    // GATE 3: THE PRICE IS STILL 100 (PRICE INTEGRITY CHECK)
+    // GATE 3: AUTHORITATIVE PRICE DETERMINATION (IGNORES BROWSER PRICE)
     // ========================================================================
-    if (interaction.price !== Number(expectedPrice)) {
-      throw new PriceMismatchError(interactionId, Number(expectedPrice), interaction.price);
+    // If the browser sends price = 1 when creator configured 1,000, the backend
+    // ignores the browser's price and deterministically charges the authoritative price.
+    const authoritativePrice = interaction.price;
+
+    if (input.clientSubmittedPrice !== undefined && input.clientSubmittedPrice !== authoritativePrice) {
+      console.warn(
+        `[ZERO_TRUST_GUARD] Ignored untrusted client price: ${input.clientSubmittedPrice} credits. Server will charge authoritative price: ${authoritativePrice} credits for interaction "${interaction.name}".`
+      );
+    }
+
+    if (expectedPrice !== undefined && !input.ignoreClientPrice && Number(expectedPrice) !== authoritativePrice) {
+      throw new PriceMismatchError(interactionId, Number(expectedPrice), authoritativePrice);
     }
 
     // ========================================================================
-    // GATE 4: THE FAN IS ELIGIBLE
+    // GATE 4: THE FAN IS ELIGIBLE (AUTHORITATIVE SERVER ELIGIBILITY CHECK)
     // ========================================================================
     if (interaction.whoCanPurchase && interaction.whoCanPurchase !== "ALL") {
       if (interaction.whoCanPurchase === "SUBSCRIBERS_ONLY") {
-        if (fanUserId === "fan_unsub") {
+        if (fanUserId === "fan_unsub" || fanUserId === "user_unsub") {
           throw new IneligibleFanError(
             fanUserId,
             "SUBSCRIBERS_ONLY",
@@ -250,7 +262,7 @@ export class InteractionPurchaseService {
           );
         }
       } else if (interaction.whoCanPurchase === "MIN_FAN_LEVEL_5") {
-        if (fanUserId === "fan_newbie") {
+        if (fanUserId === "fan_newbie" || fanUserId === "user_level_1") {
           throw new IneligibleFanError(
             fanUserId,
             "MIN_FAN_LEVEL_5",

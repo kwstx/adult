@@ -31,6 +31,69 @@ export class Validator {
   }
 
   /**
+   * ZERO-TRUST VALIDATION: Validates request body while stripping all untrusted client claims
+   * (e.g. price, userId, creatorId, balance, role, isSubscribed, ownsContent, xp, level).
+   */
+  static async validateZeroTrustBody<T extends Record<string, any>>(
+    req: NextRequest,
+    schema: { [K in keyof T]: ValidationRule<T[K]> }
+  ): Promise<T> {
+    let rawBody: any;
+    try {
+      rawBody = await req.json();
+    } catch {
+      throw new ApiError(400, "Invalid JSON payload in request body.", "INVALID_JSON");
+    }
+
+    if (!rawBody || typeof rawBody !== "object" || Array.isArray(rawBody)) {
+      throw new ApiError(400, "Request body must be a JSON object.", "INVALID_BODY");
+    }
+
+    // Proactively warn/strip untrusted client assertions
+    const untrustedFields = [
+      "price",
+      "priceCredits",
+      "expectedPrice",
+      "creditCost",
+      "amountCredits",
+      "userId",
+      "fanUserId",
+      "buyerId",
+      "creatorId",
+      "creatorProfileId",
+      "balance",
+      "role",
+      "isAdmin",
+      "isSubscribed",
+      "ownsContent",
+      "xp",
+      "level",
+      "permissions",
+    ];
+
+    const stripped: string[] = [];
+    for (const field of untrustedFields) {
+      if (field in rawBody && !(field in schema)) {
+        stripped.push(field);
+        delete rawBody[field];
+      }
+    }
+
+    if (stripped.length > 0) {
+      console.warn(
+        `[ZERO_TRUST_VALIDATOR] Ignored untrusted client fields: [${stripped.join(", ")}]. Server is authoritative.`
+      );
+    }
+
+    const validated: Record<string, any> = {};
+    for (const [key, rule] of Object.entries(schema)) {
+      validated[key] = (rule as ValidationRule)(rawBody[key], key);
+    }
+
+    return validated as T;
+  }
+
+  /**
    * Validates query search parameters from request URL against schema rules.
    */
   static validateQuery<T extends Record<string, any>>(

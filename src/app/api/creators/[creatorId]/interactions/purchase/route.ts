@@ -10,6 +10,8 @@ import {
   FanBlockedError,
 } from "@/modules/interaction/interaction-purchase.service";
 import { recordRecommendationEvent } from "@/lib/recommendations/event-collector";
+import { authenticateUser } from "@/lib/api-handler";
+import { Validator, vString } from "@/lib/validator";
 
 export const dynamic = "force-dynamic";
 
@@ -17,17 +19,11 @@ export const dynamic = "force-dynamic";
  * POST /api/creators/[creatorId]/interactions/purchase
  * Authoritative Backend Verification & Interaction Purchasing Endpoint.
  *
- * It verifies:
- * 1. The interaction exists.
- * 2. The interaction is active.
- * 3. The price is still 100 (matches expectedPrice).
- * 4. The fan is eligible.
- * 5. The fan has sufficient balance.
- * 6. The interaction still has capacity.
- * 7. The fan isn't blocked.
- * 8. The transaction has not already happened (idempotency).
- *
- * Then the backend records the purchase, updates the queue, and broadcasts real-time events.
+ * Enforces Zero-Trust Architecture:
+ * 1. User ID -> Derived strictly from authenticated session token.
+ * 2. Price -> Server looks up interaction 123 and determines actual configured price.
+ * 3. Creator ID -> Validated against interaction record.
+ * 4. Balance -> Debited from authoritative wallet ledger.
  */
 export async function POST(
   req: NextRequest,
@@ -35,48 +31,27 @@ export async function POST(
 ) {
   try {
     const { creatorId } = await context.params;
-    const body = await req.json();
 
-    const {
-      interactionId,
-      expectedPrice,
-      fanUserId,
-      fanDisplayName,
-      fanAvatarUrl,
-      customMessage,
-      idempotencyKey,
-    } = body;
+    // 1. Authoritative User Extraction (Auth Token / Session)
+    const authenticatedUser = await authenticateUser(req, { optional: false });
+    const fanUserId = authenticatedUser!.id;
+    const fanDisplayName = authenticatedUser!.displayName || authenticatedUser!.username;
 
-    if (!interactionId) {
-      return NextResponse.json(
-        { error: "Missing required field: interactionId." },
-        { status: 400 }
-      );
-    }
-
-    if (expectedPrice === undefined || expectedPrice === null) {
-      return NextResponse.json(
-        { error: "Missing required field: expectedPrice." },
-        { status: 400 }
-      );
-    }
-
-    if (!fanUserId) {
-      return NextResponse.json(
-        { error: "Missing required field: fanUserId." },
-        { status: 400 }
-      );
-    }
+    // 2. Zero-Trust Body Parsing (Strips client price and client user ID assertions)
+    const body = await Validator.validateZeroTrustBody(req, {
+      interactionId: vString({ required: true }),
+      customMessage: vString({ max: 500 }),
+      idempotencyKey: vString(),
+    });
 
     const receipt = await InteractionPurchaseService.purchaseInteraction({
       creatorId,
-      interactionId,
-      expectedPrice: Number(expectedPrice),
+      interactionId: body.interactionId!,
+      ignoreClientPrice: true, // Ignore client-sent price, use authoritative server price
       fanUserId,
       fanDisplayName,
-      fanAvatarUrl,
-      customMessage,
-      idempotencyKey,
+      customMessage: body.customMessage,
+      idempotencyKey: body.idempotencyKey,
     });
 
     // Record recommendation telemetry event asynchronously
@@ -84,8 +59,8 @@ export async function POST(
       userId: fanUserId,
       creatorProfileId: creatorId,
       eventType: "INTERACTION",
-      amountCredits: Number(expectedPrice),
-      metadata: { interactionId, customMessage },
+      amountCredits: receipt.priceCredits,
+      metadata: { interactionId: body.interactionId, customMessage: body.customMessage },
     }).catch(() => {});
 
     return NextResponse.json(
@@ -137,7 +112,7 @@ export async function POST(
 
     return NextResponse.json(
       { error: error.message || "Failed to process interaction purchase." },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }
