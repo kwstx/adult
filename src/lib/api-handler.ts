@@ -210,6 +210,9 @@ export function apiHandler<TParams = any>(
       if (error instanceof ApiError) {
         return errorResponse(error.message, error.statusCode, error.code, error.details);
       }
+      if (error?.name === "AuthorizationError") {
+        return errorResponse(error.message, error.statusCode || 403, error.errorCode || "FORBIDDEN", error.decision);
+      }
       console.error("[API_ERROR]", error);
       return errorResponse(error.message || "Internal server error occurred.", 500, "INTERNAL_ERROR");
     }

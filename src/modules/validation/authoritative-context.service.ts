@@ -515,7 +515,7 @@ export class AuthoritativeContextService {
               resourceType: "SUBSCRIPTION",
               resourceId: product.id,
               title: product.name,
-              authoritativePriceCredits: product.priceCredits,
+              authoritativePriceCredits: product.creditPriceMonthly ?? 200,
               creatorProfileId: product.creatorProfileId,
               metadata: { tier: product.tier },
             };
@@ -755,7 +755,7 @@ export class AuthoritativeContextService {
     creatorProfileId: string = "creator_maya"
   ): Promise<AuthoritativeProgressionContext> {
     try {
-      const progression = await prisma.fanProgression.findUnique({
+      const progression = await (prisma as any).creatorRelationship?.findUnique({
         where: {
           fanId_creatorProfileId: {
             fanId: fanUserId,
@@ -769,9 +769,9 @@ export class AuthoritativeContextService {
           fanUserId,
           creatorProfileId,
           totalXp: Number(progression.totalXp),
-          fanLevel: progression.level,
+          fanLevel: progression.currentLevel ?? 1,
           relationshipTier: (progression.relationshipTier as any) || "FAN",
-          relationshipLevel: progression.level,
+          relationshipLevel: progression.currentLevel ?? 1,
         };
       }
     } catch {
