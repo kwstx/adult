@@ -126,4 +126,18 @@ export class TrustSafetyGuards {
     }
     return status;
   }
+
+  /**
+   * Authoritative Age Assurance Entitlement Guard:
+   * Ensures user holds valid statutory age assurance for adult platform capabilities.
+   */
+  static async assertAgeEntitlement(
+    userId: string | null | undefined,
+    entitlement: any = "ADULT_MEDIA_PLAYBACK",
+    context?: { jurisdictionCode?: string; clientIp?: string }
+  ) {
+    const { AgeEntitlementGuard } = await import("./age-verification/age-entitlement.guard");
+    return await AgeEntitlementGuard.assertAgeEntitlement(userId, entitlement, context);
+  }
 }
+

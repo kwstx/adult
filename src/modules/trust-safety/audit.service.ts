@@ -10,8 +10,9 @@
  * and security escalations.
  */
 
-import crypto from "crypto";
+import * as crypto from "crypto";
 import prisma from "@/lib/db";
+
 import { AuditLogInput, AuditVerificationResult, SecurityContext } from "./types";
 
 export class AuditService {

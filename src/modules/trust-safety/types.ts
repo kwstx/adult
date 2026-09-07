@@ -38,19 +38,13 @@ export {
 // COMPLIANCE & AGE VERIFICATION TYPES
 // ============================================================================
 
-export type AgeVerificationMethod =
-  | "CREDIT_CARD_ASSURANCE"
-  | "ID_DOCUMENT_KYC"
-  | "FACIAL_AGE_ESTIMATION";
+export type {
+  AgeVerificationMethod,
+  AgeVerificationResult,
+} from "./age-verification/types";
 
 export type KycStatus = "UNVERIFIED" | "PENDING" | "AGE_VERIFIED" | "COMPLIANCE_2257_APPROVED" | "REJECTED" | "SUSPENDED";
 
-export interface AgeVerificationResult {
-  verified: boolean;
-  token: string;
-  expiresAt: Date;
-  method: AgeVerificationMethod;
-}
 
 export interface Compliance2257Payload {
   creatorId: string;

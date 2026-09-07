@@ -14,3 +14,4 @@ export * from "./creator-moderation.service";
 export * from "./case.service";
 export * from "./enforcement.service";
 export * from "./guards";
+export * from "./age-verification";

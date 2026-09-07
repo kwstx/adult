@@ -122,7 +122,29 @@ export class VideoAuthService {
       return { allowed: true, signedToken };
     }
 
-    // 3. Subscribers-Only / VIP Gate Check
+    // 3. Age Assurance Gatekeeper (Entitlement Check)
+    if (rules.requireAgeAssurance) {
+      const { AgeEntitlementService, AgeEntitlement } = await import(
+        "@/modules/trust-safety/age-verification"
+      );
+      const ageEval = await AgeEntitlementService.evaluateEntitlement(
+        userId,
+        AgeEntitlement.ADULT_MEDIA_PLAYBACK,
+        { jurisdictionCode: clientIpCountry }
+      );
+
+      if (!ageEval.hasEntitlement) {
+        return {
+          allowed: false,
+          reason:
+            ageEval.rejectionReason ||
+            "Age verification (18+) is required to view adult live broadcasts in your jurisdiction.",
+          statusCode: 403,
+        };
+      }
+    }
+
+    // 4. Subscribers-Only / VIP Gate Check
     if (rules.isSubscribersOnly && !isVip) {
       const entCheck = await EntitlementService.hasEntitlement({
         fanId: userId,
@@ -138,6 +160,7 @@ export class VideoAuthService {
         };
       }
     }
+
 
     // 4. Generate Authoritative Playback Token
     const signedToken = await mediaInfrastructure.generateViewerPlaybackToken({

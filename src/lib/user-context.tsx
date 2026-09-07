@@ -57,6 +57,23 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser>(PRESET_USERS[0]);
   const [isAgeVerified, setIsAgeVerified] = useState<boolean>(true);
 
+  // Sync age verification status from authoritative backend entitlement
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    fetch(`/api/safety/age-verify/status?userId=${encodeURIComponent(currentUser.id)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.isVerified === "boolean") {
+          setIsAgeVerified(data.isVerified);
+        } else {
+          setIsAgeVerified(currentUser.kycStatus === "AGE_VERIFIED" || currentUser.kycStatus === "COMPLIANCE_2257_APPROVED");
+        }
+      })
+      .catch(() => {
+        setIsAgeVerified(currentUser.kycStatus === "AGE_VERIFIED" || currentUser.kycStatus === "COMPLIANCE_2257_APPROVED");
+      });
+  }, [currentUser?.id, currentUser?.kycStatus]);
+
   // Sync balance from server if user has DB record
   const refreshWallet = async () => {
     try {
@@ -81,6 +98,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       walletBalance: newBalance,
     }));
   };
+
 
   return (
     <UserContext.Provider

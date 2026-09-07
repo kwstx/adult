@@ -19,8 +19,9 @@
  * Everything important gets an audit event.
  */
 
-import crypto from "crypto";
+import * as crypto from "crypto";
 import prisma from "@/lib/db";
+
 import {
   CreateCaseInput,
   RenderDecisionInput,

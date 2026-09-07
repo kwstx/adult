@@ -3,16 +3,16 @@ import { AgeVerificationService } from "@/modules/trust-safety/age-verification"
 
 /**
  * POST /api/safety/age-verify
- * 18+ Age Assurance KYC Verification
+ * Legacy / Direct Age Assurance Verification Endpoint
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { userId, method, dob } = body;
+    const { userId, method = "ID_DOCUMENT_KYC", dob, providerVerificationId, jurisdictionCode } = body;
 
-    if (!userId || !method) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "Missing required fields: userId, method" },
+        { error: "Missing required fields: userId" },
         { status: 400 }
       );
     }
@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
       userId,
       method,
       dob,
+      providerVerificationId,
+      jurisdictionCode: jurisdictionCode || "DEFAULT",
     });
 
     return NextResponse.json({
