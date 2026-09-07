@@ -184,7 +184,7 @@ export class DailyGameService {
 
     // F. Emit authoritative real-time event for UI and stream celebrations
     try {
-      eventBus.publish({
+      eventBus.publish(`user:${userId}`, {
         type: "XP_AWARDED",
         channel: `user:${userId}`,
         timestamp: Date.now(),

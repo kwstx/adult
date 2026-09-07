@@ -106,6 +106,8 @@ export class RewardFulfillmentService {
     const newXp = currentXp + xpAmount;
     this.platformXpStore.set(userId, newXp);
 
+    const calculatedLevel = Math.floor(newXp / 500) + 1;
+
     // Persist in DB if user exists
     try {
       await prisma.platformXPEvent.create({
@@ -113,13 +115,12 @@ export class RewardFulfillmentService {
           userId,
           eventType: "DAILY_LOGIN" as any,
           xpAwarded: xpAmount,
+          userLevelAfter: calculatedLevel,
         },
       }).catch(() => null);
     } catch {
       // Graceful fallback for mock/demo environments
     }
-
-    const calculatedLevel = Math.floor(newXp / 500) + 1;
 
     return {
       isSuccess: true,
@@ -224,7 +225,7 @@ export class RewardFulfillmentService {
   private static async fulfillFrontRowSeatPass(
     userId: string,
     payload: {
-      seatTier: "FRONT_ROW" | "VIP";
+      seatTier: any;
       priorityScore: number;
       durationHours: number;
     }
