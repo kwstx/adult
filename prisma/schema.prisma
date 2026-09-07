@@ -605,6 +605,11 @@ model User {
   notificationsSent     Notification[]         @relation("NotificationSender")
   recommendationEvents  RecommendationEvent[]
 
+  // Fraud & Risk Prevention
+  riskAssessments       RiskAssessmentRecord[]
+  deviceFingerprints    DeviceFingerprintRecord[]
+  walletHolds           WalletHold[]
+
   @@index([role])
   @@index([kycStatus])
   @@index([moderationState])
@@ -1151,6 +1156,7 @@ model Wallet {
   outgoingTransactions     WalletTransaction[]  @relation("SourceWalletTransactions")
   incomingTransactions     WalletTransaction[]  @relation("DestWalletTransactions")
   paymentTransactions      PaymentTransaction[]
+  walletHolds              WalletHold[]
 
   @@index([userId, status])
   @@map("wallets")
@@ -1835,3 +1841,107 @@ model RecommendationEvent {
   @@index([createdAt])
   @@map("recommendation_events")
 }
+
+// ============================================================================
+// 17. FRAUD PREVENTION, RISK SCORING & FINANCIAL INTEGRITY
+// ============================================================================
+
+model RiskAssessmentRecord {
+  id                    String   @id @default(uuid())
+  userId                String?  @map("user_id")
+  user                  User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actionType            String   @map("action_type") // e.g. "CREDIT_PURCHASE", "TIP", "PAYOUT", "LOGIN", "SIGNUP", "REFERRAL_CLAIM", "PPV_UNLOCK"
+  riskScore             Int      @map("risk_score") // 0 - 100
+  riskLevel             String   @map("risk_level") // LOW, MEDIUM, HIGH, CRITICAL
+  recommendedAction     String   @map("recommended_action") // ALLOW, CHALLENGE_2FA, CHALLENGE_KYC, DELAY_FULFILLMENT, REQUIRE_MANUAL_REVIEW, BLOCK_TRANSACTION, FREEZE_ACCOUNT
+  finalAction           String   @map("final_action")
+  ruleTriggersJson      String   @map("rule_triggers_json") // Array of triggers with weights and codes
+  signalsJson           String   @map("signals_json") // Evaluated signals snapshot
+  contextJson           String?  @map("context_json")
+  ipAddress             String?  @map("ip_address")
+  userAgent             String?  @map("user_agent")
+  deviceFingerprintHash String?  @map("device_fingerprint_hash")
+  executionTimeMs       Int      @default(0) @map("execution_time_ms")
+  isOverridden          Boolean  @default(false) @map("is_overridden")
+  overriddenById        String?  @map("overridden_by_id")
+  overrideNotes         String?  @map("override_notes")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([actionType, riskLevel])
+  @@index([riskScore, createdAt])
+  @@index([ipAddress])
+  @@index([deviceFingerprintHash])
+  @@map("risk_assessment_records")
+}
+
+model DeviceFingerprintRecord {
+  id                String   @id @default(uuid())
+  fingerprintHash   String   @unique @map("fingerprint_hash")
+  userId            String?  @map("user_id")
+  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  rawTelemetryJson  String?  @map("raw_telemetry_json")
+  canvasHash        String?  @map("canvas_hash")
+  webglHash         String?  @map("webgl_hash")
+  userAgent         String?  @map("user_agent")
+  language          String?
+  screenResolution  String?  @map("screen_resolution")
+  timezone          String?
+  isBlocked         Boolean  @default(false) @map("is_blocked")
+  blockReason       String?  @map("block_reason")
+  trustScore        Int      @default(100) @map("trust_score")
+  linkedUserIdsJson String   @default("[]") @map("linked_user_ids_json")
+  firstSeenAt       DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt        DateTime @default(now()) @map("last_seen_at")
+
+  @@index([fingerprintHash])
+  @@index([userId])
+  @@index([isBlocked])
+  @@map("device_fingerprint_records")
+}
+
+model PaymentInstrumentFingerprint {
+  id                String   @id @default(uuid())
+  cardHash          String   @unique @map("card_hash") // SHA256 of tokenized card fingerprint
+  binNumber         String?  @map("bin_number")
+  lastFour          String?  @map("last_four")
+  cardBrand         String?  @map("card_brand")
+  cardCountry       String?  @map("card_country")
+  isPrepaid         Boolean  @default(false) @map("is_prepaid")
+  linkedUserIdsJson String   @default("[]") @map("linked_user_ids_json")
+  totalTransactions Int      @default(0) @map("total_transactions")
+  totalDisputes     Int      @default(0) @map("total_disputes")
+  totalChargebacks  Int      @default(0) @map("total_chargebacks")
+  isBlocked         Boolean  @default(false) @map("is_blocked")
+  blockReason       String?  @map("block_reason")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([cardHash])
+  @@index([binNumber])
+  @@index([isBlocked])
+  @@map("payment_instrument_fingerprints")
+}
+
+model WalletHold {
+  id               String    @id @default(uuid())
+  walletId         String    @map("wallet_id")
+  wallet           Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId           String    @map("user_id")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountCredits    Int       @map("amount_credits")
+  reason           String
+  status           String    @default("HELD") @map("status") // HELD, RELEASED, SEIZED_CHARGEBACK, REFUNDED
+  riskAssessmentId String?   @map("risk_assessment_id")
+  releaseAt        DateTime  @map("release_at")
+  releasedAt       DateTime? @map("released_at")
+  releaseNotes     String?   @map("release_notes")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([walletId, status])
+  @@index([userId, status])
+  @@index([releaseAt, status])
+  @@map("wallet_holds")
+}
+
