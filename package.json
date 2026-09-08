@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "lint": "tsx scripts/lint.ts",
+    "typecheck": "tsc --noEmit",
     "seed": "tsx prisma/seed.ts",
     "worker": "tsx src/workers/runner.ts",
     "test": "tsx tests/run-all.ts",
@@ -16,7 +18,11 @@
     "test:financial": "tsx tests/financial/financial-scenarios.test.ts",
     "test:e2e": "tsx tests/e2e/user-journeys.e2e.test.ts",
     "test:load": "tsx tests/load/high-traffic.load.test.ts",
-    "test:all": "tsx tests/run-all.ts"
+    "test:infra": "tsx tests/infra/deployment-pipeline.test.ts",
+    "test:coexistence": "tsx tests/infra/migration-coexistence.test.ts",
+    "test:all": "tsx tests/run-all.ts",
+    "verify:pipeline": "tsx scripts/run-pipeline.ts",
+    "verify:migrations": "tsx scripts/verify-migration-compatibility.ts"
   },
   "dependencies": {
     "@prisma/client": "6.4.1",

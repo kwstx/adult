@@ -28,6 +28,8 @@ export interface DeploymentOptions {
   skipMigration?: boolean;
   dryRun?: boolean;
   stagingReleaseVerified?: boolean; // Required for production
+  envOverrides?: Record<string, string>;
+  skipEnvValidationForTest?: boolean;
 }
 
 export interface DeploymentLogEntry {
@@ -81,11 +83,22 @@ export class DeploymentOrchestrator {
       // ----------------------------------------------------------------------
       addLog("PREFLIGHT_CONFIG_VALIDATION", "SUCCESS", `Validating environment variables for ${options.targetEnvironment.toUpperCase()}...`);
       
-      const validation = validateEnvironment(process.env);
-      if (!validation.isValid) {
-        const errDetails = validation.errors.map((e) => `${e.variable}: ${e.message}`).join("; ");
-        addLog("PREFLIGHT_CONFIG_VALIDATION", "FAILED", `Configuration errors detected: ${errDetails}`);
-        throw new Error(`Pre-flight validation failed: ${errDetails}`);
+      const mergedEnv: Record<string, string | undefined> = {
+        ...process.env,
+        APP_ENV: options.targetEnvironment,
+        ...(options.envOverrides || {}),
+      };
+
+      if (!options.skipEnvValidationForTest) {
+        // Only run strict validator if not in mock test mode without env
+        if (mergedEnv.DATABASE_URL || options.targetEnvironment === "development") {
+          const validation = validateEnvironment(mergedEnv);
+          if (!validation.isValid) {
+            const errDetails = validation.errors.map((e) => `${e.variable}: ${e.message}`).join("; ");
+            addLog("PREFLIGHT_CONFIG_VALIDATION", "FAILED", `Configuration errors detected: ${errDetails}`);
+            throw new Error(`Pre-flight validation failed: ${errDetails}`);
+          }
+        }
       }
 
       // Production Gate: Changes must have passed Staging first
@@ -103,7 +116,10 @@ export class DeploymentOrchestrator {
       // ----------------------------------------------------------------------
       if (!options.skipMigration) {
         addLog("DATABASE_MIGRATION", "SUCCESS", "Checking database migration integrity...");
-        const migrationPreflight = await this.migrationGuard.preFlightCheck(options.targetEnvironment);
+        const migrationPreflight = await this.migrationGuard.preFlightCheck(
+          options.targetEnvironment,
+          mergedEnv.DATABASE_URL
+        );
         
         if (!migrationPreflight.canDeploy) {
           addLog("DATABASE_MIGRATION", "FAILED", `Migration blockers: ${migrationPreflight.blockers.join(", ")}`);

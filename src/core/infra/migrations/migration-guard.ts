@@ -17,6 +17,7 @@ import crypto from "crypto";
 import { AppEnvironment } from "../../config/env-schema";
 import { isProduction, isStaging } from "../../config/environment";
 import { Logger } from "../../../lib/logger";
+import { MigrationCoexistenceGuard } from "./migration-coexistence-guard";
 
 export interface MigrationFileEntry {
   migrationName: string;
@@ -79,7 +80,7 @@ export class MigrationGuard {
   /**
    * Performs rigorous pre-flight checks before migrations can run against the target environment.
    */
-  public async preFlightCheck(targetEnv: AppEnvironment): Promise<MigrationStatusReport> {
+  public async preFlightCheck(targetEnv: AppEnvironment, customDatabaseUrl?: string): Promise<MigrationStatusReport> {
     const migrations = this.scanMigrationFiles();
     const warnings: string[] = [];
     const blockers: string[] = [];
@@ -89,23 +90,32 @@ export class MigrationGuard {
       blockers.push("No version-controlled migrations found in 'prisma/migrations'. Cannot deploy.");
     }
 
-    // Check 2: Inspect SQL files for destructive commands without transaction guards
+    // Check 2: Multi-version coexistence & backward compatibility inspection
+    const coexistenceGuard = new MigrationCoexistenceGuard(this.migrationsDirectory);
     for (const m of migrations) {
-      const content = fs.readFileSync(m.sqlPath, "utf-8").toUpperCase();
-      
-      if (content.includes("DROP TABLE") || content.includes("DROP COLUMN")) {
-        const msg = `Migration '${m.migrationName}' contains destructive DROP statement. Ensure zero data-loss backfill plan exists.`;
-        if (targetEnv === "production") {
-          warnings.push(`[PROD_DESTRUCTIVE_CHECK] ${msg}`);
+      const content = fs.readFileSync(m.sqlPath, "utf-8");
+      const analysis = coexistenceGuard.analyzeSql(m.migrationName, content);
+
+      if (!analysis.isCoexistenceSafe) {
+        const blockerDescriptions = analysis.violations
+          .filter((v) => v.severity === "BLOCKER")
+          .map((v) => `[${m.migrationName}:L${v.lineNumber || "?"}] ${v.type}: ${v.reason}`);
+        
+        if (targetEnv === "production" || targetEnv === "staging") {
+          blockers.push(...blockerDescriptions);
         } else {
-          warnings.push(msg);
+          warnings.push(...blockerDescriptions);
         }
       }
+
+      analysis.violations
+        .filter((v) => v.severity === "WARNING")
+        .forEach((v) => warnings.push(`[${m.migrationName}:L${v.lineNumber || "?"}] ${v.type}: ${v.reason}`));
     }
 
     // Check 3: Production safety locks
     if (targetEnv === "production") {
-      const databaseUrl = process.env.DATABASE_URL || "";
+      const databaseUrl = customDatabaseUrl || process.env.DATABASE_URL || "";
       if (!databaseUrl || databaseUrl.includes("localhost") || databaseUrl.includes("sqlite")) {
         blockers.push("Production migration aborted: DATABASE_URL is invalid or pointing to localhost/sqlite.");
       }

@@ -128,10 +128,10 @@ export class StagingDatabaseSanitizer {
       await this.prisma.wallet.update({
         where: { id: w.id },
         data: {
-          purchasedCredits: 5000,
-          promotionalCredits: 1000,
-          bonusCredits: 500,
-          lifetimeSpent: 0,
+          purchasedBalance: 5000,
+          promotionalBalance: 1000,
+          bonusBalance: 500,
+          balance: 6500,
         },
       });
       walletsSanitized++;
@@ -140,7 +140,7 @@ export class StagingDatabaseSanitizer {
     // 4. Scrub direct private message text
     const messageUpdate = await this.prisma.message.updateMany({
       data: {
-        textContent: "[STAGING_REDACTED_MESSAGE_CONTENT]",
+        body: "[STAGING_REDACTED_MESSAGE_CONTENT]",
         mediaUrl: null,
       },
     });
