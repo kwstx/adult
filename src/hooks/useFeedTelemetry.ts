@@ -6,6 +6,7 @@ export type TelemetryEventType =
   | "IMPRESSION"
   | "WATCH_3S"
   | "WATCH_20S"
+  | "WATCH_30S"
   | "WATCH_90S"
   | "WATCH_DURATION"
   | "IMMEDIATE_BOUNCE"
@@ -56,6 +57,7 @@ export function useFeedTelemetry({
   // Timer references for milestones
   const timer3sRef = useRef<NodeJS.Timeout | null>(null);
   const timer20sRef = useRef<NodeJS.Timeout | null>(null);
+  const timer30sRef = useRef<NodeJS.Timeout | null>(null);
   const timer90sRef = useRef<NodeJS.Timeout | null>(null);
   const flushTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -63,8 +65,37 @@ export function useFeedTelemetry({
   useEffect(() => {
     if (!sessionIdRef.current) {
       sessionIdRef.current = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      // Dispatch FEED_VIEWED to 16-stage funnel
+      fetch("/api/analytics/funnel/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventType: "FEED_VIEWED",
+          userId,
+          sessionId: sessionIdRef.current,
+        }),
+      }).catch(() => {});
     }
-  }, []);
+  }, [userId]);
+
+  // Dispatch to 16-stage backend event funnel
+  const dispatchFunnelEvent = useCallback(
+    (stage: string, creatorId?: string, extra?: Record<string, any>) => {
+      fetch("/api/analytics/funnel/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventType: stage,
+          userId,
+          sessionId: sessionIdRef.current,
+          creatorProfileId: creatorId || currentCreatorId,
+          ...extra,
+        }),
+      }).catch(() => {});
+    },
+    [userId, currentCreatorId]
+  );
 
   // Flush queued events to backend API
   const flushEvents = useCallback(async (isImmediate = false) => {
@@ -93,7 +124,6 @@ export function useFeedTelemetry({
       }
     } catch (err) {
       console.warn("[Telemetry Flush Failed]:", err);
-      // Re-queue events if needed
       eventBufferRef.current = [...eventsToSend, ...eventBufferRef.current];
     }
   }, [userId]);
@@ -151,6 +181,7 @@ export function useFeedTelemetry({
         if (activeCreatorIdRef.current && startTimeRef.current > 0) {
           const dwell = Math.round(performance.now() - startTimeRef.current);
           recordEvent("WATCH_DURATION", activeCreatorIdRef.current, dwell, { reason: "tab_hidden" });
+          dispatchFunnelEvent("LIVE_EXITED", activeCreatorIdRef.current, { durationSeconds: Math.round(dwell / 1000) });
         }
         flushEvents(true);
       }
@@ -163,7 +194,7 @@ export function useFeedTelemetry({
       window.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", () => flushEvents(true));
     };
-  }, [recordEvent, flushEvents]);
+  }, [recordEvent, flushEvents, dispatchFunnelEvent]);
 
   // Active creator transition lifecycle & milestone tracking
   useEffect(() => {
@@ -172,19 +203,18 @@ export function useFeedTelemetry({
       const prevCreatorId = activeCreatorIdRef.current;
       const dwellMs = Math.round(performance.now() - startTimeRef.current);
 
-      // Clear scheduled milestone timers
       if (timer3sRef.current) clearTimeout(timer3sRef.current);
       if (timer20sRef.current) clearTimeout(timer20sRef.current);
+      if (timer30sRef.current) clearTimeout(timer30sRef.current);
       if (timer90sRef.current) clearTimeout(timer90sRef.current);
 
-      // Record bounce if dwell < 3s (Immediate leave)
       if (dwellMs < 3000) {
         recordEvent("IMMEDIATE_BOUNCE", prevCreatorId, dwellMs, { quickExit: true }, true);
       }
 
-      // Record total dwell duration
       recordEvent("WATCH_DURATION", prevCreatorId, dwellMs, undefined, true);
       recordEvent("STREAM_LEAVE", prevCreatorId, dwellMs);
+      dispatchFunnelEvent("LIVE_EXITED", prevCreatorId, { durationSeconds: Math.round(dwellMs / 1000) });
     }
 
     // 2. Start new session for current creator
@@ -194,24 +224,35 @@ export function useFeedTelemetry({
       activeIndexRef.current = currentPositionIndex;
       startTimeRef.current = performance.now();
 
-      // Trigger Impression: "User saw Creator A"
+      // Trigger Impression & Enter in 16-stage funnel
       recordEvent("IMPRESSION", currentCreatorId, 0, undefined, true);
+      dispatchFunnelEvent("LIVE_IMPRESSION", currentCreatorId);
+      dispatchFunnelEvent("LIVE_ENTERED", currentCreatorId);
+      dispatchFunnelEvent("WATCH_STARTED", currentCreatorId);
 
-      // Trigger 3s Milestone: "User watched for 3 seconds"
+      // Trigger 3s Milestone
       timer3sRef.current = setTimeout(() => {
         if (activeCreatorIdRef.current === currentCreatorId) {
           recordEvent("WATCH_3S", currentCreatorId, 3000, { passedBounceTest: true });
         }
       }, 3000);
 
-      // Trigger 20s Milestone: "User watched for 20 seconds"
+      // Trigger 20s Milestone
       timer20sRef.current = setTimeout(() => {
         if (activeCreatorIdRef.current === currentCreatorId) {
           recordEvent("WATCH_20S", currentCreatorId, 20000, { highInterest: true });
         }
       }, 20000);
 
-      // Trigger 90s Milestone: "User watched for 90 seconds"
+      // Trigger 30s Milestone (Stage 7 in 16-stage funnel)
+      timer30sRef.current = setTimeout(() => {
+        if (activeCreatorIdRef.current === currentCreatorId) {
+          recordEvent("WATCH_30S", currentCreatorId, 30000, { milestone30s: true });
+          dispatchFunnelEvent("WATCH_30_SECONDS", currentCreatorId, { durationSeconds: 30 });
+        }
+      }, 30000);
+
+      // Trigger 90s Milestone
       timer90sRef.current = setTimeout(() => {
         if (activeCreatorIdRef.current === currentCreatorId) {
           recordEvent("WATCH_90S", currentCreatorId, 90000, { deepEngagement: true });
@@ -222,9 +263,10 @@ export function useFeedTelemetry({
     return () => {
       if (timer3sRef.current) clearTimeout(timer3sRef.current);
       if (timer20sRef.current) clearTimeout(timer20sRef.current);
+      if (timer30sRef.current) clearTimeout(timer30sRef.current);
       if (timer90sRef.current) clearTimeout(timer90sRef.current);
     };
-  }, [currentCreatorId, currentPositionIndex, category, recordEvent]);
+  }, [currentCreatorId, currentPositionIndex, category, recordEvent, dispatchFunnelEvent]);
 
   // Dedicated action tracking helpers
   const trackFollow = useCallback(
@@ -236,8 +278,11 @@ export function useFeedTelemetry({
         undefined,
         true
       );
+      if (isNowFollowing) {
+        dispatchFunnelEvent("CREATOR_FOLLOWED", creatorId);
+      }
     },
-    [recordEvent]
+    [recordEvent, dispatchFunnelEvent]
   );
 
   const trackInteractionMenuOpen = useCallback(
@@ -249,8 +294,10 @@ export function useFeedTelemetry({
         undefined,
         true
       );
+      dispatchFunnelEvent("INTERACTION_MENU_OPENED", creatorId);
+      dispatchFunnelEvent("INTERACTION_VIEWED", creatorId);
     },
-    [recordEvent]
+    [recordEvent, dispatchFunnelEvent]
   );
 
   const trackStreamEnter = useCallback(
@@ -262,8 +309,9 @@ export function useFeedTelemetry({
         { action: "deep_room_enter" },
         true
       );
+      dispatchFunnelEvent("LIVE_ENTERED", creatorId);
     },
-    [recordEvent]
+    [recordEvent, dispatchFunnelEvent]
   );
 
   const trackLike = useCallback(
@@ -276,8 +324,9 @@ export function useFeedTelemetry({
   const trackTip = useCallback(
     (creatorId: string, amount: number) => {
       recordEvent("TIP", creatorId, 0, { amount }, true);
+      dispatchFunnelEvent("PURCHASE_STARTED", creatorId, { amountCredits: amount });
     },
-    [recordEvent]
+    [recordEvent, dispatchFunnelEvent]
   );
 
   const trackChatOpen = useCallback(
@@ -290,8 +339,9 @@ export function useFeedTelemetry({
   const trackMarketplaceOpen = useCallback(
     (creatorId: string) => {
       recordEvent("PPV_OPEN", creatorId, 0);
+      dispatchFunnelEvent("INTERACTION_VIEWED", creatorId, { viewType: "PPV_VAULT" });
     },
-    [recordEvent]
+    [recordEvent, dispatchFunnelEvent]
   );
 
   return {
@@ -305,5 +355,6 @@ export function useFeedTelemetry({
     trackChatOpen,
     trackMarketplaceOpen,
     flushEvents,
+    dispatchFunnelEvent,
   };
 }

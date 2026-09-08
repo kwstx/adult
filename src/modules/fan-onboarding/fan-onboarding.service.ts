@@ -1,5 +1,6 @@
 import prisma from "@/lib/db";
 import { generateUserToken, ApiError } from "@/lib/api-handler";
+import { EventFunnelPipeline } from "@/modules/analytics/event-funnel/event-funnel-pipeline.service";
 import {
   FanOnboardingInput,
   FanOnboardingResult,
@@ -429,6 +430,18 @@ export class FanOnboardingService {
           role: user.role,
           username: user.username,
         });
+
+        // 7. Track Funnel Events (Stage 1: USER_CREATED, Stage 2: AGE_VERIFIED)
+        EventFunnelPipeline.trackEvent({
+          eventType: "USER_CREATED",
+          userId: user.id,
+        }).catch(() => {});
+
+        EventFunnelPipeline.trackEvent({
+          eventType: "AGE_VERIFIED",
+          userId: user.id,
+          metadata: { method: ageAssuranceMethod },
+        }).catch(() => {});
 
         return {
           user: {
