@@ -28,6 +28,7 @@ import { runApiTests } from "./api/api-endpoints.test";
 import { runSecurityTests } from "./security/authorization-boundaries.security.test";
 import { runFinancialScenarios } from "./financial/financial-scenarios.test";
 import { runE2eTests } from "./e2e/user-journeys.e2e.test";
+import { runCompleteProductLoopTests } from "./e2e/complete-product-loop.scenario.test";
 import { runLoadTests } from "./load/high-traffic.load.test";
 import { runObservabilityTests } from "./unit/observability.unit.test";
 import { runSecurityArchitectureTests } from "./unit/security.unit.test";
@@ -62,7 +63,8 @@ async function runMasterTestSuite() {
     { layer: "Layer 3", name: "API: Route Handlers & Contracts", runner: runApiTests },
     { layer: "Layer 4", name: "Security: Authorization Boundaries", runner: runSecurityTests },
     { layer: "Layer 5", name: "Financial: 10 Critical Scenarios", runner: runFinancialScenarios },
-    { layer: "Layer 6", name: "E2E: Full User Journeys", runner: runE2eTests },
+    { layer: "Layer 6A", name: "E2E: Full User Journeys", runner: runE2eTests },
+    { layer: "Layer 6B", name: "E2E: Complete Product Loop Scenario", runner: runCompleteProductLoopTests },
     { layer: "Layer 7", name: "Load: High-Traffic Concurrency", runner: runLoadTests },
     { layer: "Layer 8", name: "Observability: Metrics & Tracing", runner: runObservabilityTests },
     { layer: "Layer 9", name: "Security: #68 Arch & CSRF/RateLimit", runner: runSecurityArchitectureTests },
