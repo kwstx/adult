@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import type { ModerationRuleConfig } from "@/types/control-room";
 
+import { useUser } from "@/lib/user-context";
+import Link from "next/link";
+
 interface ControlRoomBottomBarProps {
   isLive: boolean;
   isCameraActive: boolean;
@@ -31,6 +34,7 @@ interface ControlRoomBottomBarProps {
   onToggleMic: () => void;
   onOpenModerationModal: () => void;
   onOpenOBSModal: () => void;
+  isApproved?: boolean;
 }
 
 export function ControlRoomBottomBar({
@@ -45,33 +49,48 @@ export function ControlRoomBottomBar({
   onToggleMic,
   onOpenModerationModal,
   onOpenOBSModal,
+  isApproved,
 }: ControlRoomBottomBarProps) {
+  const { currentUser } = useUser();
+  const creatorIsApproved = isApproved ?? (currentUser.role === "CREATOR" || currentUser.role === "ADMIN" || currentUser.kycStatus === "COMPLIANCE_2257_APPROVED");
+
   return (
     <footer className="w-full bg-zinc-950/95 border-t border-zinc-800/80 px-4 py-3 backdrop-blur-xl shrink-0 z-30 select-none">
       <div className="flex flex-wrap items-center justify-between gap-3 max-w-[1920px] mx-auto">
         {/* 1. Left Group: Master Start/Stop Live Broadcast & Panic Shield */}
         <div className="flex items-center gap-3">
-          {/* Master Go Live Toggle */}
-          <button
-            onClick={onToggleBroadcast}
-            className={`flex items-center gap-2 rounded-2xl px-6 py-2.5 text-xs font-black shadow-xl transition-all ${
-              isLive
-                ? "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/30 ring-1 ring-rose-500"
-                : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-1 ring-emerald-500"
-            }`}
-          >
-            {isLive ? (
-              <>
-                <Square className="h-4 w-4" />
-                End Live Stream
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4" />
-                Go Live Now
-              </>
-            )}
-          </button>
+          {/* Master Go Live Toggle - STRICTLY GATED: Only after approval does the creator see Go Live */}
+          {creatorIsApproved ? (
+            <button
+              onClick={onToggleBroadcast}
+              className={`flex items-center gap-2 rounded-2xl px-6 py-2.5 text-xs font-black shadow-xl transition-all ${
+                isLive
+                  ? "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/30 ring-1 ring-rose-500"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-1 ring-emerald-500"
+              }`}
+            >
+              {isLive ? (
+                <>
+                  <Square className="h-4 w-4" />
+                  End Live Stream
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Go Live Now
+                </>
+              )}
+            </button>
+          ) : (
+            <Link
+              href="/creator/onboarding"
+              className="flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs font-black bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white shadow-lg shadow-rose-600/20 ring-1 ring-rose-400/40 transition-all animate-pulse"
+              title="Operational Safety: Creator verification required before broadcasting"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              <span>Complete Onboarding to Go Live</span>
+            </Link>
+          )}
 
           {/* Emergency Panic Shield */}
           <button

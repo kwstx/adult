@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useUser, PRESET_USERS } from "@/lib/user-context";
 import { WalletModal } from "@/components/wallet/WalletModal";
+import { CreatorOnboardingModal } from "@/components/creator-onboarding/CreatorOnboardingModal";
 
 interface NavItem {
   name: string;
@@ -45,6 +46,7 @@ export function DesktopNavRail() {
   const { currentUser, switchUser } = useUser();
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isPersonaOpen, setIsPersonaOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   return (
     <>
@@ -134,20 +136,36 @@ export function DesktopNavRail() {
 
         {/* Bottom Section: Creator Dashboard Switcher & Persona Switcher */}
         <div className="flex flex-col items-center gap-3">
-          {/* Creator Studio Shortcut Pill */}
-          <Link
-            href="/creator/studio"
-            className="group relative flex h-11 w-11 flex-col items-center justify-center rounded-2xl bg-zinc-900/90 text-zinc-400 border border-zinc-800 hover:border-rose-500/40 hover:text-rose-400 hover:bg-rose-500/10 transition-all shadow-md"
-            title="Creator OS & Studio"
-          >
-            <Sliders className="h-4 w-4 transition-transform group-hover:scale-110 text-rose-400" />
-            <span className="mt-0.5 text-[8px] font-bold text-rose-300">Studio</span>
+          {/* Become a Creator CTA for Fans vs Studio for Approved Creators */}
+          {currentUser.role === "FAN" ? (
+            <button
+              onClick={() => setIsOnboardingOpen(true)}
+              className="group relative flex h-11 w-11 flex-col items-center justify-center rounded-2xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 text-white border border-rose-400/40 hover:scale-105 hover:shadow-lg hover:shadow-rose-600/30 transition-all shadow-md"
+              title="Become a Creator (7-Step Verification)"
+            >
+              <Sparkles className="h-4 w-4 text-white animate-spin-slow" />
+              <span className="mt-0.5 text-[7px] font-black uppercase tracking-tighter">Apply</span>
 
-            {/* Hover Tooltip */}
-            <span className="pointer-events-none absolute left-16 z-50 whitespace-nowrap rounded-xl bg-zinc-900/95 px-2.5 py-1 text-xs font-semibold text-rose-300 opacity-0 shadow-xl border border-rose-500/30 transition-opacity group-hover:opacity-100">
-              Creator Operating System
-            </span>
-          </Link>
+              {/* Hover Tooltip */}
+              <span className="pointer-events-none absolute left-16 z-50 whitespace-nowrap rounded-xl bg-zinc-900/95 px-2.5 py-1 text-xs font-bold text-rose-300 opacity-0 shadow-xl border border-rose-500/40 transition-opacity group-hover:opacity-100">
+                ✨ Become a Creator
+              </span>
+            </button>
+          ) : (
+            <Link
+              href="/creator/studio"
+              className="group relative flex h-11 w-11 flex-col items-center justify-center rounded-2xl bg-zinc-900/90 text-zinc-400 border border-zinc-800 hover:border-rose-500/40 hover:text-rose-400 hover:bg-rose-500/10 transition-all shadow-md"
+              title="Creator OS & Studio"
+            >
+              <Sliders className="h-4 w-4 transition-transform group-hover:scale-110 text-rose-400" />
+              <span className="mt-0.5 text-[8px] font-bold text-rose-300">Studio</span>
+
+              {/* Hover Tooltip */}
+              <span className="pointer-events-none absolute left-16 z-50 whitespace-nowrap rounded-xl bg-zinc-900/95 px-2.5 py-1 text-xs font-semibold text-rose-300 opacity-0 shadow-xl border border-rose-500/30 transition-opacity group-hover:opacity-100">
+                Creator Operating System
+              </span>
+            </Link>
+          )}
 
           {/* Active Persona Switcher */}
           <div className="relative">
@@ -206,7 +224,20 @@ export function DesktopNavRail() {
                   ))}
                 </div>
 
-                <div className="mt-2 pt-2 border-t border-zinc-800/80 flex items-center justify-between">
+                <div className="mt-2 pt-2 border-t border-zinc-800/80 space-y-1.5">
+                  {currentUser.role === "FAN" && (
+                    <button
+                      onClick={() => {
+                        setIsPersonaOpen(false);
+                        setIsOnboardingOpen(true);
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 py-1.5 text-xs font-bold text-white hover:from-rose-500 hover:to-pink-500 transition-all shadow-sm"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Become a Creator</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => {
                       setIsPersonaOpen(false);
@@ -225,6 +256,7 @@ export function DesktopNavRail() {
       </aside>
 
       <WalletModal isOpen={isWalletOpen} onClose={() => setIsWalletOpen(false)} />
+      <CreatorOnboardingModal isOpen={isOnboardingOpen} onClose={() => setIsOnboardingOpen(false)} />
     </>
   );
 }

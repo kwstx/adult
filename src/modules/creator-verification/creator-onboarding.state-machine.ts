@@ -35,39 +35,63 @@ export class CreatorStateTransitionError extends Error {
 /**
  * Authoritative State Transition Graph
  */
+/**
+ * Authoritative State Transition Graph
+ * Supports the 7-step creator onboarding pipeline:
+ * 1. DRAFT (Account)
+ * 2. IDENTITY_VERIFIED (Age/Identity Verification)
+ * 3. INFORMATION_COLLECTED (Creator Profile)
+ * 4. PAYOUT_SETUP_COMPLETED (Payout Setup)
+ * 5. CONSENT_PROVENANCE_SATISFIED (Content and Policy Requirements)
+ * 6. PLATFORM_REVIEWED (Review)
+ * 7. MONETIZATION_ENABLED (Approved)
+ */
 export const ALLOWED_STATE_TRANSITIONS: Record<
   CreatorOnboardingState,
   CreatorOnboardingState[]
 > = {
-  // Step 1: Draft
-  DRAFT: ["INFORMATION_COLLECTED", "REJECTED"],
+  // Step 1: Account / Draft
+  DRAFT: ["IDENTITY_VERIFIED", "INFORMATION_COLLECTED", "REJECTED"],
 
-  // Step 2: Information Collected
-  INFORMATION_COLLECTED: ["IDENTITY_VERIFIED", "REVISION_REQUIRED", "REJECTED"],
-
-  // Step 3: Identity Verified
+  // Step 2 / 3: Identity Verified
   IDENTITY_VERIFIED: [
+    "INFORMATION_COLLECTED",
     "CONSENT_PROVENANCE_SATISFIED",
-    "REVISION_REQUIRED",
-    "REJECTED",
-  ],
-
-  // Step 4: Consent & Provenance Satisfied
-  CONSENT_PROVENANCE_SATISFIED: [
-    "PLATFORM_REVIEWED",
-    "REVISION_REQUIRED",
-    "REJECTED",
-  ],
-
-  // Step 5: Platform Reviewed
-  PLATFORM_REVIEWED: [
     "PAYOUT_SETUP_COMPLETED",
     "REVISION_REQUIRED",
     "REJECTED",
   ],
 
-  // Step 6: Payout Setup Completed
+  // Step 2 / 3: Information Collected (Creator Profile)
+  INFORMATION_COLLECTED: [
+    "IDENTITY_VERIFIED",
+    "PAYOUT_SETUP_COMPLETED",
+    "CONSENT_PROVENANCE_SATISFIED",
+    "REVISION_REQUIRED",
+    "REJECTED",
+  ],
+
+  // Step 4: Payout Setup Completed
   PAYOUT_SETUP_COMPLETED: [
+    "CONSENT_PROVENANCE_SATISFIED",
+    "PLATFORM_REVIEWED",
+    "MONETIZATION_ENABLED",
+    "REVISION_REQUIRED",
+    "REJECTED",
+  ],
+
+  // Step 5: Consent & Provenance Satisfied (Policy Requirements)
+  CONSENT_PROVENANCE_SATISFIED: [
+    "PLATFORM_REVIEWED",
+    "PAYOUT_SETUP_COMPLETED",
+    "MONETIZATION_ENABLED",
+    "REVISION_REQUIRED",
+    "REJECTED",
+  ],
+
+  // Step 6: Platform Reviewed
+  PLATFORM_REVIEWED: [
+    "PAYOUT_SETUP_COMPLETED",
     "MONETIZATION_ENABLED",
     "REVISION_REQUIRED",
     "REJECTED",
@@ -78,10 +102,12 @@ export const ALLOWED_STATE_TRANSITIONS: Record<
 
   // Revision Required (Non-linear recovery state)
   REVISION_REQUIRED: [
+    "DRAFT",
     "INFORMATION_COLLECTED",
     "IDENTITY_VERIFIED",
-    "CONSENT_PROVENANCE_SATISFIED",
     "PAYOUT_SETUP_COMPLETED",
+    "CONSENT_PROVENANCE_SATISFIED",
+    "PLATFORM_REVIEWED",
     "REJECTED",
   ],
 
@@ -89,10 +115,10 @@ export const ALLOWED_STATE_TRANSITIONS: Record<
   RESTRICTED: ["MONETIZATION_ENABLED", "SUSPENDED", "REVISION_REQUIRED"],
 
   // Suspended (Safety ban)
-  SUSPENDED: ["RESTRICTED", "MONETIZATION_ENABLED"], // Only elevated admin pardon can un-suspend
+  SUSPENDED: ["RESTRICTED", "MONETIZATION_ENABLED"],
 
   // Rejected (Terminal)
-  REJECTED: ["DRAFT"], // Only admin re-application bypass
+  REJECTED: ["DRAFT"],
 };
 
 export class CreatorOnboardingStateMachine {
@@ -145,8 +171,13 @@ export class CreatorOnboardingStateMachine {
       }
     }
 
-    // Guard: Monetization Enablement requires all prior steps
-    if (toState === "MONETIZATION_ENABLED" && fromState !== "PAYOUT_SETUP_COMPLETED" && fromState !== "RESTRICTED") {
+    // Guard: Monetization Enablement requires completed review / payout
+    if (
+      toState === "MONETIZATION_ENABLED" &&
+      fromState !== "PLATFORM_REVIEWED" &&
+      fromState !== "PAYOUT_SETUP_COMPLETED" &&
+      fromState !== "RESTRICTED"
+    ) {
       throw new CreatorStateTransitionError(
         fromState,
         toState,

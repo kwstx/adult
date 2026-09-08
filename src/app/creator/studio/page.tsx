@@ -16,6 +16,10 @@ import { ModerationCenterModal } from "@/components/creator-control-room/modals/
 import { OBSCredentialsModal } from "@/components/creator-control-room/modals/OBSCredentialsModal";
 import { FanProfileCRMDrawer } from "@/components/creator-control-room/modals/FanProfileCRMDrawer";
 
+import { useUser } from "@/lib/user-context";
+import Link from "next/link";
+import { ShieldAlert, Sparkles, ArrowRight } from "lucide-react";
+
 /**
  * ============================================================================
  * THE CREATOR CONTROL ROOM
@@ -24,6 +28,9 @@ import { FanProfileCRMDrawer } from "@/components/creator-control-room/modals/Fa
  * ============================================================================
  */
 export default function CreatorStudioPage() {
+  const { currentUser } = useUser();
+  const isApprovedCreator = currentUser.role === "CREATOR" || currentUser.role === "ADMIN" || currentUser.kycStatus === "COMPLIANCE_2257_APPROVED";
+
   const {
     // 1. Telemetry
     telemetry,
@@ -96,6 +103,25 @@ export default function CreatorStudioPage() {
 
   return (
     <main className="flex flex-col h-[calc(100vh-3.5rem)] lg:h-screen w-full bg-black text-white overflow-hidden select-none">
+      {/* Operational Safety Alert Banner if Creator is Not Yet Approved */}
+      {!isApprovedCreator && (
+        <div className="w-full bg-gradient-to-r from-amber-600 via-rose-600 to-pink-600 px-4 py-2 flex items-center justify-between text-xs font-black text-white shrink-0 shadow-lg z-50">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4" />
+            <span>
+              OPERATIONAL RISK GUARD: "Go Live" broadcasting is locked until you complete the 7-Step Creator Verification process.
+            </span>
+          </div>
+          <Link
+            href="/creator/onboarding"
+            className="flex items-center gap-1.5 rounded-xl bg-black/40 hover:bg-black/60 px-3 py-1 text-[11px] font-extrabold border border-white/20 transition-all"
+          >
+            <span>Complete Onboarding</span>
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+      )}
+
       {/* ------------------------------------------------------------- */}
       {/* 1. TOP REGION: LIVE TELEMETRY & STATUS HUD                   */}
       {/* ------------------------------------------------------------- */}

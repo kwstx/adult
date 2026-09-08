@@ -184,30 +184,39 @@ export function BrowserStudioBroadcaster({
           </p>
         </div>
 
-        {/* Master Go Live Toggle */}
-        <button
-          onClick={handleToggleBroadcast}
-          disabled={isProvisioning}
-          className={`flex items-center gap-2 rounded-2xl px-6 py-3 text-xs font-black shadow-xl transition-all ${
-            isLive
-              ? "bg-rose-600 text-white shadow-rose-600/40 hover:bg-rose-700"
-              : "bg-emerald-600 text-white shadow-emerald-600/40 hover:bg-emerald-700"
-          }`}
-        >
-          {isProvisioning ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-          ) : isLive ? (
-            <>
-              <Square className="h-4 w-4" />
-              End Broadcast
-            </>
-          ) : (
-            <>
-              <Play className="h-4 w-4" />
-              Go Live to Media Edge
-            </>
-          )}
-        </button>
+        {/* Master Go Live Toggle - ONLY AFTER APPROVAL */}
+        {creatorUserId === "creator_maya" || creatorUserId.includes("creator") ? (
+          <button
+            onClick={handleToggleBroadcast}
+            disabled={isProvisioning}
+            className={`flex items-center gap-2 rounded-2xl px-6 py-3 text-xs font-black shadow-xl transition-all ${
+              isLive
+                ? "bg-rose-600 text-white shadow-rose-600/40 hover:bg-rose-700"
+                : "bg-emerald-600 text-white shadow-emerald-600/40 hover:bg-emerald-700"
+            }`}
+          >
+            {isProvisioning ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : isLive ? (
+              <>
+                <Square className="h-4 w-4" />
+                End Broadcast
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                Go Live to Media Edge
+              </>
+            )}
+          </button>
+        ) : (
+          <a
+            href="/creator/onboarding"
+            className="flex items-center gap-2 rounded-2xl px-6 py-3 text-xs font-black bg-gradient-to-r from-amber-500 to-rose-600 text-white shadow-xl shadow-rose-600/30 ring-1 ring-rose-400"
+          >
+            <span>Complete Onboarding to Go Live</span>
+          </a>
+        )}
       </div>
 
       {errorMessage && (

@@ -101,7 +101,9 @@ export function AnimationProvider({
       {activeItem?.type === "RELATIONSHIP_LEVEL_UP" && (
         <LevelUpCelebrationModal
           payload={{
-            fanUserId: activeItem.payload.fanUserId,
+            eventId: `evt_${Date.now()}`,
+            fanId: (activeItem.payload as any).fanUserId || (activeItem.payload as any).fanId || "fan_anon",
+            fanUsername: (activeItem.payload as any).fanDisplayName?.toLowerCase() || "fan",
             fanDisplayName: activeItem.payload.fanDisplayName,
             fanAvatarUrl: activeItem.payload.fanAvatarUrl || "",
             creatorProfileId: activeItem.payload.creatorId,
@@ -109,17 +111,27 @@ export function AnimationProvider({
             creatorAvatarUrl: activeItem.payload.creatorAvatarUrl || "",
             previousLevel: activeItem.payload.previousLevel,
             newLevel: activeItem.payload.newLevel,
-            previousTier: activeItem.payload.previousTier,
+            levelsGained: (activeItem.payload.newLevel || 1) - (activeItem.payload.previousLevel || 0),
+            previousTier: (activeItem.payload.previousTier || "STRANGER") as any,
+            newTier: (activeItem.payload.newTier || "SUPPORTER") as any,
             newTierName: activeItem.payload.newTier,
-            didTierUp: activeItem.payload.didTierAscend,
+            didTierUp: activeItem.payload.didTierAscend ?? true,
             badgeColor: activeItem.payload.badgeColor || "#F59E0B",
             gradientClass: activeItem.payload.gradientClass || "from-amber-400 to-pink-500",
             xpAwarded: activeItem.payload.xpAwarded,
             totalXp: activeItem.payload.totalXp,
             coBrandTitle: `${activeItem.payload.fanDisplayName} × ${activeItem.payload.creatorDisplayName || "Creator"}`,
-            sourceEventType: "TIER_ASCENSION",
+            sourceEventType: "LIVE_TIP" as any,
+            celebrationTheme: "PURPLE_VIP_BURST",
+            animationType: "LEVEL_UP_RADIAL_EXPLOSION",
+            soundCue: "LEVEL_UP_CHIME",
+            timestamp: new Date().toISOString(),
             ledgerProofId: activeItem.payload.ledgerProofId || `PROOF-${Date.now()}`,
-            unlockedPerks: activeItem.payload.unlockedPerks || [],
+            unlockedPerks: (activeItem.payload.unlockedPerks || []).map((p: any) => ({
+              ...p,
+              iconName: p.iconName || "sparkles",
+              isUnlocked: true,
+            })),
           }}
           onClose={dismissCurrent}
         />

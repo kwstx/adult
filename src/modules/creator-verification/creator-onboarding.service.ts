@@ -707,8 +707,12 @@ export class CreatorOnboardingService {
 
     const currentState = this.deriveCurrentState(creator);
 
-    // Strict invariant check: Must be in PAYOUT_SETUP_COMPLETED or RESTRICTED to activate
-    if (currentState !== "PAYOUT_SETUP_COMPLETED" && currentState !== "RESTRICTED") {
+    // Strict invariant check: Must be in PLATFORM_REVIEWED, PAYOUT_SETUP_COMPLETED or RESTRICTED to activate
+    if (
+      currentState !== "PLATFORM_REVIEWED" &&
+      currentState !== "PAYOUT_SETUP_COMPLETED" &&
+      currentState !== "RESTRICTED"
+    ) {
       throw new CreatorStateTransitionError(
         currentState,
         "MONETIZATION_ENABLED",
@@ -805,79 +809,79 @@ export class CreatorOnboardingService {
 
     const currentState = this.deriveCurrentState(creator);
     const customMeta = creator.customRules ? JSON.parse(creator.customRules || "{}") : {};
-    const approvedVerif = creator.verifications.find((v) => v.verificationStatus === "APPROVED");
+    const approvedVerif = creator.verifications.find((v: any) => v.verificationStatus === "APPROVED");
     const latestVerif = creator.verifications[0];
 
-    const isStep1Done = Boolean(creator.stageName);
-    const isStep2Done = Boolean(customMeta.collectedInfo);
-    const isStep3Done = Boolean(latestVerif || customMeta.identityVerification);
-    const isStep4Done = Boolean(customMeta.consentProvenance);
-    const isStep5Done = Boolean(approvedVerif || customMeta.platformReview?.decision === "APPROVED");
-    const isStep6Done = Boolean(customMeta.payoutSetup);
+    const isStep1Done = Boolean(creator.user?.email || creator.stageName || customMeta.account);
+    const isStep2Done = Boolean(latestVerif || customMeta.identityVerification);
+    const isStep3Done = Boolean(creator.stageName && (creator.category || customMeta.creatorProfile || customMeta.collectedInfo));
+    const isStep4Done = Boolean(customMeta.payoutSetup);
+    const isStep5Done = Boolean(customMeta.consentProvenance || customMeta.policyAccepted);
+    const isStep6Done = Boolean(approvedVerif || customMeta.platformReview?.decision === "APPROVED");
     const isStep7Done = currentState === "MONETIZATION_ENABLED";
 
     const steps = [
       {
         stepIndex: 1,
-        stepKey: "APPLICATION_INITIATION",
-        title: "Creator Application",
-        description: "Submit initial application to join the creator program.",
+        stepKey: "ACCOUNT",
+        title: "Account",
+        description: "Initiate creator application with account credentials and legal contact details.",
         isCompleted: isStep1Done,
         isCurrent: currentState === "DRAFT",
         isBlocked: false,
       },
       {
         stepIndex: 2,
-        stepKey: "INFORMATION_COLLECTION",
-        title: "Required Information",
-        description: "Provide stage name, bio, creator category, and legal contact information.",
+        stepKey: "IDENTITY_VERIFICATION",
+        title: "Age/Identity Verification",
+        description: "Verify age 18+, upload government ID, and complete biometric selfie liveness check.",
         isCompleted: isStep2Done,
-        isCurrent: currentState === "DRAFT" || currentState === "REVISION_REQUIRED",
+        isCurrent: currentState === "DRAFT" || !isStep2Done,
         isBlocked: !isStep1Done,
       },
       {
         stepIndex: 3,
-        stepKey: "IDENTITY_VERIFICATION",
-        title: "Identity & Age Verification",
-        description: "Upload government-issued photo ID and complete biometric selfie liveness check (18+).",
+        stepKey: "CREATOR_PROFILE",
+        title: "Creator Profile",
+        description: "Set up stage name, bio, broadcast categories, tags, and subscription pricing.",
         isCompleted: isStep3Done,
-        isCurrent: currentState === "INFORMATION_COLLECTED",
+        isCurrent: isStep2Done && !isStep3Done,
         isBlocked: !isStep2Done,
       },
       {
         stepIndex: 4,
-        stepKey: "CONSENT_AND_PROVENANCE",
-        title: "Consent & 18 U.S.C. § 2257 Records",
-        description: "Execute statutory 2257 records agreement, performer release, and content provenance declaration.",
+        stepKey: "PAYOUT_SETUP",
+        title: "Payout Setup",
+        description: "Configure payment beneficiary method (Bank/Paxum/USDT) and certified W-9/W-8BEN tax form.",
         isCompleted: isStep4Done,
-        isCurrent: currentState === "IDENTITY_VERIFIED",
+        isCurrent: isStep3Done && !isStep4Done,
         isBlocked: !isStep3Done,
       },
       {
         stepIndex: 5,
-        stepKey: "PLATFORM_REVIEW",
-        title: "Platform Compliance Review",
-        description: "Trust & Safety review of credentials, AML/sanctions screening, and compliance validation.",
+        stepKey: "CONTENT_AND_POLICY",
+        title: "Content and Policy Requirements",
+        description: "Execute 18 U.S.C. § 2257 statutory statement, custodian declaration, and performer release.",
         isCompleted: isStep5Done,
-        isCurrent: currentState === "CONSENT_PROVENANCE_SATISFIED",
+        isCurrent: isStep4Done && !isStep5Done,
         isBlocked: !isStep4Done,
       },
       {
         stepIndex: 6,
-        stepKey: "PAYOUT_SETUP",
-        title: "Payout & Tax Setup",
-        description: "Configure bank/Paxum beneficiary destination and certify electronic W-9/W-8BEN tax form.",
+        stepKey: "REVIEW",
+        title: "Review",
+        description: "Platform compliance review and Trust & Safety verification evaluation.",
         isCompleted: isStep6Done,
-        isCurrent: currentState === "PLATFORM_REVIEWED",
+        isCurrent: isStep5Done && !isStep6Done,
         isBlocked: !isStep5Done,
       },
       {
         stepIndex: 7,
-        stepKey: "MONETIZATION_ENABLED",
-        title: "Monetization Activation",
-        description: "Creator is authorized to sell, stream, receive fan earnings, and request fiat withdrawals.",
+        stepKey: "APPROVED",
+        title: "Approved",
+        description: "Creator monetization enabled. Dedicated stream keys generated and Go Live unlocked.",
         isCompleted: isStep7Done,
-        isCurrent: currentState === "PAYOUT_SETUP_COMPLETED",
+        isCurrent: isStep6Done && !isStep7Done,
         isBlocked: !isStep6Done,
       },
     ];
@@ -886,21 +890,22 @@ export class CreatorOnboardingService {
     const completionPercentage = Math.round((completedStepsCount / steps.length) * 100);
 
     const blockers: string[] = [];
-    if (!isStep3Done) blockers.push("Government ID and Age 18+ verification required");
-    if (!isStep4Done) blockers.push("18 U.S.C. § 2257 compliance statement & performer release unsigned");
-    if (!isStep5Done) blockers.push("Platform compliance review pending approval");
-    if (!isStep6Done) blockers.push("Payout destination and tax certification incomplete");
+    if (!isStep2Done) blockers.push("Government ID and Age 18+ verification required");
+    if (!isStep3Done) blockers.push("Creator profile configuration required");
+    if (!isStep4Done) blockers.push("Payout destination and tax certification incomplete");
+    if (!isStep5Done) blockers.push("18 U.S.C. § 2257 statement & performer consent unsigned");
+    if (!isStep6Done) blockers.push("Platform compliance review pending approval");
 
     return {
       creatorProfileId: creator.id,
       userId: creator.userId,
-      stageName: creator.stageName || creator.user.displayName,
+      stageName: creator.stageName || creator.user?.displayName || "New Creator",
       currentState,
       moderationState: creator.moderationState,
       isMonetizationEnabled: currentState === "MONETIZATION_ENABLED",
       canSell: currentState === "MONETIZATION_ENABLED",
       canReceiveEarnings: currentState === "MONETIZATION_ENABLED",
-      canBroadcastLive: currentState === "MONETIZATION_ENABLED" || currentState === "PAYOUT_SETUP_COMPLETED",
+      canBroadcastLive: currentState === "MONETIZATION_ENABLED",
       canRequestPayout: currentState === "MONETIZATION_ENABLED",
       currentStepIndex: CreatorOnboardingStateMachine.getStepIndex(currentState),
       totalSteps: 7,
@@ -909,7 +914,7 @@ export class CreatorOnboardingService {
       blockers: currentState === "MONETIZATION_ENABLED" ? [] : blockers,
       rejectionReason: latestVerif?.rejectionReason || customMeta.rejection?.reason,
       complianceNotes: latestVerif?.complianceNotes || customMeta.platformReview?.notes,
-      lastUpdated: creator.updatedAt.toISOString(),
+      lastUpdated: creator.updatedAt ? creator.updatedAt.toISOString() : new Date().toISOString(),
     };
   }
 

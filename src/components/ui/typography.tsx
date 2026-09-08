@@ -43,16 +43,19 @@ export function Display({
 // --- Headings ---
 export interface HeadingProps extends React.HTMLAttributes<HTMLHeadingElement> {
   as?: "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+  level?: number | string;
   size?: "1" | "2" | "3" | "4" | "5" | "6";
 }
 
 export function Heading({
-  as: Component = "h2",
+  as,
+  level,
   size,
   className,
   children,
   ...props
 }: HeadingProps) {
+  const Component = (level ? `h${level}` : as || "h2") as React.ElementType;
   // Map default size from tag if size prop not explicitly provided
   const effectiveSize =
     size ||
