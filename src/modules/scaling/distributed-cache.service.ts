@@ -3,6 +3,7 @@ import { clusterService } from "./stateless-cluster.service";
 import {
   CacheOptions,
   CacheEntryWrapper,
+  CacheEntryMetadata,
   CacheStats,
 } from "./types";
 
