@@ -184,7 +184,65 @@ export class CrmStore {
     return this.fanSummariesCache.get(creatorProfileId);
   }
 
-  public static setCachedSummaries(creatorProfileId: string, summaries: CrmFanSummary[]) {
-    this.fanSummariesCache.set(creatorProfileId, summaries);
+  public static setCachedSummaries(creatorProfileId: string, summaries: CrmFanSummary[]): void {
+    if (summaries.length === 0) {
+      this.fanSummariesCache.delete(creatorProfileId);
+    } else {
+      this.fanSummariesCache.set(creatorProfileId, summaries);
+    }
+  }
+
+  // Creator -> Fan ID -> Active CrmFanSummary record
+  private static fanRecords: Map<string, CrmFanSummary> = new Map();
+
+  public static getFan(creatorProfileId: string, fanId: string): CrmFanSummary | undefined {
+    return this.fanRecords.get(this.getNoteKey(creatorProfileId, fanId));
+  }
+
+  public static upsertFan(creatorProfileId: string, fan: Partial<CrmFanSummary> & { fanId: string; creatorProfileId: string }): CrmFanSummary {
+    const key = this.getNoteKey(creatorProfileId, fan.fanId);
+    const existing = this.fanRecords.get(key);
+    const nowIso = new Date().toISOString();
+    const updated: CrmFanSummary = {
+      id: existing?.id || `crm_${fan.fanId}_${creatorProfileId}`,
+      fanId: fan.fanId,
+      username: fan.username || existing?.username || "fan",
+      displayName: fan.displayName || existing?.displayName || "Fan",
+      avatarUrl: fan.avatarUrl !== undefined ? fan.avatarUrl : (existing?.avatarUrl || "/avatars/default.png"),
+      relationshipTier: existing?.relationshipTier || "REGULAR",
+      tierName: existing?.tierName || "Fan",
+      fanLevel: fan.fanLevel || existing?.fanLevel || 1,
+      totalXp: fan.totalXp || existing?.totalXp || 0,
+      totalCreditsSpent: fan.totalCreditsSpent !== undefined ? fan.totalCreditsSpent : (existing?.totalCreditsSpent || 0),
+      fiatEstimatedEur: Math.round(((fan.totalCreditsSpent !== undefined ? fan.totalCreditsSpent : (existing?.totalCreditsSpent || 0)) / 100) * 10),
+      currentStreakDays: existing?.currentStreakDays || 1,
+      longestStreakDays: existing?.longestStreakDays || 1,
+      totalMinutesWatched: existing?.totalMinutesWatched || 10,
+      lastInteractedAt: nowIso,
+      daysSinceLastInteraction: 0,
+      firstInteractedAt: existing?.firstInteractedAt || nowIso,
+      isSubscribed: fan.isSubscribed !== undefined ? fan.isSubscribed : (existing?.isSubscribed || false),
+      subscriptionTier: fan.subscriptionTier || existing?.subscriptionTier,
+      recentContentPurchasedCount: existing?.recentContentPurchasedCount || 0,
+      customNickname: existing?.customNickname || null,
+      customNotes: existing?.customNotes || null,
+      tags: existing?.tags || [],
+      cohorts: fan.cohorts || existing?.cohorts || ["NEW_FANS"],
+      isNotificationsEnabled: true,
+      isMutedByCreator: false,
+      isBannedFromRoom: false,
+    };
+    this.fanRecords.set(key, updated);
+    return updated;
+  }
+
+  public static reset(): void {
+    this.privateNotesStore.clear();
+    this.campaignsStore.clear();
+    this.fanSummariesCache.clear();
+    this.fanRecords.clear();
   }
 }
+
+export const creatorCrmStore = CrmStore;
+

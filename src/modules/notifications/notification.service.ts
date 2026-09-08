@@ -1,4 +1,5 @@
 import prisma from "@/lib/db";
+import { NotificationType } from "@prisma/client";
 import { notificationQueue } from "./notification-queue.service";
 import {
   EnqueueNotificationResult,
@@ -382,6 +383,42 @@ export class NotificationService {
   }
 
   /**
+   * Generic In-App Notification Helper
+   */
+  public static async createInAppNotification(params: {
+    userId: string;
+    type: NotificationType | string;
+    title: string;
+    body: string;
+    actionUrl?: string;
+    actorId?: string;
+    creatorProfileId?: string;
+    imageUrl?: string;
+  }): Promise<EnqueueNotificationResult> {
+    return this.sendNotification({
+      eventType: params.type,
+      priority: "NORMAL",
+      payload: {
+        type: params.type as NotificationType,
+        title: params.title,
+        body: params.body,
+        actionUrl: params.actionUrl,
+        senderUserId: params.actorId,
+        imageUrl: params.imageUrl,
+        metadata: {
+          creatorProfileId: params.creatorProfileId,
+          actorId: params.actorId,
+        },
+      },
+      audience: {
+        type: "SPECIFIC_USERS",
+        userIds: [params.userId],
+      },
+      channels: ["IN_APP", "REALTIME_SSE"],
+    });
+  }
+
+  /**
    * Generic Notification Enqueue Dispatcher
    */
   public static async sendNotification(params: {
@@ -415,3 +452,4 @@ export class NotificationService {
     });
   }
 }
+

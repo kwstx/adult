@@ -18,7 +18,9 @@
 import { runUnitTests } from "./unit/business-functions.unit.test";
 import { runEntitlementUnitTests } from "./unit/entitlements.unit.test";
 import { runOrderUnitTests } from "./unit/orders.unit.test";
+import { runEventStreamUnitTests } from "./unit/event-stream.unit.test";
 import { runOrdersEntitlementsIntegrationTests } from "./integration/orders-entitlements.integration.test";
+import { runBehavioralEventsIntegrationTests } from "./integration/behavioral-events.integration.test";
 import { runIntegrationTests } from "./integration/database-transactions.integration.test";
 import { runApiTests } from "./api/api-endpoints.test";
 import { runSecurityTests } from "./security/authorization-boundaries.security.test";
@@ -49,8 +51,10 @@ async function runMasterTestSuite() {
     { layer: "Layer 1A", name: "Unit: Business Functions", runner: runUnitTests },
     { layer: "Layer 1B", name: "Unit: Entitlement Engine", runner: runEntitlementUnitTests },
     { layer: "Layer 1C", name: "Unit: Order Management Engine", runner: runOrderUnitTests },
+    { layer: "Layer 1D", name: "Unit: Behavioral Event Stream", runner: runEventStreamUnitTests },
     { layer: "Layer 2A", name: "Integration: Database Transactions", runner: runIntegrationTests },
     { layer: "Layer 2B", name: "Integration: Orders & Entitlements Triad", runner: runOrdersEntitlementsIntegrationTests },
+    { layer: "Layer 2C", name: "Integration: Behavioral Events 8-Engine Fan-Out", runner: runBehavioralEventsIntegrationTests },
     { layer: "Layer 3", name: "API: Route Handlers & Contracts", runner: runApiTests },
     { layer: "Layer 4", name: "Security: Authorization Boundaries", runner: runSecurityTests },
     { layer: "Layer 5", name: "Financial: 10 Critical Scenarios", runner: runFinancialScenarios },

@@ -62,7 +62,21 @@ export type RealtimeEventType =
   | "USER_KICKED_FROM_ROOM"
   | "SESSION_TERMINATED_SECURITY"
   | "CONNECTED"
-  | "HEARTBEAT";
+  | "HEARTBEAT"
+  // Behavioral event taxonomy
+  | "USER_JOINED_LIVE"
+  | "USER_LEFT_LIVE"
+  | "USER_FOLLOWED_CREATOR"
+  | "USER_UNFOLLOWED_CREATOR"
+  | "USER_BOUGHT_CONTENT"
+  | "USER_SENT_GIFT"
+  | "GOAL_PROGRESSED"
+  | "LEVEL_INCREASED"
+  | "SUBSCRIPTION_STARTED"
+  | "SUBSCRIPTION_RENEWED"
+  | "MESSAGE_SENT"
+  | "VIEW_DURATION_HEARTBEAT"
+  | "SECURITY_ALERT";
 
 // ----------------------------------------------------------------------------
 // STANDARDIZED DOMAIN EVENT ENVELOPE
