@@ -25,6 +25,11 @@ export class MockDatabaseStore {
   public interactionPurchases = new Map<string, any>();
   public privateSlotHolds = new Map<string, any>();
   public privateBookings = new Map<string, any>();
+  public contents = new Map<string, any>();
+  public contentPurchases = new Map<string, any>();
+  public seats = new Map<string, any>();
+  public bookings = new Map<string, any>();
+  public orders = new Map<string, any>();
 
   // Concurrency lock table for distributed lock simulation
   private locks = new Set<string>();
@@ -47,6 +52,11 @@ export class MockDatabaseStore {
     this.interactionPurchases.clear();
     this.privateSlotHolds.clear();
     this.privateBookings.clear();
+    this.contents.clear();
+    this.contentPurchases.clear();
+    this.seats.clear();
+    this.bookings.clear();
+    this.orders.clear();
     this.locks.clear();
   }
 
@@ -426,6 +436,108 @@ export class MockDatabaseStore {
           if (where.isActive !== undefined && p.isActive !== where.isActive) return false;
           return true;
         }) || null;
+      },
+      findUnique: async ({ where }: { where: any }) => {
+        if (where.id) return this.subscriptionProducts.get(where.id) || null;
+        return null;
+      },
+    };
+  }
+
+  get content() {
+    return {
+      findUnique: async ({ where }: { where: any }) => {
+        if (where.id) return this.contents.get(where.id) || null;
+        return null;
+      },
+      create: async ({ data }: { data: any }) => {
+        const id = data.id || `cnt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const record = { ...data, id, createdAt: new Date(), updatedAt: new Date() };
+        this.contents.set(id, record);
+        return record;
+      },
+      update: async ({ where, data }: { where: any; data: any }) => {
+        const record = this.contents.get(where.id);
+        if (!record) throw new Error(`Content not found: ${where.id}`);
+        const updated = { ...record, ...data, updatedAt: new Date() };
+        this.contents.set(where.id, updated);
+        return updated;
+      },
+    };
+  }
+
+  get contentPurchase() {
+    return {
+      findUnique: async ({ where }: { where: any }) => {
+        if (where.id) return this.contentPurchases.get(where.id) || null;
+        if (where.contentId_fanId) {
+          const key = `${where.contentId_fanId.contentId}_${where.contentId_fanId.fanId}`;
+          return this.contentPurchases.get(key) || null;
+        }
+        return null;
+      },
+      findMany: async ({ where }: { where?: any }) => {
+        let list = Array.from(this.contentPurchases.values());
+        if (where?.fanId) list = list.filter((p) => p.fanId === where.fanId);
+        if (where?.contentId) list = list.filter((p) => p.contentId === where.contentId);
+        return list;
+      },
+      create: async ({ data }: { data: any }) => {
+        const id = data.id || `cp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const key = `${data.contentId}_${data.fanId}`;
+        const record = { ...data, id, createdAt: new Date() };
+        this.contentPurchases.set(key, record);
+        this.contentPurchases.set(id, record);
+        return record;
+      },
+    };
+  }
+
+  get seat() {
+    return {
+      findFirst: async ({ where }: { where: any }) => {
+        return Array.from(this.seats.values()).find((s) => {
+          if (where.livestreamId && s.livestreamId !== where.livestreamId) return false;
+          if (where.currentUserId && s.currentUserId !== where.currentUserId) return false;
+          if (where.isOccupied !== undefined && s.isOccupied !== where.isOccupied) return false;
+          return true;
+        }) || null;
+      },
+      create: async ({ data }: { data: any }) => {
+        const id = data.id || `seat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const record = { ...data, id, createdAt: new Date(), updatedAt: new Date() };
+        this.seats.set(id, record);
+        return record;
+      },
+    };
+  }
+
+  get booking() {
+    return {
+      findUnique: async ({ where }: { where: any }) => {
+        if (where.id) return this.bookings.get(where.id) || null;
+        return null;
+      },
+      create: async ({ data }: { data: any }) => {
+        const id = data.id || `book_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const record = { ...data, id, createdAt: new Date(), updatedAt: new Date() };
+        this.bookings.set(id, record);
+        return record;
+      },
+    };
+  }
+
+  get interactionDefinition() {
+    return {
+      findUnique: async ({ where }: { where: any }) => {
+        if (where.id) return this.interactions.get(where.id) || null;
+        return null;
+      },
+      create: async ({ data }: { data: any }) => {
+        const id = data.id || `inter_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const record = { ...data, id, createdAt: new Date(), updatedAt: new Date() };
+        this.interactions.set(id, record);
+        return record;
       },
     };
   }

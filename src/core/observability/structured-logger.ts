@@ -25,6 +25,7 @@ export interface LogContext {
   durationMs?: number;
   service?: string;
   metadata?: Record<string, any>;
+  [key: string]: any;
 }
 
 export interface StructuredLogRecord {
@@ -203,3 +204,6 @@ export class StructuredLogger {
     StructuredLogger.emit(record);
   }
 }
+
+export const structuredLogger = StructuredLogger;
+
