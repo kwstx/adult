@@ -7,7 +7,16 @@
     "build": "next build",
     "start": "next start",
     "seed": "tsx prisma/seed.ts",
-    "worker": "tsx src/workers/runner.ts"
+    "worker": "tsx src/workers/runner.ts",
+    "test": "tsx tests/run-all.ts",
+    "test:unit": "tsx tests/unit/business-functions.unit.test.ts",
+    "test:integration": "tsx tests/integration/database-transactions.integration.test.ts",
+    "test:api": "tsx tests/api/api-endpoints.test.ts",
+    "test:security": "tsx tests/security/authorization-boundaries.security.test.ts",
+    "test:financial": "tsx tests/financial/financial-scenarios.test.ts",
+    "test:e2e": "tsx tests/e2e/user-journeys.e2e.test.ts",
+    "test:load": "tsx tests/load/high-traffic.load.test.ts",
+    "test:all": "tsx tests/run-all.ts"
   },
   "dependencies": {
     "@prisma/client": "6.4.1",
