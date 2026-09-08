@@ -21,6 +21,7 @@ import {
 import { useUser, PRESET_USERS } from "@/lib/user-context";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { CreatorOnboardingModal } from "@/components/creator-onboarding/CreatorOnboardingModal";
+import { FanOnboardingModal } from "@/components/fan-onboarding/FanOnboardingModal";
 
 interface NavItem {
   name: string;
@@ -47,6 +48,7 @@ export function DesktopNavRail() {
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isPersonaOpen, setIsPersonaOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isFanOnboardingOpen, setIsFanOnboardingOpen] = useState(false);
 
   return (
     <>
@@ -225,13 +227,24 @@ export function DesktopNavRail() {
                 </div>
 
                 <div className="mt-2 pt-2 border-t border-zinc-800/80 space-y-1.5">
+                  <button
+                    onClick={() => {
+                      setIsPersonaOpen(false);
+                      setIsFanOnboardingOpen(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 py-1.5 text-xs font-bold text-white hover:from-pink-500 hover:to-rose-500 transition-all shadow-sm"
+                  >
+                    <Flame className="h-3.5 w-3.5" />
+                    <span>Fan Onboarding Flow</span>
+                  </button>
+
                   {currentUser.role === "FAN" && (
                     <button
                       onClick={() => {
                         setIsPersonaOpen(false);
                         setIsOnboardingOpen(true);
                       }}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 py-1.5 text-xs font-bold text-white hover:from-rose-500 hover:to-pink-500 transition-all shadow-sm"
+                      className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-zinc-900 py-1.5 text-xs font-bold text-rose-400 hover:bg-zinc-800 transition-colors"
                     >
                       <Sparkles className="h-3.5 w-3.5" />
                       <span>Become a Creator</span>
@@ -257,6 +270,7 @@ export function DesktopNavRail() {
 
       <WalletModal isOpen={isWalletOpen} onClose={() => setIsWalletOpen(false)} />
       <CreatorOnboardingModal isOpen={isOnboardingOpen} onClose={() => setIsOnboardingOpen(false)} />
+      <FanOnboardingModal isOpen={isFanOnboardingOpen} onClose={() => setIsFanOnboardingOpen(false)} />
     </>
   );
 }
