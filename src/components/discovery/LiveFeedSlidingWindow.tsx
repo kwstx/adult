@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useUser } from "@/lib/user-context";
 import { useLiveFeedController } from "@/hooks/useLiveFeedController";
+import { useFirstSessionFunnel } from "@/hooks/useFirstSessionFunnel";
 import { LiveStreamCanvas } from "./LiveStreamCanvas";
 import { FloatingHearts } from "./FloatingHearts";
 import { ChatDrawer } from "./drawers/ChatDrawer";
@@ -36,6 +37,12 @@ import { WalletModal } from "@/components/wallet/WalletModal";
 import { ReportModal } from "@/components/trust/ReportModal";
 import { TipAlertOverlay } from "@/components/consumer/TipAlertOverlay";
 import { LiveFeedSkeleton } from "./LiveFeedSkeleton";
+import {
+  FirstSessionGuidePill,
+  FirstSessionWelcomeDropModal,
+  RelationshipLevelUpModal,
+  FirstSessionReturnBanner,
+} from "@/components/funnel";
 
 const CATEGORY_TAGS = [
   "All",
@@ -86,8 +93,8 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
     isMuted,
     toggleMute,
     dragOffsetY,
-    goToNextStream,
-    goToPrevStream,
+    goToNextStream: originalGoToNextStream,
+    goToPrevStream: originalGoToPrevStream,
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
@@ -99,6 +106,27 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
     categoryTag: selectedTag,
     costTier: "BALANCED",
   });
+
+  // Initialize the First-Session Funnel Hook
+  const funnel = useFirstSessionFunnel({
+    userId: currentUser.id,
+    currentCreatorId: currentCandidate?.id,
+    currentCreatorName: currentCandidate?.creator.displayName,
+    onRewardClaimed: () => {
+      // Reward claimed
+    },
+  });
+
+  // Wrap swipe actions with funnel notification
+  const goToNextStream = () => {
+    funnel.notifySwipe();
+    originalGoToNextStream();
+  };
+
+  const goToPrevStream = () => {
+    funnel.notifySwipe();
+    originalGoToPrevStream();
+  };
 
   // Sync follow state map from candidate metadata
   useEffect(() => {
@@ -155,6 +183,7 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
         case "G":
           if (currentCandidate) {
             telemetry.trackInteractionMenuOpen(currentCandidate.id);
+            funnel.notifyMenuOpened();
             setActiveDrawer("gifting");
           }
           break;
@@ -163,7 +192,7 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeDrawer, goToNextStream, goToPrevStream, toggleMute, currentCandidate, telemetry]);
+  }, [activeDrawer, currentCandidate, telemetry, isMuted]);
 
   // Like cheer action
   const handleLike = () => {
@@ -185,6 +214,7 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
       [creatorId]: isNowFollowing,
     }));
     telemetry.trackFollow(creatorId, isNowFollowing);
+    funnel.notifyFollow(isNowFollowing);
   };
 
   // Quick Chat Send
@@ -237,6 +267,13 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
       {/* Main Viewport Container */}
       <div className="relative h-full w-full sm:max-w-[480px] sm:h-[94vh] sm:rounded-3xl sm:border sm:border-zinc-800/80 sm:shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden bg-zinc-950 flex flex-col justify-between">
         
+        {/* First-Session Return Banner */}
+        <FirstSessionReturnBanner
+          isVisible={funnel.isReturnBannerVisible}
+          onClose={() => funnel.setIsReturnBannerVisible(false)}
+          creatorName={currentCandidate?.creator.displayName}
+        />
+
         {/* ==================================================================== */}
         {/* 1. 3-SLOT SLIDING WINDOW (Previous: Z, Current: A, Next: B)           */}
         {/* ==================================================================== */}
@@ -409,31 +446,45 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
         </div>
 
         {/* ==================================================================== */}
-        {/* 3. MIDDLE OVERLAY: POPULARITY SIGNALS & DESKTOP CONTROLS              */}
+        {/* 3. MIDDLE OVERLAY: POPULARITY SIGNALS & DISCOVERY GUIDE PILL           */}
         {/* ==================================================================== */}
         <div className="relative z-20 flex-1 flex flex-col justify-between pointer-events-none p-4">
-          {currentCandidate && (
-            <div className="flex items-center gap-2 flex-wrap pointer-events-auto">
-              <span className="flex items-center gap-1.5 rounded-full bg-rose-600/95 backdrop-blur-md px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg shadow-rose-600/40">
-                <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
-                LIVE
-              </span>
+          <div className="space-y-2">
+            {currentCandidate && (
+              <div className="flex items-center gap-2 flex-wrap pointer-events-auto">
+                <span className="flex items-center gap-1.5 rounded-full bg-rose-600/95 backdrop-blur-md px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg shadow-rose-600/40">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                  LIVE
+                </span>
 
-              <span className="flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[11px] font-bold text-zinc-200 border border-white/10">
-                {currentCandidate.viewerCount.toLocaleString()} Viewers
-              </span>
+                <span className="flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 text-[11px] font-bold text-zinc-200 border border-white/10">
+                  {currentCandidate.viewerCount.toLocaleString()} Viewers
+                </span>
 
-              <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500/20 to-pink-500/20 backdrop-blur-md px-2 py-0.5 text-[10px] font-extrabold text-amber-300 border border-amber-500/30 shadow-sm">
-                <Zap className="h-3 w-3 text-amber-400 fill-amber-400" />
-                <span>{currentCandidate.popularitySignals.heatIndex}% Hype</span>
-              </span>
+                <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500/20 to-pink-500/20 backdrop-blur-md px-2 py-0.5 text-[10px] font-extrabold text-amber-300 border border-amber-500/30 shadow-sm">
+                  <Zap className="h-3 w-3 text-amber-400 fill-amber-400" />
+                  <span>{currentCandidate.popularitySignals.heatIndex}% Hype</span>
+                </span>
 
-              <span className="flex items-center gap-1 rounded-full bg-black/50 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/25">
-                <ShieldCheck className="h-3 w-3" />
-                2257 Verified
-              </span>
-            </div>
-          )}
+                <span className="flex items-center gap-1 rounded-full bg-black/50 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/25">
+                  <ShieldCheck className="h-3 w-3" />
+                  2257 Verified
+                </span>
+              </div>
+            )}
+
+            {/* Ambient First-Session Guide Pill */}
+            <FirstSessionGuidePill
+              watchSeconds={funnel.watchSeconds}
+              isRewardClaimed={funnel.isRewardClaimed}
+              hasMadePurchase={funnel.hasMadePurchase}
+              onOpenRewardModal={() => funnel.setIsWelcomeModalOpen(true)}
+              onOpenGiftDrawer={() => {
+                funnel.notifyMenuOpened();
+                setActiveDrawer("gifting");
+              }}
+            />
+          </div>
 
           {/* Desktop Stream Switch Arrows */}
           <div className="hidden sm:flex flex-col items-end gap-2 pointer-events-auto self-end">
@@ -542,6 +593,7 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
             <button
               onClick={() => {
                 telemetry.trackInteractionMenuOpen(currentCandidate.id);
+                funnel.notifyMenuOpened();
                 setActiveDrawer("gifting");
               }}
               className="group flex flex-col items-center gap-1 text-white hover:scale-110 active:scale-90 transition-transform"
@@ -617,6 +669,7 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
               <button
                 onClick={() => {
                   telemetry.trackInteractionMenuOpen(currentCandidate.id);
+                  funnel.notifyMenuOpened();
                   setActiveDrawer("interaction");
                 }}
                 className="flex items-center gap-1.5 rounded-full bg-zinc-900/80 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold text-amber-300 border border-amber-500/30 hover:border-amber-400 transition-all max-w-full"
@@ -674,7 +727,10 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
               onClose={() => setActiveDrawer("none")}
               creatorId={currentCandidate.id}
               creatorName={currentCandidate.creator.displayName}
-              onOpenGiftDrawer={() => setActiveDrawer("gifting")}
+              onOpenGiftDrawer={() => {
+                funnel.notifyMenuOpened();
+                setActiveDrawer("gifting");
+              }}
             />
 
             <GiftingDrawer
@@ -684,6 +740,9 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
               creatorName={currentCandidate.creator.displayName}
               menuItems={currentCandidate.presentation.interactionItems}
               onOpenWalletModal={() => setIsWalletOpen(true)}
+              onTipSent={(amount, progression) => {
+                funnel.handleTipSuccess(amount, progression);
+              }}
             />
 
             <InteractionDrawer
@@ -694,7 +753,10 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
               goalTitle={currentCandidate.presentation.currentGoal.title}
               goalProgress={currentCandidate.presentation.currentGoal.progress}
               goalTarget={currentCandidate.presentation.currentGoal.target}
-              onOpenGiftDrawer={() => setActiveDrawer("gifting")}
+              onOpenGiftDrawer={() => {
+                funnel.notifyMenuOpened();
+                setActiveDrawer("gifting");
+              }}
               onOpenWalletModal={() => setIsWalletOpen(true)}
             />
 
@@ -719,7 +781,10 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
               tags={currentCandidate.stream.tags}
               isFollowing={isFollowingCurrent}
               onToggleFollow={() => handleToggleFollow(currentCandidate.id)}
-              onOpenGiftDrawer={() => setActiveDrawer("gifting")}
+              onOpenGiftDrawer={() => {
+                funnel.notifyMenuOpened();
+                setActiveDrawer("gifting");
+              }}
               onOpenMarketplace={() => setActiveDrawer("marketplace")}
             />
 
@@ -756,6 +821,26 @@ export function LiveFeedSlidingWindow({ initialCreatorId }: LiveFeedSlidingWindo
             creatorName={currentCandidate.creator.displayName}
           />
         )}
+
+        {/* First-Session Welcome Drop Celebration Modal */}
+        <FirstSessionWelcomeDropModal
+          isOpen={funnel.isWelcomeModalOpen}
+          onClose={() => funnel.setIsWelcomeModalOpen(false)}
+          onClaim={funnel.claimWelcomeReward}
+          isClaiming={funnel.isClaiming}
+          creatorName={currentCandidate?.creator.displayName}
+          onOpenGiftDrawer={() => {
+            funnel.notifyMenuOpened();
+            setActiveDrawer("gifting");
+          }}
+        />
+
+        {/* Relationship Level Up Modal */}
+        <RelationshipLevelUpModal
+          isOpen={funnel.isLevelUpModalOpen}
+          onClose={() => funnel.setIsLevelUpModalOpen(false)}
+          data={funnel.levelUpPayload}
+        />
       </div>
     </div>
   );

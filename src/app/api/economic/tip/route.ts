@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LedgerService } from "@/modules/economic/ledger.service";
+import { RelationshipService } from "@/modules/relationship/relationship.service";
 import { recordRecommendationEvent } from "@/lib/recommendations/event-collector";
 
 /**
  * POST /api/economic/tip
  * Backend-authoritative tip processing endpoint.
  * Enforces atomic debit, creator credit, platform rake calculation,
- * and live stream goal progress updates.
+ * relationship XP award, level-up evaluation, and live stream goal progress updates.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
 
     const idempotencyKey = req.headers.get("x-idempotency-key") || undefined;
 
+    // 1. Execute authoritative financial transaction via LedgerService
     const result = await LedgerService.processLiveTip({
       fanUserId,
       creatorId,
@@ -31,7 +33,25 @@ export async function POST(req: NextRequest) {
       idempotencyKey,
     });
 
-    // Record recommendation telemetry event asynchronously
+    // 2. Authoritatively award Relationship XP & check for level/tier upgrades
+    let relationshipProgression: any = null;
+    try {
+      relationshipProgression = await RelationshipService.awardEngagementXP({
+        fanId: fanUserId,
+        creatorProfileId: creatorId,
+        eventType: "LIVE_TIP",
+        creditsSpent: Number(credits),
+        metadata: {
+          transactionId: result.ledgerEntryId,
+          menuItemId,
+          customMessage,
+        },
+      });
+    } catch (xpErr) {
+      console.warn("[Tip API] Could not award relationship XP:", xpErr);
+    }
+
+    // 3. Record recommendation telemetry event asynchronously
     recordRecommendationEvent({
       userId: fanUserId,
       creatorProfileId: creatorId,
@@ -40,7 +60,10 @@ export async function POST(req: NextRequest) {
       metadata: { menuItemId, customMessage },
     }).catch(() => {});
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      relationshipProgression,
+    });
   } catch (error: any) {
     console.error("Tip processing failed:", error);
     if (error.name === "InsufficientCreditsError") {

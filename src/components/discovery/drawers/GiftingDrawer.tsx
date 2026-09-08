@@ -19,7 +19,7 @@ interface GiftingDrawerProps {
   creatorName: string;
   menuItems: MenuItem[];
   onOpenWalletModal: () => void;
-  onTipSent?: (amount: number) => void;
+  onTipSent?: (amount: number, progression?: any) => void;
 }
 
 const DEFAULT_ITEMS: MenuItem[] = [
@@ -121,13 +121,15 @@ export function GiftingDrawer({
       }
 
       updateBalance(data.fanRemainingBalance);
-      if (onTipSent) onTipSent(cost);
+      if (onTipSent) {
+        onTipSent(cost, data.relationshipProgression);
+      }
 
       setSuccessMsg(`Sent ${cost} tokens to ${creatorName}! 🎉`);
       setTimeout(() => {
         onClose();
         setSuccessMsg(null);
-      }, 1200);
+      }, 1000);
     } catch (err: any) {
       setErrorMsg(err.message || "An unexpected error occurred.");
     } finally {
