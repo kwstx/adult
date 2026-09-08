@@ -18,6 +18,8 @@ import {
   ProductErrorResponse,
 } from "@/lib/errors/error-codes";
 import { Logger } from "@/lib/logger";
+import { Tracer } from "@/core/observability/tracer";
+import { platformMetrics } from "@/core/observability/metrics-registry";
 
 export interface AuthenticatedUser extends User {
   creatorProfileId?: string | null;
@@ -310,107 +312,171 @@ export function apiHandler<TParams = any>(
   options: { requiredRoles?: UserRole[]; requireAuth?: boolean } = { requireAuth: false }
 ) {
   return async (req: NextRequest, context?: { params?: Promise<TParams> | TParams } | any): Promise<NextResponse | Response> => {
+    const startTime = performance.now();
     const requestId = `ERR-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-    let authenticatedUser: AuthenticatedUser | undefined = undefined;
+    const spanContext = Tracer.extractContext(req.headers);
+    const path = req.nextUrl?.pathname || req.url || "API";
+    const method = req.method || "POST";
 
-    try {
-      const rawParams = context?.params;
-      const resolvedParams = (rawParams instanceof Promise ? await rawParams : rawParams) as TParams;
-      const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || undefined;
-      const userAgent = req.headers.get("user-agent") || undefined;
+    return Tracer.withSpan(
+      `HTTP ${method} ${path}`,
+      async (span) => {
+        span.setAttribute("http.method", method);
+        span.setAttribute("http.url", path);
+        span.setAttribute("http.request_id", requestId);
 
-      if (options.requireAuth || options.requiredRoles) {
-        authenticatedUser = await authenticateUser(req, { requiredRoles: options.requiredRoles, optional: false });
-      } else {
-        authenticatedUser = await authenticateUser(req, { optional: true });
-      }
+        let authenticatedUser: AuthenticatedUser | undefined = undefined;
 
-      return await handler(req, {
-        user: authenticatedUser,
-        params: resolvedParams,
-        ipAddress,
-        userAgent,
-      });
-    } catch (error: any) {
-      const path = req.nextUrl?.pathname || req.url || "API";
-      const method = req.method || "POST";
+        try {
+          const rawParams = context?.params;
+          const resolvedParams = (rawParams instanceof Promise ? await rawParams : rawParams) as TParams;
+          const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || undefined;
+          const userAgent = req.headers.get("user-agent") || undefined;
 
-      // 1. Known Domain ProductError
-      if (error instanceof ProductError) {
-        Logger.warn(`[PRODUCT_ERROR] ${error.userTitle} (${error.code})`, {
-          requestId,
-          path,
-          method,
-          code: error.code,
-          technicalMessage: error.technicalMessage,
-          userId: authenticatedUser?.id,
-        });
-        return NextResponse.json(error.toResponse(requestId), { status: error.statusCode });
-      }
+          if (options.requireAuth || options.requiredRoles) {
+            authenticatedUser = await authenticateUser(req, { requiredRoles: options.requiredRoles, optional: false });
+          } else {
+            authenticatedUser = await authenticateUser(req, { optional: true });
+          }
 
-      // 2. ApiError
-      if (error instanceof ApiError) {
-        Logger.warn(`[API_ERROR] ${error.message} (${error.code})`, {
-          requestId,
-          path,
-          method,
-          code: error.code,
-          userId: authenticatedUser?.id,
-        });
-        return errorResponse(error.message, error.statusCode, error.code, error.details, {
-          userTitle: error.userTitle,
-          userMessage: error.userMessage,
-          walletCharged: error.walletCharged,
-          category: error.category,
-          action: error.action,
-          isRetryable: error.isRetryable,
-          requestId,
-        });
-      }
+          if (authenticatedUser) {
+            span.setAttribute("user.id", authenticatedUser.id);
+            span.setAttribute("user.role", authenticatedUser.role);
+          }
 
-      // 3. Known Financial Domain Exceptions
-      if (error?.name === "InsufficientFundsError" || error?.name === "InsufficientCreditsError") {
-        const prodErr = new InsufficientCreditsProductError(
-          error.requiredCredits || error.required || 0,
-          error.availableCredits || error.available || 0
-        );
-        return NextResponse.json(prodErr.toResponse(requestId), { status: prodErr.statusCode });
-      }
+          const response = await handler(req, {
+            user: authenticatedUser,
+            params: resolvedParams,
+            ipAddress,
+            userAgent,
+          });
 
-      if (error?.name === "WalletSuspendedError") {
-        const prodErr = new WalletSuspendedProductError(error.status || "SUSPENDED");
-        return NextResponse.json(prodErr.toResponse(requestId), { status: prodErr.statusCode });
-      }
+          const durationMs = performance.now() - startTime;
+          const statusCode = response.status || 200;
+          platformMetrics.recordHttpRequest(durationMs, statusCode);
+          span.setAttribute("http.status_code", statusCode);
 
-      if (error?.name === "DuplicateTransactionError") {
-        const prodErr = new DuplicateTransactionProductError(error.idempotencyKey || "duplicate");
-        return NextResponse.json(prodErr.toResponse(requestId), { status: prodErr.statusCode });
-      }
+          if (response instanceof NextResponse || response instanceof Response) {
+            response.headers.set("traceparent", Tracer.formatTraceparent(span.context));
+            response.headers.set("x-trace-id", span.context.traceId);
+          }
 
-      if (error?.name === "AuthorizationError") {
-        Logger.warn(`[AUTH_DENIED] ${error.message}`, { requestId, path, userId: authenticatedUser?.id });
-        return errorResponse(error.message, error.statusCode || 403, error.errorCode || "FORBIDDEN", error.decision, {
-          userTitle: "Access restricted",
-          userMessage: "You do not have permission to access this resource.",
-          walletCharged: false,
-          category: "AUTHORIZATION",
-          action: "DISMISS",
-          isRetryable: false,
-          requestId,
-        });
-      }
+          return response;
+        } catch (error: any) {
+          const durationMs = performance.now() - startTime;
 
-      // 4. Unexpected / Unhandled Exception (500)
-      // Log technical error securely to server console/telemetry, return comforting product state to fan
-      Logger.error(`Unhandled API exception on ${method} ${path}`, error, {
-        requestId,
-        userId: authenticatedUser?.id,
-        path,
-        method,
-      });
+          // 1. Known Domain ProductError
+          if (error instanceof ProductError) {
+            platformMetrics.recordHttpRequest(durationMs, error.statusCode);
+            span.setAttribute("http.status_code", error.statusCode);
+            Logger.warn(`[PRODUCT_ERROR] ${error.userTitle} (${error.code})`, {
+              requestId,
+              path,
+              method,
+              code: error.code,
+              technicalMessage: error.technicalMessage,
+              userId: authenticatedUser?.id,
+            });
+            const res = NextResponse.json(error.toResponse(requestId), { status: error.statusCode });
+            res.headers.set("traceparent", Tracer.formatTraceparent(span.context));
+            res.headers.set("x-trace-id", span.context.traceId);
+            return res;
+          }
 
-      const fallbackError = new SystemProductError(error?.message || "Internal server error occurred.");
-      return NextResponse.json(fallbackError.toResponse(requestId), { status: 500 });
-    }
+          // 2. ApiError
+          if (error instanceof ApiError) {
+            platformMetrics.recordHttpRequest(durationMs, error.statusCode);
+            span.setAttribute("http.status_code", error.statusCode);
+            Logger.warn(`[API_ERROR] ${error.message} (${error.code})`, {
+              requestId,
+              path,
+              method,
+              code: error.code,
+              userId: authenticatedUser?.id,
+            });
+            const res = errorResponse(error.message, error.statusCode, error.code, error.details, {
+              userTitle: error.userTitle,
+              userMessage: error.userMessage,
+              walletCharged: error.walletCharged,
+              category: error.category,
+              action: error.action,
+              isRetryable: error.isRetryable,
+              requestId,
+            });
+            res.headers.set("traceparent", Tracer.formatTraceparent(span.context));
+            res.headers.set("x-trace-id", span.context.traceId);
+            return res;
+          }
+
+          // 3. Known Financial Domain Exceptions
+          if (error?.name === "InsufficientFundsError" || error?.name === "InsufficientCreditsError") {
+            platformMetrics.recordHttpRequest(durationMs, 402);
+            platformMetrics.recordWalletError("INSUFFICIENT_FUNDS");
+            const prodErr = new InsufficientCreditsProductError(
+              error.requiredCredits || error.required || 0,
+              error.availableCredits || error.available || 0
+            );
+            const res = NextResponse.json(prodErr.toResponse(requestId), { status: prodErr.statusCode });
+            res.headers.set("traceparent", Tracer.formatTraceparent(span.context));
+            res.headers.set("x-trace-id", span.context.traceId);
+            return res;
+          }
+
+          if (error?.name === "WalletSuspendedError") {
+            platformMetrics.recordHttpRequest(durationMs, 403);
+            platformMetrics.recordWalletError("LOCK_TIMEOUT");
+            const prodErr = new WalletSuspendedProductError(error.status || "SUSPENDED");
+            const res = NextResponse.json(prodErr.toResponse(requestId), { status: prodErr.statusCode });
+            res.headers.set("traceparent", Tracer.formatTraceparent(span.context));
+            res.headers.set("x-trace-id", span.context.traceId);
+            return res;
+          }
+
+          if (error?.name === "DuplicateTransactionError") {
+            platformMetrics.recordHttpRequest(durationMs, 409);
+            platformMetrics.recordWalletError("LEDGER_MISMATCH");
+            const prodErr = new DuplicateTransactionProductError(error.idempotencyKey || "duplicate");
+            const res = NextResponse.json(prodErr.toResponse(requestId), { status: prodErr.statusCode });
+            res.headers.set("traceparent", Tracer.formatTraceparent(span.context));
+            res.headers.set("x-trace-id", span.context.traceId);
+            return res;
+          }
+
+          if (error?.name === "AuthorizationError") {
+            platformMetrics.recordHttpRequest(durationMs, 403);
+            Logger.warn(`[AUTH_DENIED] ${error.message}`, { requestId, path, userId: authenticatedUser?.id });
+            const res = errorResponse(error.message, error.statusCode || 403, error.errorCode || "FORBIDDEN", error.decision, {
+              userTitle: "Access restricted",
+              userMessage: "You do not have permission to access this resource.",
+              walletCharged: false,
+              category: "AUTHORIZATION",
+              action: "DISMISS",
+              isRetryable: false,
+              requestId,
+            });
+            res.headers.set("traceparent", Tracer.formatTraceparent(span.context));
+            res.headers.set("x-trace-id", span.context.traceId);
+            return res;
+          }
+
+          // 4. Unexpected / Unhandled Exception (500)
+          platformMetrics.recordHttpRequest(durationMs, 500);
+          span.recordException(error);
+          Logger.error(`Unhandled API exception on ${method} ${path}`, error, {
+            requestId,
+            userId: authenticatedUser?.id,
+            path,
+            method,
+          });
+
+          const fallbackError = new SystemProductError(error?.message || "Internal server error occurred.");
+          const res = NextResponse.json(fallbackError.toResponse(requestId), { status: 500 });
+          res.headers.set("traceparent", Tracer.formatTraceparent(span.context));
+          res.headers.set("x-trace-id", span.context.traceId);
+          return res;
+        }
+      },
+      { parentContext: spanContext, kind: "SERVER" }
+    );
   };
 }

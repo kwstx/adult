@@ -9,6 +9,10 @@
  * 5. Financial Tests (10 Critical Failure Scenarios)
  * 6. End-to-End Tests (Full User Journeys)
  * 7. Load Tests (High-Traffic Concurrency & Contention)
+ * 8. Observability Tests (Metrics Registry, Tracing & Logging)
+ * 9. Security Architecture (#68 Tests: CSRF, Cookies, RateLimiter, AdminGuard)
+ * 10. Privacy Architecture (#69 Tests: Field Encryption, Vault, Retention, GDPR Deletion)
+ * 11. Infra Tests (Database Backup & Restoration Verification Drill)
  */
 
 import { runUnitTests } from "./unit/business-functions.unit.test";
@@ -18,6 +22,10 @@ import { runSecurityTests } from "./security/authorization-boundaries.security.t
 import { runFinancialScenarios } from "./financial/financial-scenarios.test";
 import { runE2eTests } from "./e2e/user-journeys.e2e.test";
 import { runLoadTests } from "./load/high-traffic.load.test";
+import { runObservabilityTests } from "./unit/observability.unit.test";
+import { runSecurityArchitectureTests } from "./unit/security.unit.test";
+import { runPrivacyArchitectureTests } from "./unit/privacy.unit.test";
+import { runBackupRestoreTests } from "./infra/backup-restore.test";
 
 interface SuiteRunSummary {
   layer: string;
@@ -42,6 +50,10 @@ async function runMasterTestSuite() {
     { layer: "Layer 5", name: "Financial: 10 Critical Scenarios", runner: runFinancialScenarios },
     { layer: "Layer 6", name: "E2E: Full User Journeys", runner: runE2eTests },
     { layer: "Layer 7", name: "Load: High-Traffic Concurrency", runner: runLoadTests },
+    { layer: "Layer 8", name: "Observability: Metrics & Tracing", runner: runObservabilityTests },
+    { layer: "Layer 9", name: "Security: #68 Arch & CSRF/RateLimit", runner: runSecurityArchitectureTests },
+    { layer: "Layer 10", name: "Privacy: #69 Vault & Retention", runner: runPrivacyArchitectureTests },
+    { layer: "Layer 11", name: "Infra: Backup Restoration Drill", runner: runBackupRestoreTests },
   ];
 
   for (const s of suites) {
