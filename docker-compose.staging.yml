@@ -1,0 +1,109 @@
+# ============================================================================
+# STAGING INFRASTRUCTURE COMPOSE (docker-compose.staging.yml)
+# Production-parity staging topology with isolated networks and monitoring
+# ============================================================================
+
+version: "3.8"
+
+networks:
+  staging_internal:
+    driver: bridge
+  staging_public:
+    driver: bridge
+
+services:
+  # 1. Staging Database (PostgreSQL with strict collation and connection limits)
+  staging_postgres:
+    image: postgres:16-alpine
+    container_name: auralive-staging-db
+    restart: always
+    networks:
+      - staging_internal
+    environment:
+      POSTGRES_USER: staging_app_user
+      POSTGRES_PASSWORD: staging_secure_password_9988
+      POSTGRES_DB: adult_platform_staging
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U staging_app_user -d adult_platform_staging"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Staging Redis Cluster Simulation
+  staging_redis:
+    image: redis:7-alpine
+    container_name: auralive-staging-redis
+    restart: always
+    networks:
+      - staging_internal
+    command: redis-server --appendonly yes --requirepass staging_redis_password_1122
+    volumes:
+      - staging_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "staging_redis_password_1122", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 3. Next.js Web Tier (Staging)
+  staging_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auralive-staging-web
+    restart: always
+    networks:
+      - staging_internal
+      - staging_public
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      APP_ENV: staging
+      NEXT_PUBLIC_APP_NAME: "AuraLive (Staging)"
+      NEXT_PUBLIC_APP_URL: "https://staging.auralive.internal"
+      DATABASE_URL: "postgresql://staging_app_user:staging_secure_password_9988@staging_postgres:5432/adult_platform_staging?schema=public"
+      REDIS_URL: "redis://:staging_redis_password_1122@staging_redis:6379"
+      PAYMENT_GATEWAY_PROVIDER: "ccbill"
+      PAYMENT_WEBHOOK_SECRET: "whsec_staging_ccbill_sandbox_secret_99887766554433221100"
+      KYC_PROVIDER: "persona"
+      LIVESTREAM_PROVIDER: "livekit"
+      COMPLIANCE_2257_STORAGE_BUCKET: "vault-2257-compliance-staging"
+      MEDIA_CDN_BASE_URL: "https://cdn-staging.auralive.internal"
+      PROTECTED_MEDIA_STORAGE_BUCKET: "protected-ppv-media-staging"
+      SESSION_SECRET: "staging_session_hmac_secret_key_strictly_non_prod_32char"
+      ENABLE_DEBUG_ENDPOINTS: "false"
+      ALLOW_DATA_MUTATION_SCRIPTS: "true"
+      ENABLE_AUDIT_LOG_STREAMING: "true"
+    depends_on:
+      staging_postgres:
+        condition: service_healthy
+      staging_redis:
+        condition: service_healthy
+
+  # 4. Asynchronous Background Worker Fleet (Staging)
+  staging_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auralive-staging-worker
+    restart: always
+    networks:
+      - staging_internal
+    command: ["npm", "run", "worker"]
+    environment:
+      NODE_ENV: production
+      APP_ENV: staging
+      DATABASE_URL: "postgresql://staging_app_user:staging_secure_password_9988@staging_postgres:5432/adult_platform_staging?schema=public"
+      REDIS_URL: "redis://:staging_redis_password_1122@staging_redis:6379"
+    depends_on:
+      staging_postgres:
+        condition: service_healthy
+      staging_redis:
+        condition: service_healthy
+
+volumes:
+  staging_postgres_data:
+  staging_redis_data:

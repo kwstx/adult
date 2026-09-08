@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auralive-config
+data:
+  PORT: "3000"
+  PLATFORM_FEE_PERCENTAGE: "20"
+  AGE_GATE_ENFORCEMENT: "true"
+  NEXT_PUBLIC_APP_NAME: "AuraLive"

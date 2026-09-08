@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: auralive-prod
+
+bases:
+  - ../../base
+
+resources:
+  - patch-hpa.yaml
+
+patchesStrategicMerge:
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: auralive-web
+    spec:
+      replicas: 3
+      template:
+        spec:
+          containers:
+            - name: web
+              resources:
+                requests:
+                  cpu: "1000m"
+                  memory: "2048Mi"
+                limits:
+                  cpu: "4000m"
+                  memory: "8192Mi"
+
+configMapGenerator:
+  - name: auralive-config
+    behavior: merge
+    literals:
+      - APP_ENV=production
+      - NODE_ENV=production
+      - NEXT_PUBLIC_APP_URL=https://auralive.com
+      - PAYMENT_GATEWAY_PROVIDER=ccbill
+      - KYC_PROVIDER=persona
+      - LIVESTREAM_PROVIDER=livekit
+      - COMPLIANCE_2257_STORAGE_BUCKET=auralive-prod-2257-vault-compliance
+      - MEDIA_CDN_BASE_URL=https://cdn.auralive.com
+      - PROTECTED_MEDIA_STORAGE_BUCKET=auralive-prod-ppv-protected-media
+      - ENABLE_DEBUG_ENDPOINTS=false
+      - ALLOW_DATA_MUTATION_SCRIPTS=false
+      - ENABLE_AUDIT_LOG_STREAMING=true

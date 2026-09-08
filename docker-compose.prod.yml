@@ -1,0 +1,68 @@
+# ============================================================================
+# PRODUCTION INFRASTRUCTURE COMPOSE (docker-compose.prod.yml)
+# Hardened container topology: non-root users, resource quotas, secure logging
+# ============================================================================
+
+version: "3.8"
+
+networks:
+  prod_edge:
+    driver: bridge
+
+services:
+  # Next.js Web Tier (Production Cluster Node)
+  prod_web:
+    image: ghcr.io/kwstx/adult/web:${RELEASE_VERSION:-latest}
+    restart: always
+    networks:
+      - prod_edge
+    ports:
+      - "3000:3000"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4096M
+        reservations:
+          cpus: "0.5"
+          memory: 1024M
+    env_file:
+      - .env.production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Production Background Worker Node
+  prod_worker:
+    image: ghcr.io/kwstx/adult/web:${RELEASE_VERSION:-latest}
+    restart: always
+    networks:
+      - prod_edge
+    command: ["npm", "run", "worker"]
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4096M
+        reservations:
+          cpus: "0.5"
+          memory: 1024M
+    env_file:
+      - .env.production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
