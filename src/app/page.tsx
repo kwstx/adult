@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import { LiveDiscoveryMachine } from "@/components/discovery/LiveDiscoveryMachine";
+import { FanslyHomeFeed } from "@/components/fansly/FanslyHomeFeed";
 
 export default function HomePage() {
-  return <LiveDiscoveryMachine />;
+  return <FanslyHomeFeed />;
 }

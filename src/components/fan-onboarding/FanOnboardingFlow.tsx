@@ -28,11 +28,9 @@ import {
   FanOnboardingStepKey,
   InterestOption,
   FeaturedCreatorOption,
-} from "@/modules/fan-onboarding/types";
-import {
   ONBOARDING_INTERESTS,
   PRESET_FEATURED_CREATORS,
-} from "@/modules/fan-onboarding/fan-onboarding.service";
+} from "@/modules/fan-onboarding/types";
 
 interface FanOnboardingFlowProps {
   onCompleted?: (firstLiveCreatorId?: string) => void;

@@ -84,6 +84,79 @@ body {
   border-color: rgba(255, 255, 255, 0.16);
 }
 
+/* Story Gradient Rings & Glows */
+.story-ring-gradient {
+  background: linear-gradient(135deg, #f59e0b 0%, #f43f5e 45%, #ec4899 75%, #8b5cf6 100%);
+  padding: 2.5px;
+  border-radius: 9999px;
+}
+
+.story-ring-coral {
+  background: linear-gradient(135deg, #fb923c 0%, #f43f5e 50%, #f97316 100%);
+  padding: 2.5px;
+  border-radius: 9999px;
+}
+
+.story-ring-dashed {
+  border: 2px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 9999px;
+}
+
+/* Frosted Play Button */
+.frosted-play-btn {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+/* Floating Curved Dock */
+.curved-dock-container {
+  background: rgba(14, 14, 18, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.85);
+}
+
+/* Pill Action Buttons */
+.coral-pill-btn {
+  background: linear-gradient(135deg, #fb713b 0%, #ea580c 50%, #e11d48 100%);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 9999px;
+  box-shadow: 0 4px 20px -2px rgba(234, 88, 12, 0.45);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.coral-pill-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px 0 rgba(234, 88, 12, 0.6);
+}
+.coral-pill-btn:active {
+  transform: scale(0.97);
+}
+
+.frosted-pill-btn {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fafafa;
+  font-weight: 700;
+  border-radius: 9999px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.frosted-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+.frosted-pill-btn:active {
+  transform: scale(0.97);
+}
+
 /* Focus and Outline Utility */
 .focus-ring-accent {
   outline: none;

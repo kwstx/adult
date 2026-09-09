@@ -7,8 +7,10 @@ const redisOptions: RedisOptions = {
   enableReadyCheck: true,
   lazyConnect: true,
   retryStrategy(times) {
-    // Exponential backoff up to 3 seconds
-    const delay = Math.min(times * 200, 3000);
+    if (times > 5 && process.env.NODE_ENV !== "production") {
+      return Math.min(times * 5000, 60000);
+    }
+    const delay = Math.min(times * 500, 5000);
     return delay;
   },
   reconnectOnError(err) {
@@ -42,24 +44,31 @@ export const redis: Redis =
 export const redisSubscriber: Redis =
   globalForRedis.redisSubscriber ?? new Redis(REDIS_URL, redisOptions);
 
-if (process.env.NODE_ENV !== "production") {
-  globalForRedis.redisClient = redis;
-  globalForRedis.redisSubscriber = redisSubscriber;
-}
+globalForRedis.redisClient = redis;
+globalForRedis.redisSubscriber = redisSubscriber;
 
-// Log connection status in non-production environments
+// Log connection status in non-production environments with throttling
 if (process.env.NODE_ENV !== "production") {
   redis.on("connect", () => {
     console.log("[Redis] Connected to primary cache & sorted-sets engine.");
   });
 
+  let lastPrimaryErrLog = 0;
   redis.on("error", (err) => {
-    // Graceful warning rather than crashing if Redis is not locally started
-    console.warn("[Redis] Primary connection warning:", err.message);
+    const now = Date.now();
+    if (now - lastPrimaryErrLog > 60000) {
+      lastPrimaryErrLog = now;
+      console.warn("[Redis] Primary connection offline (in-memory fallback active):", err.message);
+    }
   });
 
+  let lastSubErrLog = 0;
   redisSubscriber.on("error", (err) => {
-    console.warn("[Redis] Subscriber connection warning:", err.message);
+    const now = Date.now();
+    if (now - lastSubErrLog > 60000) {
+      lastSubErrLog = now;
+      console.warn("[Redis] Subscriber connection offline (in-memory fallback active):", err.message);
+    }
   });
 }
 

@@ -7,8 +7,8 @@ import {
   FreeGameOutcome,
   FreeGamePrizeWedge,
   RewardFulfillmentResult,
+  DAILY_WHEEL_WEDGES,
 } from "@/modules/games/types";
-import { GameEngineService } from "@/modules/games/game-engine.service";
 import {
   Sparkles,
   Flame,
@@ -102,7 +102,7 @@ export default function DailyGamePage() {
     }
   };
 
-  const wedges = status?.availablePrizes || GameEngineService.DAILY_WHEEL_WEDGES;
+  const wedges = status?.availablePrizes || DAILY_WHEEL_WEDGES;
 
   return (
     <div className="min-h-screen bg-black text-white p-4 sm:p-8 flex flex-col items-center">

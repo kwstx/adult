@@ -6,9 +6,9 @@ import { AnimationProvider } from "@/modules/animation";
 import { GlobalNavigation } from "@/components/navigation/GlobalNavigation";
 
 export const metadata: Metadata = {
-  title: "AuraLive | Next-Gen Interactive Live Streaming & Creator Platform",
+  title: "Fansly | Creator Livestream & Monetization Platform",
   description:
-    "Video-first live discovery, instant token interaction engine, double-entry ledger, and 18 U.S.C. 2257 compliance vault.",
+    "Live discovery, creator subscriptions, PPV content, paid messaging, virtual-credit transactions, and live interactions.",
 };
 
 export default function RootLayout({
@@ -18,16 +18,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen bg-black text-zinc-100 antialiased selection:bg-accent selection:text-white">
+      <body className="min-h-screen bg-[#101216] text-zinc-100 antialiased selection:bg-[#00a2f8] selection:text-white">
         <UserProvider>
           <AnimationProvider>
             <ToastProvider>
-              <div className="relative flex min-h-screen bg-black">
-                {/* Global Navigation: Narrow Left Rail on Desktop (72px), Quiet Bottom Bar on Mobile */}
+              <div className="relative flex min-h-screen bg-[#101216]">
+                {/* Global Navigation: Left Rail on Desktop (72px), Bottom Bar on Mobile */}
                 <GlobalNavigation />
 
                 {/* Main Application Canvas */}
-                <main className="flex-1 lg:pl-[72px] pb-14 lg:pb-0 min-h-screen overflow-x-hidden instant-page-transition">
+                <main className="flex-1 lg:pl-[72px] pb-14 lg:pb-0 min-h-screen overflow-x-hidden instant-page-transition bg-[#101216]">
                   {children}
                 </main>
               </div>

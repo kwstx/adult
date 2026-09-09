@@ -6,8 +6,14 @@
  * Uses Redis sliding window with automatic in-memory fallback.
  */
 
-import redis from "@/lib/redis";
 import { platformMetrics } from "@/core/observability/metrics-registry";
+
+function getRedisClient(): any {
+  if (typeof globalThis !== "undefined" && (globalThis as any).redisClient) {
+    return (globalThis as any).redisClient;
+  }
+  return null;
+}
 
 export interface RateLimitPolicy {
   maxRequests: number;
@@ -102,6 +108,7 @@ export class RateLimiter {
     const t0 = performance.now();
 
     try {
+      const redis = await getRedisClient();
       if (redis && redis.status === "ready" && typeof redis.pipeline === "function") {
         const now = Date.now();
         const windowStart = now - policy.windowSeconds * 1000;

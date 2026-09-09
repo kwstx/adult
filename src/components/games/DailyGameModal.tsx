@@ -7,8 +7,8 @@ import {
   FreeGameOutcome,
   FreeGamePrizeWedge,
   RewardFulfillmentResult,
+  DAILY_WHEEL_WEDGES,
 } from "@/modules/games/types";
-import { GameEngineService } from "@/modules/games/game-engine.service";
 import {
   X,
   Flame,
@@ -124,7 +124,7 @@ export const DailyGameModal: React.FC<DailyGameModalProps> = ({
 
   if (!isOpen) return null;
 
-  const wedges = status?.availablePrizes || GameEngineService.DAILY_WHEEL_WEDGES;
+  const wedges = status?.availablePrizes || DAILY_WHEEL_WEDGES;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
