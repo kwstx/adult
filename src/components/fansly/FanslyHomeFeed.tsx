@@ -683,14 +683,27 @@ export function FanslyHomeFeed() {
                 {/* 5. Categories (Single Line) */}
                 <Link
                   href="/discover"
-                  className="flex flex-col items-center justify-between rounded-2xl bg-[#0e0e13] border border-zinc-800/90 hover:border-white p-2 sm:p-3 h-[142px] sm:h-[156px] w-full text-center transition-colors duration-200 active:scale-95 shadow-sm group"
+                  className="flex flex-col items-center justify-between rounded-2xl bg-[#0e0e13] border border-zinc-800/90 hover:border-white p-2.5 sm:p-3 h-[142px] sm:h-[156px] w-full text-center transition-colors duration-200 active:scale-95 shadow-sm group"
                 >
-                  <div className="h-13 w-13 sm:h-15 sm:w-15 md:h-16 md:w-16 flex items-center justify-center text-white group-hover:scale-105 transition-transform shrink-0">
-                    <LayoutGrid className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 stroke-[1.8]" />
+                  <div className="pt-2 sm:pt-2.5 flex items-center justify-center text-white group-hover:scale-105 transition-transform shrink-0">
+                    <svg
+                      className="h-6 w-6 sm:h-[26px] sm:w-[26px] text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect width="7.2" height="7.2" x="3.4" y="3.4" rx="1.8" />
+                      <rect width="7.2" height="7.2" x="13.4" y="3.4" rx="1.8" />
+                      <rect width="7.2" height="7.2" x="13.4" y="13.4" rx="1.8" />
+                      <rect width="7.2" height="7.2" x="3.4" y="13.4" rx="1.8" />
+                    </svg>
                   </div>
 
                   {/* Text Block: Title (Single Line) */}
-                  <div className="w-full text-center px-0.5">
+                  <div className="w-full text-center px-0.5 pb-0.5">
                     <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-bold text-white tracking-tight whitespace-nowrap h-5">
                       <span className="whitespace-nowrap">Categories</span>
                     </div>
