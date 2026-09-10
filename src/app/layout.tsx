@@ -18,18 +18,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen bg-[#101216] text-zinc-100 antialiased selection:bg-[#00a2f8] selection:text-white">
+      <body className="min-h-screen bg-[#060608] text-zinc-100 antialiased selection:bg-blue-500 selection:text-white">
         <UserProvider>
           <AnimationProvider>
             <ToastProvider>
-              <div className="relative flex min-h-screen bg-[#101216]">
-                {/* Global Navigation: Left Rail on Desktop (72px), Bottom Bar on Mobile */}
-                <GlobalNavigation />
-
+              <div className="relative flex min-h-screen bg-[#060608] flex-col">
                 {/* Main Application Canvas */}
-                <main className="flex-1 lg:pl-[72px] pb-14 lg:pb-0 min-h-screen overflow-x-hidden instant-page-transition bg-[#101216]">
+                <main className="flex-1 pb-20 lg:pb-0 min-h-screen overflow-x-hidden instant-page-transition bg-[#060608] text-zinc-100">
                   {children}
                 </main>
+
+                {/* Global Bottom Floating Navigation Bar */}
+                <GlobalNavigation />
               </div>
             </ToastProvider>
           </AnimationProvider>

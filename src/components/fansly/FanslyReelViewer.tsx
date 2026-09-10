@@ -233,15 +233,15 @@ export function FanslyReelViewer({
   };
 
   return (
-    <div className="relative h-full w-full bg-black text-white select-none overflow-hidden flex items-center justify-center">
+    <div className="relative h-full w-full bg-white text-zinc-900 select-none overflow-hidden flex items-center justify-center">
       {/* Ambient background on laptop screens */}
-      <div className="hidden sm:block absolute inset-0 z-0 overflow-hidden pointer-events-none">
+      <div className="hidden sm:block absolute inset-0 z-0 overflow-hidden pointer-events-none bg-zinc-50">
         <img
           src={currentPost.mediaUrl}
           alt=""
-          className="h-full w-full object-cover blur-3xl opacity-20 scale-125"
+          className="h-full w-full object-cover blur-3xl opacity-10 scale-125"
         />
-        <div className="absolute inset-0 bg-black/60" />
+        <div className="absolute inset-0 bg-white/70" />
       </div>
 
       {/* Main Canvas Container (Full on mobile, centered phone canvas on laptop) */}
@@ -249,10 +249,10 @@ export function FanslyReelViewer({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className={`relative h-full w-full flex flex-col justify-between overflow-hidden bg-[#101216] transition-all duration-300 ${
+        className={`relative h-full w-full flex flex-col justify-between overflow-hidden bg-black text-white transition-all duration-300 ${
           isFullWidthMode
-            ? "max-w-4xl sm:h-[95vh] sm:rounded-3xl sm:border sm:border-white/10 sm:shadow-2xl"
-            : "sm:max-w-[440px] sm:h-[92vh] sm:rounded-3xl sm:border sm:border-white/10 sm:shadow-2xl"
+            ? "max-w-4xl sm:h-[95vh] sm:rounded-3xl sm:border sm:border-zinc-300 sm:shadow-2xl"
+            : "sm:max-w-[440px] sm:h-[92vh] sm:rounded-3xl sm:border sm:border-zinc-300 sm:shadow-2xl"
         }`}
       >
         {/* Background Media (Image / Video) */}
@@ -417,7 +417,7 @@ export function FanslyReelViewer({
             <button
               onClick={handleToggleFollow}
               className={`absolute -bottom-1.5 flex h-4 w-4 items-center justify-center rounded-full text-white shadow-md transition-transform ${
-                isFollowing ? "bg-emerald-500" : "bg-[#00a2f8] hover:scale-110"
+                isFollowing ? "bg-emerald-500" : "bg-black hover:scale-110"
               }`}
               title={isFollowing ? "Following" : "Follow"}
             >
