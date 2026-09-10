@@ -26,6 +26,7 @@ import {
   Coins,
 } from "lucide-react";
 import { VerifiedBadge } from "@/components/common/VerifiedBadge";
+import { CoinsPill } from "@/components/common/CoinsPill";
 import { FanslyReelViewer } from "./FanslyReelViewer";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { useUser } from "@/lib/user-context";
@@ -212,8 +213,8 @@ export function FanslyHomeFeed() {
             {/* 1. Brand Logo */}
             <div className="px-2 pt-1">
               <Link href="/" className="hover:opacity-90 transition-opacity inline-block">
-                <span className="text-3xl font-bold tracking-tight text-white font-sans">
-                  Uber
+                <span className="text-3xl font-season font-medium tracking-tight text-white">
+                  Velvet
                 </span>
               </Link>
             </div>
@@ -437,23 +438,22 @@ export function FanslyHomeFeed() {
           {/* Mobile Header (Mobile view only) */}
           <div className="lg:hidden flex items-center justify-between pb-1">
             <Link href="/">
-              <span className="text-2xl font-bold tracking-tight text-white font-sans">
-                Uber
+              <span className="text-2xl font-season font-medium tracking-tight text-white">
+                Velvet
               </span>
             </Link>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Link href="/discover" className="text-zinc-300 hover:text-white p-1">
                 <Search className="h-5 w-5" />
               </Link>
               <Link href="/messages" className="text-zinc-300 hover:text-white p-1">
                 <MessageSquare className="h-5 w-5" />
               </Link>
-              <button
+              <CoinsPill
+                size="sm"
+                balance={currentUser?.walletBalance !== undefined ? currentUser.walletBalance : 2430}
                 onClick={() => setIsWalletOpen(true)}
-                className="rounded-full bg-[#18181f] border border-zinc-700 px-3 py-1 text-xs font-semibold text-white"
-              >
-                ${currentUser?.walletBalance !== undefined ? currentUser.walletBalance : 0}
-              </button>
+              />
             </div>
           </div>
 
@@ -469,8 +469,14 @@ export function FanslyHomeFeed() {
               />
             </div>
 
-            {/* Right Action Icons: Notification Bell, Chat, Profile Avatar */}
-            <div className="flex items-center gap-3.5">
+            {/* Right Action Icons: Coins Pill, Notification Bell, Chat, Profile Avatar */}
+            <div className="flex items-center gap-3">
+              {/* Coins Pill Badge */}
+              <CoinsPill
+                balance={currentUser?.walletBalance !== undefined ? currentUser.walletBalance : 2430}
+                onClick={() => setIsWalletOpen(true)}
+              />
+
               {/* Notification Bell with red badge */}
               <Link
                 href="/notifications"
@@ -523,7 +529,7 @@ export function FanslyHomeFeed() {
 
             {/* Left Texts & Button */}
             <div className="relative z-10 space-y-2 max-w-sm">
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white leading-[1.1]">
+              <h2 className="text-3xl md:text-4xl lg:text-[40px] font-season font-normal tracking-tight text-white leading-[1.08]">
                 Made For
                 <br />
                 You
@@ -580,7 +586,7 @@ export function FanslyHomeFeed() {
 
                   {/* Bottom: Left-aligned Text & Chevron */}
                   <div className="relative z-10 w-full text-left">
-                    <div className="text-[11px] sm:text-xs font-semibold text-white leading-tight tracking-tight">
+                    <div className="text-[11px] sm:text-xs font-season font-medium text-white leading-tight tracking-tight">
                       Discover
                       <br />
                       New Creators
@@ -609,7 +615,7 @@ export function FanslyHomeFeed() {
 
                   {/* Text Block: Title (Single Line) + Subtitle (Single Line) */}
                   <div className="w-full text-center px-0.5">
-                    <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-bold text-white tracking-tight whitespace-nowrap h-5">
+                    <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-season font-medium text-white tracking-tight whitespace-nowrap h-5">
                       <svg
                         className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-red-500 mr-1 shrink-0"
                         viewBox="0 0 24 24"
@@ -644,7 +650,7 @@ export function FanslyHomeFeed() {
 
                   {/* Text Block: Title (Single Line) */}
                   <div className="w-full text-center px-0.5">
-                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs md:text-[13px] font-bold text-white tracking-tight whitespace-nowrap h-5">
+                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs md:text-[13px] font-season font-medium text-white tracking-tight whitespace-nowrap h-5">
                       <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-[#c0d4ec] text-[#c0d4ec] shrink-0" />
                       <span className="whitespace-nowrap">Top Rated</span>
                     </div>
@@ -670,7 +676,7 @@ export function FanslyHomeFeed() {
 
                   {/* Text Block: Title (Single Line) */}
                   <div className="w-full text-center px-0.5">
-                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs md:text-[13px] font-bold text-white tracking-tight whitespace-nowrap h-5">
+                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs md:text-[13px] font-season font-medium text-white tracking-tight whitespace-nowrap h-5">
                       <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-[#c0d4ec] text-[#c0d4ec] shrink-0" />
                       <span className="whitespace-nowrap">New</span>
                     </div>
@@ -704,7 +710,7 @@ export function FanslyHomeFeed() {
 
                   {/* Text Block: Title (Single Line) */}
                   <div className="w-full text-center px-0.5 pb-0.5">
-                    <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-bold text-white tracking-tight whitespace-nowrap h-5">
+                    <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-season font-medium text-white tracking-tight whitespace-nowrap h-5">
                       <span className="whitespace-nowrap">Categories</span>
                     </div>
                     <div className="flex items-center justify-center h-4 mt-0.5">
@@ -717,7 +723,7 @@ export function FanslyHomeFeed() {
               {/* Who To Follow Section */}
               <section className="space-y-3 pt-1">
                 <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xl font-bold text-white tracking-tight">
+                  <h2 className="text-xl md:text-2xl font-season font-medium text-white tracking-tight">
                     Who To Follow
                   </h2>
                   <Link
@@ -795,7 +801,7 @@ export function FanslyHomeFeed() {
             <div className="lg:col-span-5 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold text-white tracking-tight">
+                  <h2 className="text-xl md:text-2xl font-season font-medium text-white tracking-tight">
                     Streams You Might Like
                   </h2>
                   <button

@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/lib/user-context";
 import { ToastProvider } from "@/components/ui/toast";
 import { AnimationProvider } from "@/modules/animation";
 import { GlobalNavigation } from "@/components/navigation/GlobalNavigation";
+
+const seasonFont = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-season",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Fansly | Creator Livestream & Monetization Platform",
@@ -17,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className={`dark ${seasonFont.variable}`}>
       <body className="min-h-screen bg-[#060608] text-zinc-100 antialiased selection:bg-blue-500 selection:text-white">
         <UserProvider>
           <AnimationProvider>

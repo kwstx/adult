@@ -10,6 +10,17 @@ const config: Config = {
   darkMode: "class",
   theme: {
     extend: {
+      fontFamily: {
+        season: [
+          "var(--font-season)",
+          "Season Mix",
+          "Season",
+          "Playfair Display",
+          "Instrument Serif",
+          "Georgia",
+          "serif",
+        ],
+      },
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",

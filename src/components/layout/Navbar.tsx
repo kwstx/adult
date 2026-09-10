@@ -17,6 +17,7 @@ import {
 import { useUser, PRESET_USERS } from "@/lib/user-context";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { NotificationCenter } from "@/components/notifications/notification-center";
+import { CoinsPill } from "@/components/common/CoinsPill";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -203,26 +204,11 @@ export function Navbar() {
 
           {/* Right Action Bar */}
           <div className="flex items-center gap-3">
-            {/* Wallet Token Balance Button */}
-            <button
+            {/* Wallet Token Balance Button / Coins Pill */}
+            <CoinsPill
+              balance={currentUser.walletBalance}
               onClick={() => setIsWalletOpen(true)}
-              className="group flex items-center gap-2 rounded-xl bg-zinc-900 px-3.5 py-1.5 border border-amber-500/30 hover:border-amber-400/70 transition-all shadow-sm hover:shadow-amber-500/10"
-            >
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/20 text-amber-400 group-hover:scale-110 transition-transform">
-                <Coins className="h-3.5 w-3.5" />
-              </div>
-              <div className="text-left">
-                <span className="text-xs font-bold text-amber-400">
-                  {currentUser.walletBalance.toLocaleString()}
-                </span>
-                <span className="hidden sm:inline text-[10px] text-zinc-400 ml-1 font-medium">
-                  Tokens
-                </span>
-              </div>
-              <span className="hidden sm:inline-block rounded bg-pink-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-pink-300 ml-1">
-                + Get Tokens
-              </span>
-            </button>
+            />
 
             {/* Real-time Notification Center Bell */}
             <NotificationCenter userId={currentUser.id} />

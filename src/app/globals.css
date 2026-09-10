@@ -1,6 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:wght@400..800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@font-face {
+  font-family: 'Season Mix';
+  src: local('Season Mix'), local('SeasonMix'), local('SeasonMix-Regular');
+  font-weight: 100 900;
+  font-style: normal italic;
+  font-display: swap;
+}
+
+.font-season,
+.font-season-mix {
+  font-family: var(--font-season), "Season Mix", "Season", "Playfair Display", "Instrument Serif", Georgia, serif !important;
+  font-feature-settings: "cv01" on, "cv02" on, "ss01" on;
+  letter-spacing: -0.025em;
+}
 
 :root {
   --background: #060608;
