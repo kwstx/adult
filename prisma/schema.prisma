@@ -5,6 +5,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -78,6 +79,66 @@ enum ParticipantStreamRole {
   MODERATOR
   CO_HOST
   GUEST
+}
+
+enum CoStreamSessionStatus {
+  INVITED
+  ACCEPTED
+  PREPARING
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum CoStreamLayoutMode {
+  SIDE_BY_SIDE
+  PICTURE_IN_PICTURE
+  GRID
+  ACTIVE_SPEAKER
+}
+
+enum CoStreamParticipantRole {
+  PRIMARY_HOST
+  CO_HOST
+  GUEST_CREATOR
+}
+
+enum CoStreamParticipantStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+  CONNECTED
+  DISCONNECTED
+}
+
+enum JointProductStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  ARCHIVED
+}
+
+enum JointEventStatus {
+  SCHEDULED
+  COUNTDOWN_ACTIVE
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum CoCreatorRole {
+  PRIMARY_PRODUCER
+  CO_STAR
+  FEATURING
+  PRIMARY_HOST
+  CO_HOST
+  SPECIAL_GUEST
+}
+
+enum JointApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum SubscriptionTier {
@@ -531,6 +592,33 @@ enum RecommendationEventType {
   CREATOR_PROFILE_VIEW
 }
 
+enum AttributionModelType {
+  LAST_TOUCH
+  FIRST_TOUCH
+  DIRECT_CODE
+}
+
+enum AttributionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED_FRAUD
+  COMPLETED
+}
+
+enum AffiliateCommissionStatus {
+  PENDING_HOLD
+  CLEARED
+  REVOKED
+}
+
+enum AffiliateSourceType {
+  FAN_DEPOSIT
+  SUBSCRIPTION_PURCHASE
+  PPV_PURCHASE
+  LIVE_TIP
+  MARKETPLACE_SPEND
+}
+
 // ============================================================================
 // 1. IDENTITY & USER ACCOUNTS
 // ============================================================================
@@ -563,6 +651,8 @@ model User {
   subscriptionsFan      Subscription[]         @relation("FanSubscriptions")
   subscriptionPaymentsFan SubscriptionPayment[] @relation("FanSubscriptionPayments")
   contentPurchases      ContentPurchase[]      @relation("UserPurchases")
+  jointProductPurchases JointProductPurchase[] @relation("UserJointPurchases")
+  jointEventTickets     JointEventTicket[]     @relation("UserJointTickets")
   
   // Direct Messaging
   sentMessages          Message[]              @relation("SentMessages")
@@ -609,6 +699,11 @@ model User {
   riskAssessments       RiskAssessmentRecord[]
   deviceFingerprints    DeviceFingerprintRecord[]
   walletHolds           WalletHold[]
+
+  // Affiliate & Referrals
+  referralAttributionReferred  ReferralAttribution?        @relation("ReferredUser")
+  referralTouchpoints          ReferralTouchpoint[]        @relation("TouchpointUser")
+  affiliateCommissionsReferred AffiliateCommissionLedger[] @relation("ReferredFanCommissions")
 
   @@index([role])
   @@index([kycStatus])
@@ -677,6 +772,18 @@ model CreatorProfile {
   reportsReceived            Report[]                     @relation("ReportedCreator")
   moderationCases            ModerationCase[]             @relation("ReportedCreatorCases")
   recommendationEvents       RecommendationEvent[]
+  coStreamSessionsPrimary    CoStreamSession[]            @relation("PrimaryHostCoStreams")
+  coStreamParticipations     CoStreamParticipant[]
+  jointProductsPrimary       JointProduct[]               @relation("PrimaryProducerJointProducts")
+  jointProductCoStars        JointProductCoCreator[]      @relation("CoStarJointProducts")
+  jointEventsPrimary         JointEvent[]                 @relation("PrimaryHostJointEvents")
+  jointEventCoHosts          JointEventCoHost[]           @relation("CoHostJointEvents")
+
+  // Affiliate & Referrals
+  referralCodes              CreatorReferralCode[]        @relation("CreatorReferralCodes")
+  referralTouchpoints        ReferralTouchpoint[]         @relation("CreatorTouchpoints")
+  referralAttributionsReferring ReferralAttribution[]     @relation("ReferringCreator")
+  affiliateCommissionsEarned AffiliateCommissionLedger[]  @relation("ReferringCreatorCommissions")
 
   @@index([isLive])
   @@index([moderationState])
@@ -796,6 +903,7 @@ model Livestream {
   gameSessions         GameSession[]
   reports              Report[]
   recommendationEvents RecommendationEvent[]
+  coStreamSession      CoStreamSession?
 
   @@index([creatorProfileId, status])
   @@index([status, startedAt])
@@ -846,6 +954,59 @@ model Seat {
   @@unique([livestreamId, seatIndex])
   @@index([livestreamId, isOccupied])
   @@map("seats")
+}
+
+model CoStreamSession {
+  id                     String                 @id @default(uuid())
+  livestreamId           String?                @unique @map("livestream_id")
+  livestream             Livestream?            @relation(fields: [livestreamId], references: [id], onDelete: SetNull)
+  primaryHostId          String                 @map("primary_host_id")
+  primaryHost            CreatorProfile         @relation("PrimaryHostCoStreams", fields: [primaryHostId], references: [id], onDelete: Cascade)
+  title                  String                 @default("Co-Livestream Broadcast")
+  status                 CoStreamSessionStatus  @default(INVITED)
+  layoutMode             CoStreamLayoutMode     @default(SIDE_BY_SIDE) @map("layout_mode")
+  mediaRoomId            String?                @map("media_room_id")
+  totalSplitPercentage   Decimal                @default(1.00) @map("total_split_percentage") @db.Decimal(5, 2)
+  platformRakePercentage Decimal                @default(0.20) @map("platform_rake_percentage") @db.Decimal(5, 2)
+  totalGrossCredits      Int                    @default(0) @map("total_gross_credits")
+  totalPlatformFee       Int                    @default(0) @map("total_platform_fee")
+  totalNetCredits        Int                    @default(0) @map("total_net_credits")
+  scheduledStartAt       DateTime?              @map("scheduled_start_at")
+  startedAt              DateTime?              @map("started_at")
+  endedAt                DateTime?              @map("ended_at")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+
+  participants           CoStreamParticipant[]
+
+  @@index([primaryHostId, status])
+  @@index([status, startedAt])
+  @@map("co_stream_sessions")
+}
+
+model CoStreamParticipant {
+  id                   String                     @id @default(uuid())
+  coStreamSessionId    String                     @map("co_stream_session_id")
+  coStreamSession      CoStreamSession            @relation(fields: [coStreamSessionId], references: [id], onDelete: Cascade)
+  creatorProfileId     String                     @map("creator_profile_id")
+  creatorProfile       CreatorProfile             @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  role                 CoStreamParticipantRole    @default(CO_HOST)
+  splitPercentage      Decimal                    @default(0.50) @map("split_percentage") @db.Decimal(5, 2)
+  status               CoStreamParticipantStatus @default(INVITED)
+  whipIngestUrl        String?                    @map("whip_ingest_url")
+  webrtcTrackId        String?                    @map("webrtc_track_id")
+  isMediaPublished     Boolean                    @default(false) @map("is_media_published")
+  isMuted              Boolean                    @default(false) @map("is_muted")
+  totalCreditsEarned   Int                        @default(0) @map("total_credits_earned")
+  joinedAt             DateTime?                  @map("joined_at")
+  leftAt               DateTime?                  @map("left_at")
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @map("updated_at")
+
+  @@unique([coStreamSessionId, creatorProfileId])
+  @@index([creatorProfileId, status])
+  @@index([coStreamSessionId, status])
+  @@map("co_stream_participants")
 }
 
 // ============================================================================
@@ -1060,6 +1221,140 @@ model ContentPurchase {
   @@index([fanId])
   @@index([contentId])
   @@map("content_purchases")
+}
+
+model JointProduct {
+  id                      String                  @id @default(uuid())
+  primaryProducerId       String                  @map("primary_producer_id")
+  primaryProducer         CreatorProfile          @relation("PrimaryProducerJointProducts", fields: [primaryProducerId], references: [id], onDelete: Cascade)
+  title                   String
+  description             String?
+  contentType             ContentType             @default(VIDEO) @map("content_type")
+  priceCredits            Int                     @default(0) @map("price_credits")
+  previewUrl              String?                 @map("preview_url")
+  mediaUrl                String                  @map("media_url")
+  mediaDurationSeconds    Int?                    @map("media_duration_seconds")
+  status                  JointProductStatus      @default(DRAFT)
+  is2257Compliant         Boolean                 @default(false) @map("is_2257_compliant")
+  platformRakePercentage  Decimal                 @default(0.20) @map("platform_rake_percentage") @db.Decimal(5, 2)
+  totalPurchasesCount     Int                     @default(0) @map("total_purchases_count")
+  totalCreditsEarned      Int                     @default(0) @map("total_credits_earned")
+  publishedAt             DateTime?               @map("published_at")
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+
+  coCreators              JointProductCoCreator[]
+  purchases               JointProductPurchase[]
+
+  @@index([primaryProducerId, status])
+  @@index([status, publishedAt])
+  @@map("joint_products")
+}
+
+model JointProductCoCreator {
+  id                     String              @id @default(uuid())
+  jointProductId         String              @map("joint_product_id")
+  jointProduct           JointProduct        @relation(fields: [jointProductId], references: [id], onDelete: Cascade)
+  creatorProfileId       String              @map("creator_profile_id")
+  creatorProfile         CreatorProfile      @relation("CoStarJointProducts", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  role                   CoCreatorRole       @default(CO_STAR)
+  revenueSplitPercentage Decimal             @default(0.50) @map("revenue_split_percentage") @db.Decimal(5, 2)
+  approvalStatus         JointApprovalStatus @default(PENDING) @map("approval_status")
+  is2257Verified         Boolean             @default(false) @map("is_2257_verified")
+  approvedAt             DateTime?           @map("approved_at")
+  rejectionReason        String?             @map("rejection_reason")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  @@unique([jointProductId, creatorProfileId])
+  @@index([creatorProfileId, approvalStatus])
+  @@map("joint_product_co_creators")
+}
+
+model JointEvent {
+  id                     String             @id @default(uuid())
+  primaryHostId          String             @map("primary_host_id")
+  primaryHost            CreatorProfile     @relation("PrimaryHostJointEvents", fields: [primaryHostId], references: [id], onDelete: Cascade)
+  title                  String
+  description            String?
+  ticketPriceCredits     Int                @default(0) @map("ticket_price_credits")
+  coverImageUrl          String?            @map("cover_image_url")
+  scheduledStartAt       DateTime           @map("scheduled_start_at")
+  scheduledEndAt         DateTime?          @map("scheduled_end_at")
+  status                 JointEventStatus   @default(SCHEDULED)
+  mediaRoomId            String?            @map("media_room_id")
+  is2257Compliant        Boolean            @default(false) @map("is_2257_compliant")
+  platformRakePercentage Decimal            @default(0.20) @map("platform_rake_percentage") @db.Decimal(5, 2)
+  totalTicketsSold       Int                @default(0) @map("total_tickets_sold")
+  totalCreditsEarned     Int                @default(0) @map("total_credits_earned")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  coHosts                JointEventCoHost[]
+  tickets                JointEventTicket[]
+
+  @@index([primaryHostId, status])
+  @@index([scheduledStartAt, status])
+  @@map("joint_events")
+}
+
+model JointEventCoHost {
+  id                     String              @id @default(uuid())
+  jointEventId           String              @map("joint_event_id")
+  jointEvent             JointEvent          @relation(fields: [jointEventId], references: [id], onDelete: Cascade)
+  creatorProfileId       String              @map("creator_profile_id")
+  creatorProfile         CreatorProfile      @relation("CoHostJointEvents", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  role                   CoCreatorRole       @default(CO_HOST)
+  revenueSplitPercentage Decimal             @default(0.50) @map("revenue_split_percentage") @db.Decimal(5, 2)
+  approvalStatus         JointApprovalStatus @default(PENDING) @map("approval_status")
+  is2257Verified         Boolean             @default(false) @map("is_2257_verified")
+  approvedAt             DateTime?           @map("approved_at")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  @@unique([jointEventId, creatorProfileId])
+  @@index([creatorProfileId, approvalStatus])
+  @@map("joint_event_co_hosts")
+}
+
+model JointProductPurchase {
+  id                  String             @id @default(uuid())
+  jointProductId      String             @map("joint_product_id")
+  jointProduct        JointProduct       @relation(fields: [jointProductId], references: [id], onDelete: Cascade)
+  fanId               String             @map("fan_id")
+  fan                 User               @relation("UserJointPurchases", fields: [fanId], references: [id], onDelete: Cascade)
+  priceCreditsPaid    Int                @map("price_credits_paid")
+  platformFeeCredits  Int                @map("platform_fee_credits")
+  netCreatorCredits   Int                @map("net_creator_credits")
+  walletTransactionId String?            @map("wallet_transaction_id")
+  accessGrantedAt     DateTime           @default(now()) @map("access_granted_at")
+  createdAt           DateTime           @default(now()) @map("created_at")
+
+  @@unique([jointProductId, fanId])
+  @@index([fanId])
+  @@index([jointProductId])
+  @@map("joint_product_purchases")
+}
+
+model JointEventTicket {
+  id                  String             @id @default(uuid())
+  jointEventId        String             @map("joint_event_id")
+  jointEvent          JointEvent         @relation(fields: [jointEventId], references: [id], onDelete: Cascade)
+  fanId               String             @map("fan_id")
+  fan                 User               @relation("UserJointTickets", fields: [fanId], references: [id], onDelete: Cascade)
+  ticketPriceCreditsPaid Int             @map("ticket_price_credits_paid")
+  platformFeeCredits  Int                @map("platform_fee_credits")
+  netCreatorCredits   Int                @map("net_creator_credits")
+  walletTransactionId String?            @map("wallet_transaction_id")
+  accessPassToken     String?            @map("access_pass_token")
+  isUsed              Boolean            @default(false) @map("is_used")
+  usedAt              DateTime?          @map("used_at")
+  createdAt           DateTime           @default(now()) @map("created_at")
+
+  @@unique([jointEventId, fanId])
+  @@index([fanId])
+  @@index([jointEventId])
+  @@map("joint_event_tickets")
 }
 
 // ============================================================================
@@ -1944,4 +2239,112 @@ model WalletHold {
   @@index([releaseAt, status])
   @@map("wallet_holds")
 }
+
+// ============================================================================
+// 18. CREATOR AFFILIATE, REFERRAL ATTRIBUTION & COMMISSION LEDGER
+// ============================================================================
+
+model CreatorReferralCode {
+  id                    String                @id @default(uuid())
+  creatorProfileId      String                @map("creator_profile_id")
+  creatorProfile        CreatorProfile        @relation("CreatorReferralCodes", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  code                  String                @unique // Vanity code e.g. "LOLA_VIP", "SUMMER26"
+  campaignName          String?               @map("campaign_name") // e.g. "Twitter Promo", "Instagram Bio"
+  commissionRatePercent Float                 @default(10.0) @map("commission_rate_percent") // e.g. 10.0%
+  cookieWindowDays      Int                   @default(30) @map("cookie_window_days")
+  spendWindowDays       Int                   @default(30) @map("spend_window_days")
+  isActive              Boolean               @default(true) @map("is_active")
+  totalClicks           Int                   @default(0) @map("total_clicks")
+  totalSignups          Int                   @default(0) @map("total_signups")
+  totalEarningsCredits  BigInt                @default(0) @map("total_earnings_credits")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+
+  touchpoints           ReferralTouchpoint[]  @relation("ReferralCodeTouchpoints")
+  attributions          ReferralAttribution[] @relation("ReferralCodeAttributions")
+
+  @@index([creatorProfileId, isActive])
+  @@index([code])
+  @@map("creator_referral_codes")
+}
+
+model ReferralTouchpoint {
+  id                    String                @id @default(uuid())
+  referralCodeId        String?               @map("referral_code_id")
+  referralCode          CreatorReferralCode?  @relation("ReferralCodeTouchpoints", fields: [referralCodeId], references: [id], onDelete: SetNull)
+  creatorProfileId      String                @map("creator_profile_id")
+  creatorProfile        CreatorProfile        @relation("CreatorTouchpoints", fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  userId                String?               @map("user_id")
+  user                  User?                 @relation("TouchpointUser", fields: [userId], references: [id], onDelete: SetNull)
+  anonymousSessionId    String                @map("anonymous_session_id")
+  deviceFingerprintHash String?               @map("device_fingerprint_hash")
+  ipAddress             String?               @map("ip_address")
+  userAgent             String?               @map("user_agent")
+  landingPage           String?               @map("landing_page")
+  utmSource             String?               @map("utm_source")
+  utmMedium             String?               @map("utm_medium")
+  utmCampaign           String?               @map("utm_campaign")
+  createdAt             DateTime              @default(now()) @map("created_at")
+
+  @@index([referralCodeId, createdAt])
+  @@index([creatorProfileId, createdAt])
+  @@index([anonymousSessionId])
+  @@index([deviceFingerprintHash])
+  @@index([ipAddress])
+  @@map("referral_touchpoints")
+}
+
+model ReferralAttribution {
+  id                           String                      @id @default(uuid())
+  referredUserId               String                      @unique @map("referred_user_id")
+  referredUser                 User                        @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  referralCodeId               String?                     @map("referral_code_id")
+  referralCode                 CreatorReferralCode?        @relation("ReferralCodeAttributions", fields: [referralCodeId], references: [id], onDelete: SetNull)
+  referringCreatorProfileId    String                      @map("referring_creator_profile_id")
+  referringCreatorProfile      CreatorProfile              @relation("ReferringCreator", fields: [referringCreatorProfileId], references: [id], onDelete: Cascade)
+  attributionModel             AttributionModelType        @default(LAST_TOUCH) @map("attribution_model")
+  status                       AttributionStatus           @default(ACTIVE) @map("status")
+  commissionRatePercent        Float                       @default(10.0) @map("commission_rate_percent")
+  spendWindowDays              Int                         @default(30) @map("spend_window_days")
+  windowExpiresAt              DateTime                    @map("window_expires_at")
+  totalCommissionEarnedCredits Int                         @default(0) @map("total_commission_earned_credits")
+  totalReferredSpendCredits    Int                         @default(0) @map("total_referred_spend_credits")
+  fraudCheckStatus             String                      @default("PASSED") @map("fraud_check_status") // PASSED, FLAGGED_REVIEW, BLOCKED
+  fraudReason                  String?                     @map("fraud_reason")
+  attributedAt                 DateTime                    @default(now()) @map("attributed_at")
+  updatedAt                    DateTime                    @updatedAt @map("updated_at")
+
+  commissions                  AffiliateCommissionLedger[]
+
+  @@index([referringCreatorProfileId, status])
+  @@index([referredUserId])
+  @@index([windowExpiresAt, status])
+  @@map("referral_attributions")
+}
+
+model AffiliateCommissionLedger {
+  id                         String                    @id @default(uuid())
+  referralAttributionId      String                    @map("referral_attribution_id")
+  referralAttribution        ReferralAttribution       @relation(fields: [referralAttributionId], references: [id], onDelete: Cascade)
+  referringCreatorProfileId  String                    @map("referring_creator_profile_id")
+  referringCreatorProfile    CreatorProfile            @relation("ReferringCreatorCommissions", fields: [referringCreatorProfileId], references: [id], onDelete: Cascade)
+  referredUserId             String                    @map("referred_user_id")
+  referredUser               User                      @relation("ReferredFanCommissions", fields: [referredUserId], references: [id], onDelete: Cascade)
+  sourceType                 AffiliateSourceType       @map("source_type")
+  sourceTransactionId        String?                   @map("source_transaction_id")
+  grossAmountCredits         Int                       @map("gross_amount_credits")
+  commissionRatePercent      Float                     @map("commission_rate_percent")
+  commissionCredits          Int                       @map("commission_credits")
+  status                     AffiliateCommissionStatus @default(CLEARED) @map("status")
+  creatorEarningId           String?                   @map("creator_earning_id")
+  notes                      String?
+  createdAt                  DateTime                  @default(now()) @map("created_at")
+
+  @@index([referringCreatorProfileId, createdAt])
+  @@index([referredUserId, createdAt])
+  @@index([referralAttributionId])
+  @@index([status])
+  @@map("affiliate_commission_ledgers")
+}
+
 

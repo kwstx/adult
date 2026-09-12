@@ -25,6 +25,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`dark ${seasonFont.variable}`}>
+      <head>
+        <link
+          href="https://api.fontshare.com/v2/css?f[]=switzer@100,200,300,400,500,600,700,800,900&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className="min-h-screen bg-[#060608] text-zinc-100 antialiased selection:bg-blue-500 selection:text-white">
         <UserProvider>
           <AnimationProvider>

@@ -1,3 +1,4 @@
+@import url('https://api.fontshare.com/v2/css?f[]=switzer@100,200,300,400,500,600,700,800,900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:wght@400..800&display=swap');
 
 @tailwind base;
@@ -5,11 +6,24 @@
 @tailwind utilities;
 
 @font-face {
+  font-family: 'Switzer';
+  src: local('Switzer'), local('Switzer-Regular'), local('Switzer-Medium'), local('Switzer-Bold');
+  font-weight: 100 900;
+  font-style: normal italic;
+  font-display: swap;
+}
+
+@font-face {
   font-family: 'Season Mix';
   src: local('Season Mix'), local('SeasonMix'), local('SeasonMix-Regular');
   font-weight: 100 900;
   font-style: normal italic;
   font-display: swap;
+}
+
+.font-switzer {
+  font-family: 'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+  letter-spacing: -0.02em;
 }
 
 .font-season,

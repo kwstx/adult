@@ -19,17 +19,42 @@ import {
   Bell,
   Flame,
   TrendingUp,
-  Dumbbell,
-  Plane,
-  Briefcase,
   Radio,
   Coins,
+  Zap,
+  Video,
+  Headphones,
+  Music,
+  Trophy,
+  Gamepad2,
+  MessageCircle,
 } from "lucide-react";
 import { VerifiedBadge } from "@/components/common/VerifiedBadge";
 import { CoinsPill } from "@/components/common/CoinsPill";
 import { FanslyReelViewer } from "./FanslyReelViewer";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { useUser } from "@/lib/user-context";
+
+// Category Navigation Item
+export interface CategoryNavItem {
+  id: string;
+  name: string;
+  icon: React.ElementType;
+  tag?: string;
+  badge?: string;
+}
+
+export const PRODUCT_CATEGORIES: CategoryNavItem[] = [
+  { id: "live-now", name: "Live Now", icon: Flame, badge: "LIVE" },
+  { id: "interactive", name: "Interactive & Toys", icon: Zap, tag: "interactive" },
+  { id: "vip", name: "VIP & 1-on-1", icon: Video, tag: "vip" },
+  { id: "cosplay", name: "Cosplay & Anime", icon: Sparkles, tag: "cosplay" },
+  { id: "asmr", name: "ASMR & Whispers", icon: Headphones, tag: "asmr" },
+  { id: "dance", name: "Dance & Shows", icon: Music, tag: "dance" },
+  { id: "battles", name: "Contests & Wheels", icon: Trophy, tag: "battles" },
+  { id: "gaming", name: "Gaming & Late Night", icon: Gamepad2, tag: "gaming" },
+  { id: "chill", name: "Chill & Deep Chat", icon: MessageCircle, tag: "chill" },
+];
 
 // Who To Follow Item
 export interface WhoToFollowItem {
@@ -50,6 +75,7 @@ export interface StreamItem {
   displayName: string;
   username: string;
   tags: string;
+  category: string;
   streamPreviewUrl: string;
   viewerCount: number;
   isVerified: boolean;
@@ -58,42 +84,42 @@ export interface StreamItem {
 const DEFAULT_WHO_TO_FOLLOW: WhoToFollowItem[] = [
   {
     id: "wtf-1",
-    creatorId: "panterita_",
-    displayName: "Black_",
-    username: "Panterita_",
-    bio: "Model | Content Creator | Lifestyle",
+    creatorId: "maya_velvet",
+    displayName: "Maya Velvet ✨",
+    username: "maya_velvet",
+    bio: "Top interactive performer ✨ Haptic toy live & tip goals",
     avatarUrl:
       "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
     isVerified: true,
   },
   {
     id: "wtf-2",
-    creatorId: "aaronmich",
-    displayName: "Aaronmich...",
-    username: "Aaronmich...",
-    bio: "Fitness | Lifestyle | Business",
+    creatorId: "chloe_star",
+    displayName: "Chloe Star 🌟",
+    username: "chloe_star",
+    bio: "Cosplay & late night gaming 🎮 Exclusive outfit reveals",
     avatarUrl:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80",
     isVerified: true,
   },
   {
     id: "wtf-3",
-    creatorId: "jaklinaba",
-    displayName: "jaklinaba...",
-    username: "jaklinaba...",
-    bio: "Fashion | Travel | Lifestyle",
+    creatorId: "lexi_nova",
+    displayName: "Lexi Nova 💜",
+    username: "lexi_nova",
+    bio: "Binaural 3Dio ASMR & intimate late-night whispers 🎧",
     avatarUrl:
       "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&auto=format&fit=crop&q=80",
     isVerified: true,
   },
   {
     id: "wtf-4",
-    creatorId: "improperl",
-    displayName: "Improperl...",
-    username: "Improperl...",
-    bio: "Fitness | Motivation | Lifestyle",
+    creatorId: "seraphina_dark",
+    displayName: "Seraphina Dark 🖤",
+    username: "seraphina_dark",
+    bio: "Club DJ, pole flow & live wheel spin challenges! 💃",
     avatarUrl:
-      "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&auto=format&fit=crop&q=80",
     isVerified: true,
   },
 ];
@@ -101,68 +127,98 @@ const DEFAULT_WHO_TO_FOLLOW: WhoToFollowItem[] = [
 const DEFAULT_STREAMS: StreamItem[] = [
   {
     id: "stream-1",
-    creatorId: "hate",
-    displayName: "Hate",
-    username: "HateTheM...",
-    tags: "Just chatting · 18+",
+    creatorId: "maya_velvet",
+    displayName: "Maya Velvet ✨",
+    username: "maya_velvet",
+    tags: "Toy Control ⚡ · Goal 80%",
+    category: "interactive",
     streamPreviewUrl:
       "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80",
-    viewerCount: 162,
+    viewerCount: 2840,
     isVerified: true,
   },
   {
     id: "stream-2",
-    creatorId: "kikokinet",
-    displayName: "KikoKinet...",
-    username: "KikoKinet...",
-    tags: "Pool session · 18+",
+    creatorId: "chloe_star",
+    displayName: "Chloe Star 🌟",
+    username: "chloe_star",
+    tags: "Cosplay & Anime 🎭 · 18+",
+    category: "cosplay",
     streamPreviewUrl:
       "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80",
-    viewerCount: 92,
+    viewerCount: 1950,
     isVerified: true,
   },
   {
     id: "stream-3",
-    creatorId: "monika_yo",
-    displayName: "Monika_Yo...",
-    username: "Monika_Yo...",
-    tags: "Workout · 18+",
+    creatorId: "lexi_nova",
+    displayName: "Lexi Nova 💜",
+    username: "lexi_nova",
+    tags: "Binaural ASMR 🎧 · Whispers",
+    category: "asmr",
     streamPreviewUrl:
       "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&auto=format&fit=crop&q=80",
-    viewerCount: 73,
+    viewerCount: 1420,
     isVerified: true,
   },
   {
     id: "stream-4",
-    creatorId: "lunaraye",
-    displayName: "LunaRaye",
-    username: "LunaRaye",
-    tags: "Beach vibes · 18+",
+    creatorId: "seraphina_dark",
+    displayName: "Seraphina Dark 🖤",
+    username: "seraphina_dark",
+    tags: "Dance Show & DJ 💃 · VIP",
+    category: "dance",
     streamPreviewUrl:
-      "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&auto=format&fit=crop&q=80",
-    viewerCount: 51,
+      "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=600&auto=format&fit=crop&q=80",
+    viewerCount: 3110,
     isVerified: true,
   },
   {
     id: "stream-5",
-    creatorId: "sarastyle",
-    displayName: "SaraStyle",
-    username: "SaraStyle",
-    tags: "Dance · 18+",
+    creatorId: "elena_rossi",
+    displayName: "Elena Rossi 💎",
+    username: "elena_rossi",
+    tags: "Private 1-on-1 Open 📹 · VIP",
+    category: "vip",
     streamPreviewUrl:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&auto=format&fit=crop&q=80",
-    viewerCount: 38,
+      "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&auto=format&fit=crop&q=80",
+    viewerCount: 890,
     isVerified: true,
   },
   {
     id: "stream-6",
-    creatorId: "violetdreams",
-    displayName: "VioletDreams",
-    username: "VioletDreams",
-    tags: "Just chatting · 18+",
+    creatorId: "kira_fox",
+    displayName: "Kira Fox 🏆",
+    username: "kira_fox",
+    tags: "Spin Wheel & Dare 🎯 · 18+",
+    category: "battles",
     streamPreviewUrl:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80",
-    viewerCount: 26,
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&auto=format&fit=crop&q=80",
+    viewerCount: 640,
+    isVerified: true,
+  },
+  {
+    id: "stream-7",
+    creatorId: "mika_night",
+    displayName: "Mika Night 🎮",
+    username: "mika_night",
+    tags: "Late Night Gaming 🕹️ · 18+",
+    category: "gaming",
+    streamPreviewUrl:
+      "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80",
+    viewerCount: 520,
+    isVerified: true,
+  },
+  {
+    id: "stream-8",
+    creatorId: "zara_lounge",
+    displayName: "Zara Lounge 🍸",
+    username: "zara_lounge",
+    tags: "Candid Talk & Chill 💬 · 18+",
+    category: "chill",
+    streamPreviewUrl:
+      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&auto=format&fit=crop&q=80",
+    viewerCount: 430,
     isVerified: true,
   },
 ];
@@ -175,6 +231,13 @@ export function FanslyHomeFeed() {
   const [isRefreshingStreams, setIsRefreshingStreams] = useState(false);
   const [activeNav, setActiveNav] = useState<"home" | "explore" | "messages" | "profile">("home");
   const [activeCategory, setActiveCategory] = useState<string>("live-now");
+
+  const filteredStreams =
+    activeCategory === "live-now"
+      ? DEFAULT_STREAMS
+      : DEFAULT_STREAMS.filter((s) => s.category === activeCategory).length > 0
+      ? DEFAULT_STREAMS.filter((s) => s.category === activeCategory)
+      : DEFAULT_STREAMS;
 
   const toggleFollow = (id: string) => {
     setFollowingMap((prev) => ({
@@ -213,7 +276,7 @@ export function FanslyHomeFeed() {
             {/* 1. Brand Logo */}
             <div className="px-2 pt-1">
               <Link href="/" className="hover:opacity-90 transition-opacity inline-block">
-                <span className="text-3xl font-season font-medium tracking-tight text-white">
+                <span className="text-3xl font-switzer font-semibold tracking-tight text-white">
                   Velvet
                 </span>
               </Link>
@@ -283,89 +346,58 @@ export function FanslyHomeFeed() {
             </nav>
 
             {/* 3. Categories Menu */}
-            <div className="space-y-1 pt-1">
-              <div className="px-3.5 pb-1 text-xs font-semibold text-zinc-400">
-                Categories
+            <div className="space-y-0.5 pt-1">
+              <div className="flex items-center justify-between px-3.5 pb-1.5">
+                <span className="text-xs font-semibold text-zinc-400">Categories</span>
+                <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-full border border-purple-500/20">
+                  18+ Live
+                </span>
               </div>
 
-              {/* Live Now (Active category with purple left indicator) */}
-              <button
-                onClick={() => setActiveCategory("live-now")}
-                className={`w-full relative flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${
-                  activeCategory === "live-now"
-                    ? "bg-[#16161c] text-white border-l-2 border-purple-500 pl-3"
-                    : "text-zinc-400 hover:text-white hover:bg-zinc-900/50"
-                }`}
-              >
-                <Flame className="h-4 w-4 text-purple-400 fill-purple-400/30" />
-                <span>Live Now</span>
-              </button>
+              {PRODUCT_CATEGORIES.map((cat) => {
+                const Icon = cat.icon;
+                const isActive = activeCategory === cat.id;
 
-              {/* Discover */}
-              <button
-                onClick={() => setActiveCategory("discover")}
-                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900/50 transition-all"
-              >
-                <Compass className="h-4 w-4 stroke-[1.8]" />
-                <span>Discover</span>
-              </button>
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`w-full relative flex items-center justify-between px-3.5 py-2 rounded-xl text-sm font-medium transition-all group ${
+                      isActive
+                        ? "bg-[#16161c] text-white border-l-2 border-purple-500 pl-3 shadow-sm font-semibold"
+                        : "text-zinc-400 hover:text-white hover:bg-zinc-900/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Icon
+                        className={`h-4 w-4 shrink-0 transition-colors ${
+                          isActive
+                            ? "text-purple-400"
+                            : "text-zinc-400 group-hover:text-zinc-200"
+                        }`}
+                      />
+                      <span className="truncate">{cat.name}</span>
+                    </div>
+                    {cat.badge && (
+                      <span className="shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-rose-600 text-white animate-pulse">
+                        {cat.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
 
-              {/* Trending */}
-              <button
-                onClick={() => setActiveCategory("trending")}
-                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900/50 transition-all"
-              >
-                <TrendingUp className="h-4 w-4 stroke-[1.8]" />
-                <span>Trending</span>
-              </button>
-
-              {/* Girls */}
-              <button
-                onClick={() => setActiveCategory("girls")}
-                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900/50 transition-all"
-              >
-                <UserIcon className="h-4 w-4 stroke-[1.8]" />
-                <span>Girls</span>
-              </button>
-
-              {/* Fitness */}
-              <button
-                onClick={() => setActiveCategory("fitness")}
-                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900/50 transition-all"
-              >
-                <Dumbbell className="h-4 w-4 stroke-[1.8]" />
-                <span>Fitness</span>
-              </button>
-
-              {/* Travel */}
-              <button
-                onClick={() => setActiveCategory("travel")}
-                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900/50 transition-all"
-              >
-                <Plane className="h-4 w-4 stroke-[1.8]" />
-                <span>Travel</span>
-              </button>
-
-              {/* Business */}
-              <button
-                onClick={() => setActiveCategory("business")}
-                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900/50 transition-all"
-              >
-                <Briefcase className="h-4 w-4 stroke-[1.8]" />
-                <span>Business</span>
-              </button>
-
-              {/* More */}
-              <button
-                onClick={() => setActiveCategory("more")}
-                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900/50 transition-all"
+              {/* Discover More / All Categories link */}
+              <Link
+                href="/discover"
+                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900/50 transition-all group"
               >
                 <div className="flex items-center gap-3">
-                  <LayoutGrid className="h-4 w-4 stroke-[1.8]" />
-                  <span>More</span>
+                  <LayoutGrid className="h-4 w-4 stroke-[1.8] text-zinc-400 group-hover:text-zinc-200" />
+                  <span>Explore All</span>
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />
-              </button>
+                <ChevronRight className="h-3.5 w-3.5 text-zinc-500 group-hover:text-zinc-300 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
             </div>
           </div>
 
@@ -438,7 +470,7 @@ export function FanslyHomeFeed() {
           {/* Mobile Header (Mobile view only) */}
           <div className="lg:hidden flex items-center justify-between pb-1">
             <Link href="/">
-              <span className="text-2xl font-season font-medium tracking-tight text-white">
+              <span className="text-2xl font-switzer font-semibold tracking-tight text-white">
                 Velvet
               </span>
             </Link>
@@ -529,7 +561,7 @@ export function FanslyHomeFeed() {
 
             {/* Left Texts & Button */}
             <div className="relative z-10 space-y-2 max-w-sm">
-              <h2 className="text-3xl md:text-4xl lg:text-[40px] font-season font-normal tracking-tight text-white leading-[1.08]">
+              <h2 className="text-3xl md:text-4xl lg:text-[40px] font-switzer font-semibold tracking-tight text-white leading-[1.08]">
                 Made For
                 <br />
                 You
@@ -586,7 +618,7 @@ export function FanslyHomeFeed() {
 
                   {/* Bottom: Left-aligned Text & Chevron */}
                   <div className="relative z-10 w-full text-left">
-                    <div className="text-[11px] sm:text-xs font-season font-medium text-white leading-tight tracking-tight">
+                    <div className="text-[11px] sm:text-xs font-switzer font-semibold text-white leading-tight tracking-tight">
                       Discover
                       <br />
                       New Creators
@@ -615,7 +647,7 @@ export function FanslyHomeFeed() {
 
                   {/* Text Block: Title (Single Line) + Subtitle (Single Line) */}
                   <div className="w-full text-center px-0.5">
-                    <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-season font-medium text-white tracking-tight whitespace-nowrap h-5">
+                    <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-switzer font-semibold text-white tracking-tight whitespace-nowrap h-5">
                       <svg
                         className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-red-500 mr-1 shrink-0"
                         viewBox="0 0 24 24"
@@ -650,7 +682,7 @@ export function FanslyHomeFeed() {
 
                   {/* Text Block: Title (Single Line) */}
                   <div className="w-full text-center px-0.5">
-                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs md:text-[13px] font-season font-medium text-white tracking-tight whitespace-nowrap h-5">
+                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs md:text-[13px] font-switzer font-semibold text-white tracking-tight whitespace-nowrap h-5">
                       <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-[#c0d4ec] text-[#c0d4ec] shrink-0" />
                       <span className="whitespace-nowrap">Top Rated</span>
                     </div>
@@ -676,7 +708,7 @@ export function FanslyHomeFeed() {
 
                   {/* Text Block: Title (Single Line) */}
                   <div className="w-full text-center px-0.5">
-                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs md:text-[13px] font-season font-medium text-white tracking-tight whitespace-nowrap h-5">
+                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs md:text-[13px] font-switzer font-semibold text-white tracking-tight whitespace-nowrap h-5">
                       <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-[#c0d4ec] text-[#c0d4ec] shrink-0" />
                       <span className="whitespace-nowrap">New</span>
                     </div>
@@ -710,7 +742,7 @@ export function FanslyHomeFeed() {
 
                   {/* Text Block: Title (Single Line) */}
                   <div className="w-full text-center px-0.5 pb-0.5">
-                    <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-season font-medium text-white tracking-tight whitespace-nowrap h-5">
+                    <div className="flex items-center justify-center text-[11px] sm:text-xs md:text-[13px] font-switzer font-semibold text-white tracking-tight whitespace-nowrap h-5">
                       <span className="whitespace-nowrap">Categories</span>
                     </div>
                     <div className="flex items-center justify-center h-4 mt-0.5">
@@ -723,7 +755,7 @@ export function FanslyHomeFeed() {
               {/* Who To Follow Section */}
               <section className="space-y-3 pt-1">
                 <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xl md:text-2xl font-season font-medium text-white tracking-tight">
+                  <h2 className="text-xl md:text-2xl font-switzer font-semibold text-white tracking-tight">
                     Who To Follow
                   </h2>
                   <Link
@@ -801,8 +833,10 @@ export function FanslyHomeFeed() {
             <div className="lg:col-span-5 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl md:text-2xl font-season font-medium text-white tracking-tight">
-                    Streams You Might Like
+                  <h2 className="text-xl md:text-2xl font-switzer font-semibold text-white tracking-tight">
+                    {activeCategory === "live-now"
+                      ? "Streams You Might Like"
+                      : `${PRODUCT_CATEGORIES.find((c) => c.id === activeCategory)?.name || "Live"} Streams`}
                   </h2>
                   <button
                     onClick={handleRefreshStreams}
@@ -825,9 +859,9 @@ export function FanslyHomeFeed() {
                 </Link>
               </div>
 
-              {/* 6 Streams Stacked Vertically */}
+              {/* Streams Stacked Vertically */}
               <div className="space-y-2.5">
-                {DEFAULT_STREAMS.map((stream) => (
+                {filteredStreams.map((stream) => (
                   <div
                     key={stream.id}
                     className="flex items-center justify-between rounded-2xl bg-[#111116] border border-zinc-800/80 p-2.5 hover:border-zinc-700 transition-all gap-3"

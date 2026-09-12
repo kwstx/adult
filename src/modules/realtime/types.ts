@@ -76,7 +76,16 @@ export type RealtimeEventType =
   | "SUBSCRIPTION_RENEWED"
   | "MESSAGE_SENT"
   | "VIEW_DURATION_HEARTBEAT"
-  | "SECURITY_ALERT";
+  | "SECURITY_ALERT"
+  // Co-Stream and Split Revenue Events
+  | "CO_STREAM_INVITATION"
+  | "CO_STREAM_ACCEPTED"
+  | "CO_STREAM_DECLINED"
+  | "CO_STREAM_STARTED"
+  | "CO_STREAM_LAYOUT_CHANGED"
+  | "CO_STREAM_SPLIT_EARNING"
+  | "CO_STREAM_ENDED"
+  | "SPLIT_EARNING_RECEIVED";
 
 // ----------------------------------------------------------------------------
 // STANDARDIZED DOMAIN EVENT ENVELOPE

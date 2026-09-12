@@ -11,6 +11,16 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
+        switzer: [
+          '"Switzer"',
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "Roboto",
+          "Helvetica",
+          "Arial",
+          "sans-serif",
+        ],
         season: [
           "var(--font-season)",
           "Season Mix",

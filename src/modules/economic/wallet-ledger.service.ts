@@ -93,7 +93,7 @@ export class WalletLedgerService {
   /**
    * Asserts that a wallet exists, is active, and has sufficient credits.
    */
-  private static validateWalletUsability(wallet: any, requiredCredits: number = 0) {
+  public static validateWalletUsability(wallet: any, requiredCredits: number = 0) {
     if (!wallet) {
       throw new Error("Wallet not found.");
     }

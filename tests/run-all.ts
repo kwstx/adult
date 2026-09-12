@@ -20,6 +20,9 @@ import { runEntitlementUnitTests } from "./unit/entitlements.unit.test";
 import { runOrderUnitTests } from "./unit/orders.unit.test";
 import { runEventStreamUnitTests } from "./unit/event-stream.unit.test";
 import { runStateMachineUnitTests } from "./unit/state-machines.unit.test";
+import { runCoStreamUnitTests } from "./unit/co-stream-split-ledger.unit.test";
+import { runJointPPVUnitTests } from "./unit/joint-ppv-events.unit.test";
+import { runAffiliateUnitTests } from "./unit/affiliate-attribution.unit.test";
 import { runOrdersEntitlementsIntegrationTests } from "./integration/orders-entitlements.integration.test";
 import { runBehavioralEventsIntegrationTests } from "./integration/behavioral-events.integration.test";
 import { runStateMachineIntegrationTests } from "./integration/state-machines.integration.test";
@@ -56,6 +59,9 @@ async function runMasterTestSuite() {
     { layer: "Layer 1C", name: "Unit: Order Management Engine", runner: runOrderUnitTests },
     { layer: "Layer 1D", name: "Unit: Behavioral Event Stream", runner: runEventStreamUnitTests },
     { layer: "Layer 1E", name: "Unit: 8 Domain State Machines", runner: runStateMachineUnitTests },
+    { layer: "Layer 1F", name: "Unit: Co-Stream & Split Ledger", runner: runCoStreamUnitTests },
+    { layer: "Layer 1G", name: "Unit: Joint PPV, Events & 2257", runner: runJointPPVUnitTests },
+    { layer: "Layer 1H", name: "Unit: Affiliate & Attribution Engine", runner: runAffiliateUnitTests },
     { layer: "Layer 2A", name: "Integration: Database Transactions", runner: runIntegrationTests },
     { layer: "Layer 2B", name: "Integration: Orders & Entitlements Triad", runner: runOrdersEntitlementsIntegrationTests },
     { layer: "Layer 2C", name: "Integration: Behavioral Events 8-Engine Fan-Out", runner: runBehavioralEventsIntegrationTests },

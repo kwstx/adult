@@ -2,6 +2,7 @@ import prisma from "@/lib/db";
 import { UserRole, KYCStatus, AccountModerationState } from "@prisma/client";
 import { generateUserToken, ApiError } from "@/lib/api-handler";
 import { WalletLedgerService } from "@/modules/economic/wallet-ledger.service";
+import { ReferralAttributionService } from "@/modules/affiliate/referral-attribution.service";
 
 export interface RegisterInput {
   email: string;
@@ -11,6 +12,12 @@ export interface RegisterInput {
   avatarUrl?: string;
   bio?: string;
   ageVerified?: boolean;
+  referralCode?: string;
+  attributionToken?: string;
+  anonymousSessionId?: string;
+  deviceFingerprintHash?: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 export interface LoginInput {
@@ -50,6 +57,12 @@ export class AuthService {
       avatarUrl,
       bio,
       ageVerified = true,
+      referralCode,
+      attributionToken,
+      anonymousSessionId,
+      deviceFingerprintHash,
+      ipAddress,
+      userAgent,
     } = input;
 
     // Check for existing user
@@ -125,6 +138,27 @@ export class AuthService {
           },
         });
         creatorProfileId = creatorProfile.id;
+      }
+
+      // Referral Attribution linkage
+      if (referralCode || attributionToken || anonymousSessionId || deviceFingerprintHash) {
+        try {
+          await ReferralAttributionService.attributeUserOnRegistration(
+            {
+              newUserId: user.id,
+              referralCode,
+              signedToken: attributionToken,
+              anonymousSessionId,
+              deviceFingerprintHash,
+              ipAddress,
+              userAgent,
+              userEmail: user.email,
+            },
+            tx
+          );
+        } catch {
+          // Non-blocking for registration flow
+        }
       }
 
       const token = generateUserToken({
